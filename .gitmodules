@@ -3,7 +3,7 @@
 	url = ./poemas/
 [submodule "dotfiles/public"]
 	path = dotfiles/public
-	url = ./dotfiles/public/
+	url = git@github.com:alt-romes/dotfiles.git
 [submodule "dotfiles/private"]
 	path = dotfiles/private
 	url = ./dotfiles/private/
