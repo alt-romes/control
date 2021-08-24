@@ -12,4 +12,4 @@
 	url = ./site/
 [submodule "languages/japanese-deck"]
 	path = languages/japanese-deck
-	url = ./languages/japanese-deck
+	url = git@github.com:alt-romes/the-japanese-deck.git
