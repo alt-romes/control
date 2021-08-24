@@ -1,0 +1,15 @@
+[submodule "poemas"]
+	path = poemas
+	url = ./poemas/
+[submodule "dotfiles/public"]
+	path = dotfiles/public
+	url = ./dotfiles/public/
+[submodule "dotfiles/private"]
+	path = dotfiles/private
+	url = ./dotfiles/private/
+[submodule "site"]
+	path = site
+	url = ./site/
+[submodule "languages/japanese-deck"]
+	path = languages/japanese-deck
+	url = ./languages/japanese-deck
