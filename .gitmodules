@@ -1,6 +1,6 @@
 [submodule "poemas"]
 	path = poemas
-	url = ./poemas/
+	url = git@github.com:alt-romes/poetry.git
 [submodule "dotfiles/public"]
 	path = dotfiles/public
 	url = git@github.com:alt-romes/dotfiles.git
