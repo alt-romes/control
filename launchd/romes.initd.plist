@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>Label</key>
+    <string>romes.initd</string>
+    <key>Program</key>
+    <string>/Users/romes/control/launchd/romes.initd.sh</string>
+    <!-- <key>WorkingDirectory</key>
+         ...-->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <!-- This optional key specifies whether the job can only be run once and only once.  In
+         other words, if the job cannot be safely respawned without a full machine reboot,
+         then set this key to be true. -->
+    <!-- <key>LaunchOnlyOnce</key> -->        
+    <!-- <true/> -->
+    <key>StandardOutPath</key>
+    <string>/tmp/romes.initd.stdout</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/romes.initd.stderr</string>
+  </dict>
+</plist>
