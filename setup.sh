@@ -51,6 +51,7 @@ brew install exa # modern ls replacement
 pip install https://github.com/dylanaraps/pywal/archive/master.zip # install pywal
 brew install translate-shell
 
+brew install --cask iterm2
 brew install --cask anki
 brew install --cask vlc
 brew install --cask flycut
@@ -58,3 +59,4 @@ brew install --cask flux
 brew install --cask lyricsx
 echo "TODO: install and configure weechat"
 # brew install weechat
+echo "Maybe install: Things3, Minecraft"
