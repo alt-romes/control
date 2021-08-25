@@ -1,0 +1,9 @@
+Add train departures & arrivals +site +control
+vim-like css style +site
+add radicals deck +japanese
+read tae kim's guide to grammatic +japanese
+páginas para apontamentos, gramática e vocabulário e links para as 3 línguas, e putra data +site +control
+read about sentence mining +languages
+lista de todos os kanji com explicações históricas (encontrar dicionário desses) +japanese +languages
+add Fun with Chinese Characters - The Straits Times Collection, cartoonist Tan Huay Peng +books
+desenhar o deck de japonês, o site para os kanji, com etimologia e traduções para várias linguas, e a linguagem de programação que gera cartas de anki e entradas do site ao mesmo tempo
