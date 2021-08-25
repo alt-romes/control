@@ -1,2 +1,0 @@
-# List of software and dotfiles to set up my computer from zero
-
