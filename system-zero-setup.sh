@@ -4,7 +4,7 @@
 xcode-select --install
 
 # Install Homebrew
-if command -v brew >/dev/null 2>&1; then
+if ! command -v brew >/dev/null 2>&1; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)";
 fi;
 brew update
@@ -24,9 +24,6 @@ if ! grep -Fq "${BREW_PREFIX}/bin/bash" /etc/shells; then
   chsh -s "${BREW_PREFIX}/bin/bash";
 fi;
 
-# Change to new bash
-"${BREW_PREFIX}"/bin/bash
-
 brew install git
 brew install vim
 brew install openssh
@@ -44,9 +41,9 @@ function prompt_optinstall {
     read -r -p "Do you want to install $1? (y/n) "
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
-        return 1
-    else
         return 0
+    else
+        return 1
     fi
 }
 
@@ -61,7 +58,7 @@ prompt_optinstall "f.lux" && brew install --cask flux
 prompt_optinstall "lyricsx" && brew install --cask lyricsx
 
 # Fonts
-if prompt_optional "the IBM Plex typeface"; then
+if prompt_optinstall "the IBM Plex typeface"; then
     brew tap homebrew/cask-fonts;
     brew install --cask font-ibm-plex;
 fi;
@@ -98,11 +95,14 @@ git pull
 ./control-setup.sh
 
 # Other
+if prompt_optinstall "the Haskell Platform"; then
+    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh;
+fi;
+
 prompt_optinstall "discord" && brew install --cask discord
 prompt_optinstall "steam" && brew install --cask steam
 
-echo "Maybe install: Things3, Minecraft, Baba Is You, NVIDIA GeForce, shellcheck..."
 
-exit 0 # exit "new bash" session
+echo "Maybe install: Things3, Minecraft, Baba Is You, NVIDIA GeForce, shellcheck..."
 
 echo "Complete. Restart your session (on iTerm), and run 'wal -i background.png'"
