@@ -11,3 +11,8 @@ desenhar o deck de japonês, o site para os kanji, com etimologia e traduções 
 vim undo files not working
 
 arranjar forma de ter a musica que gravo versioned e backed up online com o git-lfs
+
+fix lightline.vim interaction with wal.vim
+^^ add to setup copying edited wal.vim to the repo
+
+add git submodule update --recursive --remote --merge to the setup?

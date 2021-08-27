@@ -95,6 +95,9 @@ git pull
 ./control-setup.sh
 
 # Other
+prompt_optinstall "ticker" && brew install achannarasappa/tap/ticker
+prompt_optinstall "imagemagick (the default pywal backend)" && brew install imagemagick
+
 if prompt_optinstall "the Haskell Platform"; then
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh;
 fi;
