@@ -8,11 +8,8 @@ lista de todos os kanji com explicações históricas (encontrar dicionário des
 add Fun with Chinese Characters - The Straits Times Collection, cartoonist Tan Huay Peng +books
 desenhar o deck de japonês, o site para os kanji, com etimologia e traduções para várias linguas, e a linguagem de programação que gera cartas de anki e entradas do site ao mesmo tempo
 
-vim undo files not working
-
 arranjar forma de ter a musica que gravo versioned e backed up online com o git-lfs
 
-fix lightline.vim interaction with wal.vim
-^^ add to setup copying edited wal.vim to the repo
-
 add git submodule update --recursive --remote --merge to the setup?
+
+lightline, add some color to inactive tabs ?
