@@ -24,19 +24,6 @@ if ! grep -Fq "${BREW_PREFIX}/bin/bash" /etc/shells; then
   chsh -s "${BREW_PREFIX}/bin/bash";
 fi;
 
-brew install git
-brew install vim
-brew install openssh
-brew install gnupg # privacy/encryptation tools
-
-brew install python
-ln -si /usr/local/bin/python3 /usr/local/bin/python # create a symlink for python to shadow /usr/bin/python
-ln -si /usr/local/bin/pip3 /usr/local/bin/pip # create a symlink to write pip instead of pip3
-
-brew install exa # modern ls replacement
-brew install pass # unix like password manager
-pip install https://github.com/dylanaraps/pywal/archive/master.zip # pywal
-
 function prompt_optinstall {
     read -r -p "Do you want to install $1? (y/n) "
     if [[ $REPLY =~ ^[Yy]$ ]]
@@ -46,6 +33,19 @@ function prompt_optinstall {
         return 1
     fi
 }
+
+prompt_optinstall "a possibly more recent git (from --HEAD)" && brew install git
+prompt_optinstall "a possibly more recent vim (from --HEAD)" && brew install vim --HEAD
+prompt_optinstall "a possibly more recent openssh" && brew install openssh
+brew install gnupg # privacy/encryptation tools
+
+brew install python
+ln -si /usr/local/bin/python3 /usr/local/bin/python # create a symlink for python to shadow /usr/bin/python
+ln -si /usr/local/bin/pip3 /usr/local/bin/pip # create a symlink to write pip instead of pip3
+
+brew install exa # modern ls replacement
+brew install pass # unix like password manager
+pip install https://github.com/dylanaraps/pywal/archive/master.zip # pywal
 
 prompt_optinstall "translate-shell" && brew install translate-shell
 prompt_optinstall "weechat" && brew install weechat
@@ -105,7 +105,6 @@ fi;
 prompt_optinstall "discord" && brew install --cask discord
 prompt_optinstall "steam" && brew install --cask steam
 
-
-echo "Maybe install: Things3, Minecraft, Baba Is You, NVIDIA GeForce, shellcheck..."
+echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
 
 echo "Complete. Restart your session (on iTerm), and run 'wal -i background.png'"
