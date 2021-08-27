@@ -28,15 +28,25 @@ function prompt_optinstall {
     read -r -p "Do you want to install $1? (y/n) "
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
+        echo "Installing..."
         return 0
     else
+        echo "Not installed."
         return 1
     fi
 }
 
-prompt_optinstall "a possibly more recent git (from --HEAD)" && brew install git
+echo "Current git version: $(/usr/bin/git --version)"
+prompt_optinstall "a possibly more recent git" && brew install git
+
+echo "Current vim version: $(/usr/bin/vim --version)"
+echo "(WARNING: The following installation might break pywal)"
+echo "If it does, run 'brew uninstall vim' to attempt a fix"
 prompt_optinstall "a possibly more recent vim (from --HEAD)" && brew install vim --HEAD
+
+echo "Current ssh version: $(/usr/bin/ssh -V)"
 prompt_optinstall "a possibly more recent openssh" && brew install openssh
+
 brew install gnupg # privacy/encryptation tools
 
 brew install python
