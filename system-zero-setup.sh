@@ -115,6 +115,9 @@ fi;
 prompt_optinstall "discord" && brew install --cask discord
 prompt_optinstall "steam" && brew install --cask steam
 
+echo "Suggested for installation:"
+echo "brew install tldr"
+
 echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
 
 echo "Complete. Restart your session (on iTerm), and run 'wal -i background.png'"
