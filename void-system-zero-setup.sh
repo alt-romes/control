@@ -47,11 +47,27 @@ echo "Installing picom (compositor)"
 sudo xbps-install picom
 echo "Note: picom might still be outdated in relation to rounded corners. In this case, download void-package, edit the picom template version and work with xbps-src (binutils required)"
 
+echo "Installing background setter (feh)"
+sudo xbps-install hsetroot
+
+echo "Installing papirus icon theme and program to change folder color"
+sudo xbps-install -S papirus-icon-theme
+sudo xbps-install -S papirus-folders
+
+# Fonts
+echo "Fonts"
+echo "Installing cozette bitmap font"
+sudo xbps-install font-cozette
+echo "Suggested: font-ibm-plex-ttf"
+# sudo xbps-install font-ibm-plex-ttf
+
 echo "Installing GNUPG"
 sudo xbps-install gnupg
 echo "TODO: Import keys (see macOS script)"
 
+
 # Apps
+sudo xbps-install Thunar # file manager
 sudo xbps-install rxvt-unicode # terminal
 sudo xbps-install vim
 sudo xbps-install git
