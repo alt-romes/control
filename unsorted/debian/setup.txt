@@ -1,7 +1,0 @@
-# notes:
-
-# set up xmonad
-
-# set up alsa (sound)
-
-# set up xsession
