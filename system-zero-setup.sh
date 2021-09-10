@@ -91,13 +91,6 @@ prompt_optinstall "a possibly more recent git" && brew install git
 echo "Current ssh version: $(/usr/bin/ssh -V)"
 prompt_optinstall "a possibly more recent openssh" && brew install openssh
 
-echo "Current python version: $(/usr/bin/python3 -V)"
-prompt_optinstall "and set up a possibly more recent python" && {
-    brew install python
-    ln -si /usr/local/bin/python3 /usr/local/bin/python # create a symlink for python to shadow /usr/bin/python
-    ln -si /usr/local/bin/pip3 /usr/local/bin/pip # create a symlink to write pip instead of pip3
-}
-
 echo "2) recommended terminal programs:"
 
 echo "(WARNING: 'ls' is set as an alias to 'exa' in .bash_profile, either it's installed or the alias is deleted):"
@@ -137,6 +130,13 @@ echo "(WARNING: The following installation might break pywal):"
 echo "If it does, run 'brew uninstall vim' to attempt a fix"
 prompt_optinstall "a possibly more recent vim (from --HEAD)" && brew install vim --HEAD
 
+
+echo "Current python version: $(/usr/bin/python3 -V)"
+prompt_optinstall "and set up a possibly more recent python" && {
+    brew install python
+    ln -si /usr/local/bin/python3 /usr/local/bin/python # create a symlink for python to shadow /usr/bin/python
+    ln -si /usr/local/bin/pip3 /usr/local/bin/pip # create a symlink to write pip instead of pip3
+}
 prompt_optinstall "the Haskell Platform" && ( curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh )
 prompt_optinstall "rust (and its toolchain)" && ( curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh )
 prompt_optinstall "node" && brew install node
@@ -149,6 +149,10 @@ echo "Suggested for installation:"
 echo "brew install --cask discord"
 echo "brew install --cask steam"
 echo "brew install tldr"
+echo "brew install ffmpeg"
+echo "brew install --cask gimp"
+echo "brew install youtube-dl"
+echo "brew install --cask mactex-no-gui"
 
 echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
 
