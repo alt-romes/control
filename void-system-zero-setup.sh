@@ -9,6 +9,14 @@ sudo xbps-install -Su
 
 echo "XBPS does not restart services when they are updated. To find processes running different versions than are present on disk, use the xcheckrestart tool provided by the xtools package."
 
+# Session and Seat Management
+# TODO: Don't understand elogind, but it sets XDG RUNTIME DIR for me
+sudo xbps-install elogind # install elogind
+# Disable acpid bc of conflicts with elogind
+sudo rm -rf /var/service/acpid/
+# Enable elogind service (still don't understand why), but it'll replace acpid
+sudo ln -s /etc/sv/elogind/ /var/service/
+
 
 # Power saving
 echo "Power saving: Installing tlp"
@@ -33,6 +41,8 @@ echo "Users of NetworkManager must belong to the network group"
 sudo usermod -a -G network $(whoami)
 echo "NetworkManager is installed. Run nmcli or nmtui to check for a connection"
 
+# 
+
 
 # Graphical session
 echo "Graphical session..."
@@ -47,12 +57,18 @@ echo "Installing picom (compositor)"
 sudo xbps-install picom
 echo "Note: picom might still be outdated in relation to rounded corners. In this case, download void-package, edit the picom template version and work with xbps-src (binutils required)"
 
+echo "Installing obmenu-generator"
+sudo xbps-install obmenu-generator
+
 echo "Installing background setter (feh)"
 sudo xbps-install hsetroot
 
 echo "Installing papirus icon theme and program to change folder color"
 sudo xbps-install -S papirus-icon-theme
 sudo xbps-install -S papirus-folders
+
+echo "Install pipewire (audio)"
+sudo xbps-install pipewire
 
 # Fonts
 echo "Fonts"
@@ -66,13 +82,14 @@ sudo xbps-install gnupg
 echo "TODO: Import keys (see macOS script)"
 
 
-# Apps
+# Programs
 sudo xbps-install Thunar # file manager
 sudo xbps-install rxvt-unicode # terminal
 sudo xbps-install vim
 sudo xbps-install git
 sudo xbps-install curl
+sudo xbps-install make
 sudo xbps-install firefox
 
-# Utils
-sudo xbps-install make
+echo "Suggestions:"
+echo "sudo xbps-install krita"
