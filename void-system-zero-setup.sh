@@ -97,13 +97,16 @@ eval `ssh-agent -s`
 
 if [[ ! -d "$HOME/control" ]]
 then
-    git clone git@github.com:alt-romes/control.git
+    git clone https://github.com/alt-romes/control.git
 fi
 
 cd control || exit 1
 git pull
 
 source control-setup.sh # set up `control`
+
+echo "Changing control remote to use ssh"
+git remote set-url origin git@github.com:alt-romes/control.git
 
 echo "Installing more programs"
 sudo xbps-install exa
@@ -112,3 +115,5 @@ sudo xbps-install pywal
 
 echo "Suggestions:"
 echo "sudo xbps-install krita"
+
+
