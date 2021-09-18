@@ -92,6 +92,9 @@ sudo xbps-install firefox
 
 # Control
 
+echo "Start ssh-agent"
+eval `ssh-agent -s`
+
 if [[ ! -d "$HOME/control" ]]
 then
     git clone git@github.com:alt-romes/control.git
@@ -102,6 +105,10 @@ git pull
 
 source control-setup.sh # set up `control`
 
+echo "Installing more programs"
+sudo xbps-install exa
+sudo xbps-install pass
+sudo xbps-install pywal
 
 echo "Suggestions:"
 echo "sudo xbps-install krita"
