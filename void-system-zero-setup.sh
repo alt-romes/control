@@ -94,7 +94,7 @@ sudo xbps-install firefox
 
 if [[ ! -d "$HOME/control" ]]
 then
-    git clone --recursive git@github.com:alt-romes/control.git
+    git clone git@github.com:alt-romes/control.git
 fi
 
 cd control || exit 1

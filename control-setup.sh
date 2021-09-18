@@ -23,6 +23,9 @@ then
     gpg --import ~/keys/gnupgkey.asc
 fi
 
+echo "Initializing and updating submodules..."
+git submodule update --init --recursive
+
 # set up public dotfiles
 cd ./dotfiles/public || exit 1
 ./setup.sh

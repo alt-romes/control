@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -e
 
 # ----- --- -----
@@ -50,7 +49,7 @@ brew install gnupg # privacy/encryptation tools, used to decrypt the private dot
 
 if [[ ! -d "$HOME/control" ]]
 then
-    git clone --recursive git@github.com:alt-romes/control.git
+    git clone git@github.com:alt-romes/control.git
 fi
 
 cd control || exit 1
