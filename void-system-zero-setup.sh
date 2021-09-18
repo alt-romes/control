@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 set -e
 echo "System must be connected to the internet through an ethernet cable, or through WiFi with wpa_supplicant (and the dhcpcd service enabled)"
 
@@ -57,10 +59,7 @@ echo "Installing picom (compositor)"
 sudo xbps-install picom
 echo "Note: picom might still be outdated in relation to rounded corners. In this case, download void-package, edit the picom template version and work with xbps-src (binutils required)"
 
-echo "Installing obmenu-generator"
-sudo xbps-install obmenu-generator
-
-echo "Installing background setter (feh)"
+echo "Installing background setter"
 sudo xbps-install hsetroot
 
 echo "Installing papirus icon theme and program to change folder color"
@@ -77,12 +76,12 @@ sudo xbps-install font-cozette
 echo "Suggested: font-ibm-plex-ttf"
 # sudo xbps-install font-ibm-plex-ttf
 
-echo "Installing GNUPG"
+echo "Installing GnuPG"
 sudo xbps-install gnupg
-echo "TODO: Import keys (see macOS script)"
 
 
 # Programs
+echo "Installing programs"
 sudo xbps-install Thunar # file manager
 sudo xbps-install rxvt-unicode # terminal
 sudo xbps-install vim
@@ -90,6 +89,19 @@ sudo xbps-install git
 sudo xbps-install curl
 sudo xbps-install make
 sudo xbps-install firefox
+
+# Control
+
+if [[ ! -d "$HOME/control" ]]
+then
+    git clone --recursive git@github.com:alt-romes/control.git
+fi
+
+cd control || exit 1
+git pull
+
+source control-setup.sh # set up `control`
+
 
 echo "Suggestions:"
 echo "sudo xbps-install krita"

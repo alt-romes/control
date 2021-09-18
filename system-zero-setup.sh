@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # ----- --- -----
 
 echo "Installing developer command line tools..."
@@ -46,35 +48,15 @@ brew install gnupg # privacy/encryptation tools, used to decrypt the private dot
 
 # ----- --- -----
 
-echo
-echo "Setting up control..."
-echo "To clone the -control- repository, a valid private ssh key is required."
-read -r -p "Do you want to load a valid private ssh key? (y/n) "
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    echo "Move the ssh private key to ~/keys/sshkey"
-    read -r -p "Input any key afterwards... "
-    ssh-add ~/keys/sshkey
-fi
-
 if [[ ! -d "$HOME/control" ]]
 then
     git clone --recursive git@github.com:alt-romes/control.git
 fi
 
-echo "To decrypt the private dotfiles (which include, e.g., cryptographic keys),"
-echo "a valid gnupg secret key is required."
-read -r -p "Do you want to load a secret gnupg key? (y/n) "
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-    echo "Move the gnupg secret key to ~/keys/gnupgkey.asc"
-    read -r -p "Input any key afterwards... "
-    gpg --import ~/keys/gnupgkey.asc
-fi
-
 cd control || exit 1
 git pull
-source control-setup.sh
+
+source control-setup.sh # set up `control`
 
 # ----- --- -----
 
