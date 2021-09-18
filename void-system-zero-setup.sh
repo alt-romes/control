@@ -43,8 +43,6 @@ echo "Users of NetworkManager must belong to the network group"
 sudo usermod -a -G network $(whoami)
 echo "NetworkManager is installed. Run nmcli or nmtui to check for a connection"
 
-# 
-
 
 # Graphical session
 echo "Graphical session..."
@@ -55,6 +53,8 @@ echo "Installing openbox (window manager)"
 sudo xbps-install openbox
 echo "Installing openbox configuration app (obconf)"
 sudo xbps-install obconf
+echo "Installing openbox menu generator (required to configure and utilize generated menus)"
+sudo xbps-install obmenu-generator
 echo "Installing picom (compositor)"
 sudo xbps-install picom
 echo "Note: picom might still be outdated in relation to rounded corners. In this case, download void-package, edit the picom template version and work with xbps-src (binutils required)"
