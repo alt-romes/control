@@ -20,7 +20,7 @@ Setting up from scratch (configuring the OS and downloading a pseudo-minimal env
 
 `poemas` is my poetry record (50+) which I recently organized and that is still looking for a place to stay
 
-`site` is my homepage / identity page, where write ups, movies, albums and other (only relevant - not a comprehensive list, for that check [projects (WIP)]()) projects or records end up
+`site` is my homepage / identity page, where write ups, movies, albums and other (only relevant - not a comprehensive list, for that check [projects (WIP)]()) projects or records end up (written in haskell :))
 
 `unsorted` is unsorted from my first previous attempt at doing this (second way around - git submodules are cool :) )
 
