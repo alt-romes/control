@@ -90,6 +90,10 @@ sudo xbps-install curl
 sudo xbps-install make
 sudo xbps-install firefox
 
+sudo xbps-install exa
+sudo xbps-install pass
+sudo xbps-install pywal
+
 # Control
 
 echo "Start ssh-agent"
@@ -107,11 +111,6 @@ source control-setup.sh # set up `control`
 
 echo "Changing control remote to use ssh"
 git remote set-url origin git@github.com:alt-romes/control.git
-
-echo "Installing more programs"
-sudo xbps-install exa
-sudo xbps-install pass
-sudo xbps-install pywal
 
 echo "Suggestions:"
 echo "sudo xbps-install krita"
