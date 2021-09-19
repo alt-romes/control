@@ -47,7 +47,7 @@ chmod +x system-zero-setup.sh
 
 To setup a new voidlinux machine: get curl, then fetch and run the `void-system-zero-setup.sh` script.
 ```
-sudo xbps-install -u xbps
+sudo xbps-install -Su xbps
 sudo xbps-install curl
 curl -LO https://raw.githubusercontent.com/alt-romes/control/master/void-system-zero-setup.sh
 chmod +x void-system-zero-setup.sh
