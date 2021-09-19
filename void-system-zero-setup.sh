@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-set -e
 echo "System must be connected to the internet through an ethernet cable, or through WiFi with wpa_supplicant (and the dhcpcd service enabled)"
 
 echo "Updating xbps (package manager)"
