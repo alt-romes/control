@@ -36,7 +36,7 @@ cd ./dotfiles/private/ || exit 1
 ./setup.sh
 cd "${CONTROL}" || exit 1
 
-read -p "macOS*: Set up launchd agent to run romes.initd script on startup? (y/n) " -r
+read -p "macOS*: Set up launchd agents to run romes.initd.sh on startup and romes.hourd.sh hourly? (y/n) " -r
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     # set romes.initd script to launch on startup
@@ -46,6 +46,18 @@ then
         # first unload if file already exists
         launchctl unload ~/Library/LaunchAgents/romes.initd.plist
     fi
+    if [[ -f "$HOME/Library/LaunchAgents/romes.hourd.plist" ]]
+    then
+        launchctl unload ~/Library/LaunchAgents/romes.hourd.plist
+    fi
     cp launchd/romes.initd.plist "$HOME/Library/LaunchAgents/"
     launchctl load -w ~/Library/LaunchAgents/romes.initd.plist
+
+    cp launchd/romes.hourd.plist "$HOME/Library/LaunchAgents/"
+    launchctl load -w ~/Library/LaunchAgents/romes.hourd.plist
+
+    echo "To enable the launchd agents you must restart your session (Logout/Login)"
 fi
+
+echo "Setting up recordings in ~/Music/recordings"
+ln -sFi "${CONTROL}/recordings/" "$HOME/Music/"

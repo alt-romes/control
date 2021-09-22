@@ -47,18 +47,6 @@ brew install gnupg # privacy/encryptation tools, used to decrypt the private dot
 
 # ----- --- -----
 
-if [[ ! -d "$HOME/control" ]]
-then
-    git clone git@github.com:alt-romes/control.git
-fi
-
-cd control || exit 1
-git pull
-
-source control-setup.sh # set up `control`
-
-# ----- --- -----
-
 echo
 echo "Highly recommended installations..."
 
@@ -99,6 +87,22 @@ if prompt_optinstall "the IBM Plex typeface (used by an iTerm profile)"; then
     brew install --cask font-ibm-plex;
 fi;
 
+# TODO: brew install git lfs
+brew install git-lfs
+git lfs install
+
+# ----- --- -----
+
+if [[ ! -d "$HOME/control" ]]
+then
+    git clone git@github.com:alt-romes/control.git
+fi
+
+cd control || exit 1
+git pull
+
+source control-setup.sh # set up `control`
+
 # ----- --- -----
 
 echo
@@ -138,7 +142,8 @@ echo "azuki font: http://azukifont.com/font/azuki.html"
 echo "brew install --cask krita (alternatively: gimp)"
 echo "brew install balenaetcher"
 echo "brew install retroarch # retroarch-metal is the alternative metal graphics API version, however some emulator cores don't support metal."
-echo "curl -L https://nixos.org/nix/install | sh # install Nix"
+echo "XCode from app store; sudo gem install cocoapods"
+echo "iMovie from app store"
 
 echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
 
