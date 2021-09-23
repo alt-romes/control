@@ -61,3 +61,9 @@ fi
 
 echo "Setting up recordings in ~/Music/recordings"
 ln -sFi "${CONTROL}/recordings/" "$HOME/Music/"
+
+read -p "Set up .qemu (virtual machine starting scripts to use with qemu-manager.sh)? (y/n) " -r
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    ln -sFi "${CONTROL}/.qemu/" "$HOME/"
+fi

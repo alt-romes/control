@@ -25,7 +25,7 @@ qemu-system-x86_64 \
     -accel hvf \
     -m 4096 \
     -pflash ~/control/util/OVMF.fd \
-    -usb -device usb-host,vendorid=0x046d,productid=0xc05a \
+    -usb -device usb-kbd -device usb-mouse \
     -device e1000,netdev=net0 -netdev user,id=net0,hostfwd=tcp::5555-:22 \
     -hda ~/voidlinux.qcow
 
