@@ -9,8 +9,8 @@ qemu-system-x86_64 \
     -cpu Penryn,vendor=GenuineIntel,kvm=on,+sse3,+sse4.2,+aes,+xsave,+avx,+xsaveopt,+xsavec,+xgetbv1,+avx2,+bmi2,+smep,+bmi1,+fma,+movbe,+invtsc \
     -device isa-applesmc,osk="$OSK" \
     -smbios type=2 \
-    -drive if=pflash,format=raw,readonly,file="$FIRMWAREVM/OVMF_CODE.fd" \
-    -drive if=pflash,format=raw,file="$FIRMWAREVM/OVMF_VARS-1024x768.fd" \
+    -drive if=pflash,format=raw,readonly,file="$FIRMWAREDIR/OVMF_CODE.fd" \
+    -drive if=pflash,format=raw,file="$FIRMWAREDIR/OVMF_VARS-1024x768.fd" \
     -device ich9-intel-hda -device hda-output \
     -usb -device usb-kbd -device usb-mouse \
     -netdev user,id=net0 \
