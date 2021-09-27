@@ -2,7 +2,7 @@
 
 source ../environment.sh
 
-qemu-system-x86_64 \
+sudo qemu-system-x86_64 \
     -m 4G \
     -machine q35,accel=hvf \
     -smp 4,cores=2 \
@@ -20,4 +20,5 @@ qemu-system-x86_64 \
     -device ide-hd,bus=sata.2,drive=ESP \
     -drive id=SystemDisk,if=none,file=macOS.qcow2 \
     -device ide-hd,bus=sata.4,drive=SystemDisk \
-
+    -drive id=USB,if=none,file=/dev/rdisk2 \
+    -device ide-hd,bus=sata.3,drive=USB \

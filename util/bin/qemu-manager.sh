@@ -1,24 +1,6 @@
 #!/usr/bin/env bash
 
-while :
-do
-    cd "$HOME/.qemu/"
-
-    # Get list of VMs
-    shopt -s nullglob
-    vms=(*/)
-    shopt -u nullglob
-
-    printf "\033c"
-
-    counter=0
-    for vm in "${vms[@]}"
-    do
-        echo "$counter) $vm"
-        counter=$((counter+1))
-    done
-    echo
-
+prompt_reply() {
     echo "Choose, by number, a Virtual Machine to run..."
     read -r -p "> "
 
@@ -41,6 +23,28 @@ do
         sleep 1
         continue
     fi
+}
+
+while :
+do
+    cd "$HOME/.qemu/"
+
+    # Get list of VMs
+    shopt -s nullglob
+    vms=(*/)
+    shopt -u nullglob
+
+    printf "\033c"
+
+    counter=0
+    for vm in "${vms[@]}"
+    do
+        echo "$counter) $vm"
+        counter=$((counter+1))
+    done
+    echo
+
+    prompt_reply
 
     VM=${vms[$REPLY]}
     cd "$VM"
@@ -50,7 +54,8 @@ do
     if [[ -f "$REQ" ]] && ! "$REQ"
     then
         echo "Error: VM requirements are not satisfied!"
-        exit 1
+        sleep 2
+        continue
     fi
 
     echo "Starting virtual machine..."
