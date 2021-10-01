@@ -147,9 +147,22 @@ echo "brew install shellcheck"
 echo "mkdir -p ~/.local/bin; curl https://cht.sh/:cht.sh > ~/.local/bin/cht.sh ; chmod +x ~/.local/bin/cht.sh"
 echo "XCode from app store; sudo gem install cocoapods"
 echo "iMovie from app store"
+echo "brew install asciinema"
+echo "brew install firefox"
+echo "WIP: ... npm install -g asar # required for pywal discord"
+echo "brew install --cask emacs"
+echo "npm install -g mdanki"
+echo "pip install --upgrade jamdict jamdict-data"
 
 echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
 
 # ----- --- -----
 
-echo "Complete. Restart your session (on iTerm). Optionally set colors and background by running 'wal -i background.png'"
+echo "TODO Manually"
+
+echo "Set hot corners"
+echo "Set LyricsX, F.lux and Flycut to open on login"
+
+# ----- --- -----
+
+echo "Complete. Restart your session (on iTerm)."
