@@ -47,18 +47,6 @@ brew install gnupg # privacy/encryptation tools, used to decrypt the private dot
 
 # ----- --- -----
 
-if [[ ! -d "$HOME/control" ]]
-then
-    git clone git@github.com:alt-romes/control.git
-fi
-
-cd control || exit 1
-git pull
-
-source control-setup.sh # set up `control`
-
-# ----- --- -----
-
 echo
 echo "Highly recommended installations..."
 
@@ -99,6 +87,22 @@ if prompt_optinstall "the IBM Plex typeface (used by an iTerm profile)"; then
     brew install --cask font-ibm-plex;
 fi;
 
+# TODO: brew install git lfs
+brew install git-lfs
+git lfs install
+
+# ----- --- -----
+
+if [[ ! -d "$HOME/control" ]]
+then
+    git clone git@github.com:alt-romes/control.git
+fi
+
+cd control || exit 1
+git pull
+
+source control-setup.sh # set up `control`
+
 # ----- --- -----
 
 echo
@@ -132,16 +136,33 @@ echo "brew install --cask steam"
 echo "brew install tldr"
 echo "brew install ffmpeg"
 echo "brew install youtube-dl"
+echo "brew install cheat.sh # internet based cheatsheet"
 echo "brew install --cask mactex-no-gui"
 echo "brew install --cask font-cozette"
 echo "azuki font: http://azukifont.com/font/azuki.html"
 echo "brew install --cask krita (alternatively: gimp)"
 echo "brew install balenaetcher"
 echo "brew install retroarch # retroarch-metal is the alternative metal graphics API version, however some emulator cores don't support metal."
-echo "curl -L https://nixos.org/nix/install | sh # install Nix"
+echo "brew install shellcheck"
+echo "mkdir -p ~/.local/bin; curl https://cht.sh/:cht.sh > ~/.local/bin/cht.sh ; chmod +x ~/.local/bin/cht.sh"
+echo "XCode from app store; sudo gem install cocoapods"
+echo "iMovie from app store"
+echo "brew install asciinema"
+echo "brew install firefox"
+echo "WIP: ... npm install -g asar # required for pywal discord"
+echo "brew install --cask emacs"
+echo "npm install -g mdanki"
+echo "pip install --upgrade jamdict jamdict-data"
 
 echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
 
 # ----- --- -----
 
-echo "Complete. Restart your session (on iTerm). Optionally set colors and background by running 'wal -i background.png'"
+echo "TODO Manually"
+
+echo "Set hot corners"
+echo "Set LyricsX, F.lux and Flycut to open on login"
+
+# ----- --- -----
+
+echo "Complete. Restart your session (on iTerm)."

@@ -115,3 +115,5 @@ sudo xbps-install anki
 
 echo "Suggestions:"
 echo "sudo xbps-install krita"
+
+echo "TODO: Graphic Drivers"
