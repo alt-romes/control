@@ -61,10 +61,6 @@ echo "Note: picom might still be outdated in relation to rounded corners. In thi
 echo "Installing background setter"
 sudo xbps-install hsetroot
 
-echo "Installing papirus icon theme and program to change folder color"
-sudo xbps-install -S papirus-icon-theme
-sudo xbps-install -S papirus-folders
-
 echo "Install pipewire (audio)"
 sudo xbps-install pipewire
 
@@ -81,7 +77,6 @@ sudo xbps-install gnupg
 
 # Programs
 echo "Installing programs"
-sudo xbps-install Thunar # file manager
 sudo xbps-install rxvt-unicode # terminal
 sudo xbps-install vim
 sudo xbps-install git
