@@ -61,6 +61,9 @@ echo "Note: picom might still be outdated in relation to rounded corners. In thi
 echo "Installing background setter"
 sudo xbps-install hsetroot
 
+# echo "Installing Rofi"
+# sudo xbps-install rofi
+
 echo "Install pipewire (audio)"
 sudo xbps-install pipewire
 
@@ -75,6 +78,7 @@ echo "Installing GnuPG"
 sudo xbps-install gnupg
 
 
+
 # Programs
 echo "Installing programs"
 sudo xbps-install rxvt-unicode # terminal
@@ -82,7 +86,6 @@ sudo xbps-install vim
 sudo xbps-install git
 sudo xbps-install curl
 sudo xbps-install make
-sudo xbps-install firefox
 
 sudo xbps-install exa
 sudo xbps-install pass
@@ -105,6 +108,10 @@ source control-setup.sh # set up `control`
 
 echo "Changing control remote to use ssh"
 git remote set-url origin git@github.com:alt-romes/control.git
+
+echo "Installing more programs"
+sudo xbps-install firefox
+sudo xbps-install anki
 
 echo "Suggestions:"
 echo "sudo xbps-install krita"
