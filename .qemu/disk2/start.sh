@@ -2,13 +2,11 @@
 
 source ../environment.sh
 
-echo "TODO: Download ubuntu live"
-
-qemu-system-x86_64 \
-    -accel hvf \
+sudo qemu-system-x86_64 \
     -m 4G \
-    -pflash $FIRMWAREVM/OVMF.fd \
+    -accel hvf \
     -usb -device usb-kbd -device usb-mouse \
     -device e1000,netdev=net0 -netdev user,id=net0,hostfwd=tcp::5555-:22 \
-    -cdrom ./ubuntu-live... \
+    -hda /dev/disk2 \
+    # -pflash $FIRMWAREDIR/OVMF.fd \
 

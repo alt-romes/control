@@ -2,11 +2,11 @@
 
 source ../environment.sh
 
-sudo qemu-system-x86_64 \
-    -m 4G \
+qemu-system-x86_64 \
     -accel hvf \
-    -pflash $FIRMWAREDIR/OVMF.fd \
+    -m 4G \
     -usb -device usb-kbd -device usb-mouse \
     -device e1000,netdev=net0 -netdev user,id=net0,hostfwd=tcp::5555-:22 \
-    -hda /dev/disk2 \
-
+    -hda kali.qcow2 \
+    # -hdb /dev/rdisk2 \
+    # -pflash $FIRMWAREDIR/OVMF.fd \
