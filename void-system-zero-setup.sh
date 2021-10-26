@@ -3,16 +3,16 @@
 echo "System must be connected to the internet through an ethernet cable, or through WiFi with wpa_supplicant (and the dhcpcd service enabled)"
 
 echo "Updating xbps (package manager)"
-sudo xbps-install -u xbps
+sudo xbps-install -y -u xbps
 
 echo "Updating system"
-sudo xbps-install -Su
+sudo xbps-install -y -Su
 
 echo "XBPS does not restart services when they are updated. To find processes running different versions than are present on disk, use the xcheckrestart tool provided by the xtools package."
 
 # Session and Seat Management
 # TODO: Don't understand elogind, but it sets XDG RUNTIME DIR for me
-sudo xbps-install elogind # install elogind
+sudo xbps-install -y elogind # install elogind
 # Disable acpid bc of conflicts with elogind
 sudo rm -rf /var/service/acpid/
 # Enable elogind service (still don't understand why), but it'll replace acpid
@@ -21,7 +21,7 @@ sudo ln -s /etc/sv/elogind/ /var/service/
 
 # Power saving
 echo "Power saving: Installing tlp"
-sudo xbps-install tlp
+sudo xbps-install -y tlp
 echo "Enabling tlp service"
 sudo ln -s /etc/sv/tlp/ /var/service/
 
@@ -31,7 +31,7 @@ echo "Configure network..."
 echo "Set up and download networkmanager (daemon that manages Ethernet, Wifi, ... -- other network management services must be disabled)"
 echo "Downloading NetworkManager"
 echo "If the following fails, run xbps-install -Su again"
-sudo xbps-install NetworkManager
+sudo xbps-install -y NetworkManager
 echo "Disabling dhcpcd service"
 sudo rm /var/service/dhcpcd
 echo "Enabling dbus service (NetworkManager uses it)"
@@ -46,50 +46,50 @@ echo "NetworkManager is installed. Run nmcli or nmtui to check for a connection"
 # Graphical session
 echo "Graphical session..."
 echo "Installing Xorg"
-sudo xbps-install xorg
+sudo xbps-install -y xorg
 
 echo "Installing openbox (window manager)"
-sudo xbps-install openbox
+sudo xbps-install -y openbox
 echo "Installing openbox configuration app (obconf)"
-sudo xbps-install obconf
+sudo xbps-install -y obconf
 echo "Installing openbox menu generator (required to configure and utilize generated menus)"
-sudo xbps-install obmenu-generator
+sudo xbps-install -y obmenu-generator
 echo "Installing picom (compositor)"
-sudo xbps-install picom
+sudo xbps-install -y picom
 echo "Note: picom might still be outdated in relation to rounded corners. In this case, download void-package, edit the picom template version and work with xbps-src (binutils required)"
 
 echo "Installing background setter"
-sudo xbps-install hsetroot
+sudo xbps-install -y hsetroot
 
 # echo "Installing Rofi"
-# sudo xbps-install rofi
+# sudo xbps-install -y rofi
 
 echo "Install pipewire (audio)"
-sudo xbps-install pipewire
+sudo xbps-install -y pipewire
 
 # Fonts
 echo "Fonts"
 echo "Installing cozette bitmap font"
-sudo xbps-install font-cozette
+sudo xbps-install -y font-cozette
 echo "Suggested: font-ibm-plex-ttf"
-# sudo xbps-install font-ibm-plex-ttf
+# sudo xbps-install -y font-ibm-plex-ttf
 
 echo "Installing GnuPG"
-sudo xbps-install gnupg
+sudo xbps-install -y gnupg
 
 
 
 # Programs
 echo "Installing programs"
-sudo xbps-install rxvt-unicode # terminal
-sudo xbps-install vim
-sudo xbps-install git
-sudo xbps-install curl
-sudo xbps-install make
+sudo xbps-install -y rxvt-unicode # terminal
+sudo xbps-install -y vim
+sudo xbps-install -y git
+sudo xbps-install -y curl
+sudo xbps-install -y make
 
-sudo xbps-install exa
-sudo xbps-install pass
-sudo xbps-install pywal
+sudo xbps-install -y exa
+sudo xbps-install -y pass
+sudo xbps-install -y pywal
 
 # Control
 
@@ -110,10 +110,10 @@ echo "Changing control remote to use ssh"
 git remote set-url origin git@github.com:alt-romes/control.git
 
 echo "Installing more programs"
-sudo xbps-install firefox
-sudo xbps-install anki
+sudo xbps-install -y anki
 
 echo "Suggestions:"
-echo "sudo xbps-install krita"
+echo "sudo xbps-install -y krita"
+echo "sudo xbps-install -y firefox"
 
 echo "TODO: Graphic Drivers"

@@ -10,6 +10,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]
 then
     echo "Move the ssh private key to ~/keys/sshkey"
     read -r -p "Input any key afterwards... "
+    chmod 700 ~/keys/sshkey
     ssh-add ~/keys/sshkey
 fi
 
