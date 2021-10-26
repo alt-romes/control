@@ -4,4 +4,4 @@
 
 # Fetch last wal colorscheme
 date >> /tmp/testhourd
-wal --saturate 0.88 -i ~/Pictures/backgrounds/
+# wal --saturate 0.88 -i ~/Pictures/backgrounds/

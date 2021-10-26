@@ -8,5 +8,5 @@ sudo qemu-system-x86_64 \
     -usb -device usb-kbd -device usb-mouse \
     -device e1000,netdev=net0 -netdev user,id=net0,hostfwd=tcp::5555-:22 \
     -hda /dev/disk2 \
-    # -pflash $FIRMWAREDIR/OVMF.fd \
+    -pflash $FIRMWAREDIR/OVMF.fd \
 

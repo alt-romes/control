@@ -50,10 +50,10 @@ then
     then
         launchctl unload ~/Library/LaunchAgents/romes.hourd.plist
     fi
-    cp launchd/romes.initd.plist "$HOME/Library/LaunchAgents/"
+    ln -si "$(pwd)/launchd/romes.initd.plist" "$HOME/Library/LaunchAgents/"
     launchctl load -w ~/Library/LaunchAgents/romes.initd.plist
 
-    cp launchd/romes.hourd.plist "$HOME/Library/LaunchAgents/"
+    ln -si "$(pwd)/launchd/romes.hourd.plist" "$HOME/Library/LaunchAgents/"
     launchctl load -w ~/Library/LaunchAgents/romes.hourd.plist
 
     echo "To enable the launchd agents you must restart your session (Logout/Login)"
