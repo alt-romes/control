@@ -1,1 +1,2 @@
 .qemu/*/*.qcow2
+.qemu/*/*.iso
