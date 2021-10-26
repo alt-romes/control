@@ -18,6 +18,3 @@
 	path = languages/japanese-deck
 	url = git@github.com:alt-romes/the-japanese-deck.git
     update = merge
-[submodule "recordings"]
-	path = recordings
-	url = ./recordings/
