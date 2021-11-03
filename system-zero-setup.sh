@@ -169,6 +169,7 @@ echo "brew install --cask zoom"
 echo "brew install docker"
 echo "brew install wireshark"
 echo "brew install mpv # to use with https://github.com/pystardust/ani-cli"
+echo "brew install llvm"
 
 echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
 
