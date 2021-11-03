@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
 
+# ----- --- -----
+
+function prompt_optinstall {
+    read -r -p "Do you want to $1? (y/n) "
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Installing..."
+        return 0
+    else
+        echo "Not installed."
+        return 1
+    fi
+}
+
+# ----- --- -----
+
 echo "System must be connected to the internet through an ethernet cable, or through WiFi with wpa_supplicant (and the dhcpcd service enabled)"
 
 echo "Updating xbps (package manager)"
@@ -18,19 +34,16 @@ sudo rm -rf /var/service/acpid/
 # Enable elogind service (still don't understand why), but it'll replace acpid
 sudo ln -s /etc/sv/elogind/ /var/service/
 
-
 # Power saving
 echo "Power saving: Installing tlp"
 sudo xbps-install -y tlp
 echo "Enabling tlp service"
 sudo ln -s /etc/sv/tlp/ /var/service/
 
-
-# Configure network
+# Network
 echo "Configure network..."
 echo "Set up and download networkmanager (daemon that manages Ethernet, Wifi, ... -- other network management services must be disabled)"
 echo "Downloading NetworkManager"
-echo "If the following fails, run xbps-install -Su again"
 sudo xbps-install -y NetworkManager
 echo "Disabling dhcpcd service"
 sudo rm /var/service/dhcpcd
@@ -42,46 +55,20 @@ echo "Users of NetworkManager must belong to the network group"
 sudo usermod -a -G network $(whoami)
 echo "NetworkManager is installed. Run nmcli or nmtui to check for a connection"
 
-
-# Graphical session
-echo "Graphical session..."
-echo "Installing Xorg"
-sudo xbps-install -y xorg
-
-echo "Installing openbox (window manager)"
-sudo xbps-install -y openbox
-echo "Installing openbox configuration app (obconf)"
-sudo xbps-install -y obconf
-echo "Installing openbox menu generator (required to configure and utilize generated menus)"
-sudo xbps-install -y obmenu-generator
-echo "Installing picom (compositor)"
-sudo xbps-install -y picom
-echo "Note: picom might still be outdated in relation to rounded corners. In this case, download void-package, edit the picom template version and work with xbps-src (binutils required)"
-
-echo "Installing background setter"
-sudo xbps-install -y hsetroot
-
-# echo "Installing Rofi"
-# sudo xbps-install -y rofi
-
-echo "Install pipewire (audio)"
+# Audio
+echo "Installing pipewire (audio)"
 sudo xbps-install -y pipewire
 
 # Fonts
-echo "Fonts"
-echo "Installing cozette bitmap font"
+echo "Installing cozette bitmap font (required by some dotfiles)"
 sudo xbps-install -y font-cozette
-echo "Suggested: font-ibm-plex-ttf"
-# sudo xbps-install -y font-ibm-plex-ttf
+echo "Suggested font: (font-ibm-plex-ttf) sudo xbps-install -y font-ibm-plex-ttf"
 
 echo "Installing GnuPG"
 sudo xbps-install -y gnupg
 
-
-
 # Programs
 echo "Installing programs"
-sudo xbps-install -y rxvt-unicode # terminal
 sudo xbps-install -y vim
 sudo xbps-install -y git
 sudo xbps-install -y curl
@@ -91,8 +78,48 @@ sudo xbps-install -y exa
 sudo xbps-install -y pass
 sudo xbps-install -y pywal
 
-# Control
+# Graphical session
+prompt_optinstall "install and setup an Xorg graphical session" && {
 
+    echo "Installing Xorg"
+    sudo xbps-install -y xorg
+
+    echo "Installing background setter"
+    sudo xbps-install -y hsetroot
+
+    echo "Installing picom (compositor)"
+    sudo xbps-install -y picom
+    echo "Note: picom might still be outdated regarding rounded corners. In this case, download void-package, edit the picom template version and work with xbps-src (binutils required)"
+
+    prompt_optinstall "install the openbox window manager" && {
+
+        echo "Installing openbox (window manager)"
+        sudo xbps-install -y openbox
+        echo "Installing openbox configuration app (obconf)"
+        sudo xbps-install -y obconf
+        echo "Installing openbox menu generator (required to configure and utilize generated menus)"
+        sudo xbps-install -y obmenu-generator
+
+        prompt_optinstall "install tint2 panel/taskbar" && {
+
+            echo "Installing tint2 (panel/taskbar) and configurator"
+            sudo xbps-install -y tint2
+            sudo xbps-install -y tint2conf
+        }
+
+        prompt_optinstall "install rofi" && {
+
+            # echo "Installing Rofi"
+            # sudo xbps-install -y rofi
+        }
+    }
+
+    echo "install rxvt-unicode terminal"
+    sudo xbps-install -y rxvt-unicode # terminal
+
+}
+
+# Control
 echo "Start ssh-agent"
 eval `ssh-agent -s`
 
@@ -113,6 +140,9 @@ echo "Installing more programs"
 sudo xbps-install -y anki
 
 echo "Suggestions:"
+echo "git clone https://github.com/pystardust/ani-cli && \\
+    mkdir -p $HOME/.local/bin && \\
+    cp ani-cli/ani-cli $HOME/.local/bin/"
 echo "sudo xbps-install -y krita"
 echo "sudo xbps-install -y firefox"
 
