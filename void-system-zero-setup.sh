@@ -26,15 +26,19 @@ sudo xbps-install -y -Su
 
 echo "XBPS does not restart services when they are updated. To find processes running different versions than are present on disk, use the xcheckrestart tool provided by the xtools package."
 
+# Bash session
+echo "source \$HOME/.bash_profile" > $HOME/.bashrc # bashrc for non-interactive sessions should load configuration in bash_profile
+
 # Session and Seat Management
-# TODO: Don't understand elogind, but it sets XDG RUNTIME DIR for me
-sudo xbps-install -y elogind # install elogind
-# Disable acpid bc of conflicts with elogind
-sudo rm -rf /var/service/acpid/
-# Enable elogind service (still don't understand why), but it'll replace acpid
-sudo ln -s /etc/sv/elogind/ /var/service/
+sudo xbps-install -y seatd
+sudo ln -s /etc/sv/seatd/ /var/service/
+sudo usermod -aG _seatd $(whoami)
+
+# XDG_RUNTIME_DIR (required by pipewire pulseaudio replacement, wayland, ...)
+echo "Make sure XDG_RUNTIME_DIR is exported and setup in .bash_profile to /run/user/\$(id -u)"
 
 # Power saving
+# Use acpid
 echo "Power saving: Installing tlp"
 sudo xbps-install -y tlp
 echo "Enabling tlp service"
@@ -60,6 +64,7 @@ echo "Installing pipewire (audio)"
 sudo xbps-install -y pipewire
 
 # Fonts
+# TODO: clean up dependency...
 echo "Installing cozette bitmap font (required by some dotfiles)"
 sudo xbps-install -y font-cozette
 echo "Suggested font: (font-ibm-plex-ttf) sudo xbps-install -y font-ibm-plex-ttf"
@@ -109,13 +114,32 @@ prompt_optinstall "install and setup an Xorg graphical session" && {
 
         prompt_optinstall "install rofi" && {
 
-            # echo "Installing Rofi"
-            # sudo xbps-install -y rofi
+            echo "Installing Rofi"
+            sudo xbps-install -y rofi
         }
     }
 
     echo "install rxvt-unicode terminal"
     sudo xbps-install -y rxvt-unicode # terminal
+
+}
+
+prompt_optinstall "install and setup a Wayland graphical session" && {
+
+    sudo xbps-install -y wayland
+    sudo xbps-install -y mesa-dri
+    sudo xbps-install -y qt5-wayland
+
+    prompt_optinstall "install Sway compositor" && {
+        sudo xbps-install -y sway
+    }
+
+    prompt_optinstall "install Wayfire compositor" && {
+        sudo xbps-install -y wayfire
+        sudo xbps-install -y wf-shell
+    }
+
+    sudo xbps-install -y alacritty
 
 }
 
@@ -137,12 +161,13 @@ echo "Changing control remote to use ssh"
 git remote set-url origin git@github.com:alt-romes/control.git
 
 echo "Installing more programs"
-sudo xbps-install -y anki
+sudo xbps-install -y qutebrowser
 
 echo "Suggestions:"
 echo "git clone https://github.com/pystardust/ani-cli && \\
     mkdir -p $HOME/.local/bin && \\
     cp ani-cli/ani-cli $HOME/.local/bin/"
+echo "sudo xbps-install -y anki"
 echo "sudo xbps-install -y krita"
 echo "sudo xbps-install -y firefox"
 
