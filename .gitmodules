@@ -1,7 +1,3 @@
-[submodule "poemas"]
-	path = poemas
-	url = git@github.com:alt-romes/poetry.git
-    update = merge
 [submodule "dotfiles/public"]
 	path = dotfiles/public
 	url = git@github.com:alt-romes/dotfiles.git
@@ -13,8 +9,4 @@
 [submodule "site"]
 	path = site
 	url = git@github.com:alt-romes/alt-romes.github.io.git
-    update = merge
-[submodule "languages/japanese-deck"]
-	path = languages/japanese-deck
-	url = git@github.com:alt-romes/the-japanese-deck.git
     update = merge
