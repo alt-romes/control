@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-source ../environment.sh
-
 qemu-system-x86_64 \
     -accel hvf \
     -m 4G \
@@ -10,4 +8,3 @@ qemu-system-x86_64 \
     -hda alpine.qcow2 \
     -cdrom alpine-standard-3.14.2-x86_64.iso \
     # -boot d \
-    # -pflash $FIRMWAREDIR/OVMF.fd \

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-source ../environment.sh
-
 qemu-system-x86_64 \
     -accel hvf \
     -m 4G \

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-source ../environment.sh
+OSK="ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
+VMDIR=.
+FIRMWAREDIR=$VMDIR/firmware
 
 sudo qemu-system-x86_64 \
     -m 4G \
