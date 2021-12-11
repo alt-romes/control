@@ -162,6 +162,8 @@ echo "brew install openjdk && brew info openjdk # need to symlink"
 echo "brew install pcalc" # :D
 echo "brew install unar"
 echo "Witgui application (to move Wii games)"
+echo "brew install --cask minecraft"
+echo "brew install --cask feed-the-beast"
 echo "brew install --cask nvidia-geforce-now"
 echo "brew install z3"
 echo "pip install z3-solver"
@@ -170,8 +172,9 @@ echo "brew install docker"
 echo "brew install wireshark"
 echo "brew install mpv # to use with https://github.com/pystardust/ani-cli"
 echo "brew install llvm"
+echo "brew install erlang"
 
-echo "Vielleicht: Things3, Minecraft, Baba Is You, NVIDIA GeForce"
+echo "Vielleicht: Things3, Baba Is You"
 
 # ----- --- -----
 
