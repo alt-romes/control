@@ -20,9 +20,9 @@ printStep() {
 
 printHeading "Installing developer command line tools"
 printDivider
-    xcode-select --install && \
+    xcode-select --install 2>/dev/null && \
         read -n 1 -r -s -p $'\n\nWhen Xcode cli tools are installed, press ANY KEY to continue...\n\n' || \
-            printDivider && echo "✔ Xcode cli tools already installed. Skipping"
+            echo "✔ Xcode cli tools already installed. Skipping"
 printDivider
 
 printHeading "Installing Homebrew"
