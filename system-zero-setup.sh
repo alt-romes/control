@@ -1,29 +1,51 @@
 #!/usr/bin/env bash
 set -e
 
+printHeading() {
+    printf "\n\n\n\e[0;36m$1\e[0m \n"
+}
+
+printDivider() {
+    printf %"$COLUMNS"s |tr " " "-"
+    printf "\n"
+}
+
+printStep() {
+    printf %"$COLUMNS"s |tr " " "-"
+    printf "\nInstalling $1...\n";
+    $2 || printError "$1"
+}
+
 # ----- --- -----
 
-echo "Installing developer command line tools..."
-xcode-select --install
+printHeading "Installing developer command line tools"
+printDivider
+    xcode-select --install && \
+        read -n 1 -r -s -p $'\n\nWhen Xcode cli tools are installed, press ANY KEY to continue...\n\n' || \
+            printDivider && echo "✔ Xcode cli tools already installed. Skipping"
+printDivider
 
-echo "Installing Homebrew..."
-if ! command -v brew >/dev/null 2>&1; then
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)";
-fi;
-brew update
+printHeading "Installing Homebrew"
+printDivider
+    if ! command -v brew >/dev/null 2>&1; then
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)";
+    fi;
+    brew update
 
-BREW_PREFIX=$(brew --prefix)
+    BREW_PREFIX=$(brew --prefix)
+printDivider
 
-echo
-echo "Installing latest bash with completion, and setting it as the default shell..."
-brew install bash
-brew install bash-completion@2
+printHeading "Installing latest bash with completion, and setting it as the default shell..."
+printDivider
+    brew install bash
+    brew install bash-completion@2
 
-if ! grep -Fq "${BREW_PREFIX}/bin/bash" /etc/shells; then
-  # brew_prefix/bin/bash must be in the /etc/shells file to be a valid shell to change to with chsh (`man chsh`)
-  echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells;
-  chsh -s "${BREW_PREFIX}/bin/bash";
-fi;
+    if ! grep -Fq "${BREW_PREFIX}/bin/bash" /etc/shells; then
+      # brew_prefix/bin/bash must be in the /etc/shells file to be a valid shell to change to with chsh (`man chsh`)
+      echo "${BREW_PREFIX}/bin/bash" | sudo tee -a /etc/shells;
+      chsh -s "${BREW_PREFIX}/bin/bash";
+    fi;
+printDivider
 
 # ----- --- -----
 
@@ -85,6 +107,7 @@ echo "4) recommended fonts:"
 if prompt_optinstall "the IBM Plex typeface (used by an iTerm profile)"; then
     brew tap homebrew/cask-fonts;
     brew install --cask font-ibm-plex;
+    brew install --cask font-cozette;
 fi;
 
 # TODO: brew install git lfs
@@ -105,14 +128,24 @@ source control-setup.sh # set up `control`
 
 # ----- --- -----
 
+printHeading "System Tweaks"
+printDivider
+    echo "✔ Safari: Enable Safari’s Developer Settings"
+        defaults write com.apple.Safari IncludeInternalDebugMenu -bool true
+        defaults write com.apple.Safari IncludeDevelopMenu -bool true
+        defaults write com.apple.Safari WebKitDeveloperExtrasEnabledPreferenceKey -bool true
+        defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2DeveloperExtrasEnabled -bool true
+        defaults write NSGlobalDomain WebKitDeveloperExtras -bool true
+printDivider
+
+# ----- --- -----
+
 echo
 echo "Other recommended instalations..."
 
 prompt_optinstall "imagemagick (the default pywal backend)" && brew install imagemagick
 
 echo "Current vim version: $(/usr/bin/vim --version)"
-echo "(WARNING: The following installation might break pywal):"
-echo "If it does, run 'brew uninstall vim' to attempt a fix"
 prompt_optinstall "a possibly more recent vim (from --HEAD)" && brew install vim --HEAD
 
 
@@ -127,7 +160,6 @@ prompt_optinstall "rust (and its toolchain)" && ( curl --proto '=https' --tlsv1.
 prompt_optinstall "node" && brew install node
 prompt_optinstall "go" && brew install go
 
-
 # ----- --- -----
 
 echo "Suggested for installation:"
@@ -140,7 +172,6 @@ echo "brew install pandoc"
 echo "brew install glow"
 echo "brew install cheat.sh # internet based cheatsheet"
 echo "brew install --cask mactex-no-gui"
-echo "brew install --cask font-cozette"
 echo "azuki font: http://azukifont.com/font/azuki.html"
 echo "brew install gimp"
 echo "brew install --cask krita"

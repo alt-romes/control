@@ -68,3 +68,6 @@ if [[ $REPLY =~ ^[Yy]$ ]]
 then
     ln -sFi "${CONTROL}/.qemu/" "$HOME/"
 fi
+
+echo "[ Git ] Always use ssh instead of https"
+git config --global url."git@github.com:".insteadOf https://github.com/
