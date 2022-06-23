@@ -1,5 +1,7 @@
 \documentclass{article}
 
+\usepackage{listings}
+
 \title{Printing Trees That Grow}
 \author{Rodrigo Mesquita}
 \date{June 2022}
@@ -20,6 +22,43 @@ extensions to the datatype. This extensibility comes from using type-level
 functions in defining the data types, and having the user instance them with the
 needed extension.
 
+As an example, here is the extensible definition of an abstract syntax tree
+(AST).
+
+\begin{lstlisting}
+type Var = String
+data Typ = Int
+         | Fun Typ Typ
+
+data Expr p = Lit (XLit p) Integer
+            | Var (XVar p) Var
+            | Ann (XAnn p) (Expr p) Typ
+            | Abs (XAbs p) Var (Expr p)
+            | App (XApp p) (Expr p) (Expr p)
+            | XExpr !(XXExpr p) -- Constructor extension point
+
+type family XLit p
+type family XVar p
+type family XAnn p
+type family XAbs p
+type family XApp p
+type family XXExpr p
+\end{lstlisting}
+
+And an AST with no additional decorations could be extended from the above
+definition as
+
+\begin{lstlisting}
+data UD
+
+type instance XLit   UD = ()
+type instance XVar   UD = ()
+type instance XAnn   UD = ()
+type instance XAbs   UD = ()
+type instance XApp   UD = ()
+type instance XXExpr UD = Void
+\end{lstlisting}
+
 A drawback of this extensible definition of a datatype is that few can be done
 without knowing the particular instance of the datatype's extension.
 This means the defined AST is, by itself, unusable.
@@ -28,17 +67,23 @@ One of the promises of extensible data types is the reduction of duplicated
 code, therefore, we might be tempted to define generic functions or type-class
 instances for it. In the original paper some solutions are provided
 
-* ignore the extension points, although we no longer give the user the
-    flexibility of an function or instance that takes into consideration the
-    extension points they defined.
-* or make use of higher order functions in the implementation, allowing for some
-    custom usage of the extension points, but still restricted within the
-    context of the generic implementation.
+\begin{itemize}
+    \item ignore the extension points, although we no longer give the user the
+        flexibility of an function or instance that takes into consideration the
+        extension points they defined.
+
+    \item or make use of higher order functions in the implementation, allowing for some
+        custom usage of the extension points, but still restricted within the
+        context of the generic implementation.
+\end{itemize}
 
 The second option, while more flexible, still isn't sufficient when faced with
 the need to define a radically different implementation for a particular
 constructor of the datatype, in which we might want to additionally make use of
-the defined extensions.
+the defined extensions. We might also note that to define functions generic over
+the field extension points, a lot of higher order functions or dictionaries must
+be passed to the functions, and the type-class instance of an extension point is
+the same regardless of the constructor its found in.
 
 We are then faced with the unattractive choice of either reducing duplicated
 code at the cost of flexibility, or of requiring a complete implementation of the
@@ -47,5 +92,38 @@ function from any user needing that extra bit of flexibility.
 This paper describes an idiom to define generic functions over the extensible
 abstract syntax tree which allow drop-in definitions from the user that take
 their extension instance into account.
+
+\section{Watering Trees That Grow}
+
+We would like to construct a clever way of having generic definitions of
+functions over an extensible data type, definitions which allow the extensible
+data type user to override particular parts of the implementation and delegate
+to the generic implementation of the function the non-overriden cases ---
+allowing for a possible complete reimplementation of the instance if desired.
+
+At first sight, a function that can default to some other implementation can
+simply be a function that takes as parameter a higher-order function which is
+the default implementation itself.
+
+With a small tweak, the default implementation itself always calls the
+so called \emph{override} function and pass it the actual default implementation as
+an argument.
+
+For example, if we were to write a pretty printer for the above defined AST,
+which by default works regardless of the extension points, but that can be
+overriden on some or all constructors, we could have
+
+\begin{lstlisting}
+override :: (Expr p -> String) -> Expr p -> String
+
+pprDefault :: Expr p -> String
+pprDefault = override $ \case 
+    Lit _ i -> show i
+    Var _ s -> s
+    Ann _ e t -> "(" <> printE e <> ") :: (" <> printT t <> ")"
+    Abs _ v e -> "λ" <> v <> "." <> printE e
+    App _ f v -> "(" <> printE f <> ") (" <> printE v <> ")"
+    XExpr _ -> ""
+\end{lstlisting}
 
 \end{document}
