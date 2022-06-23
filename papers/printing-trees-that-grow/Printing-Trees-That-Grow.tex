@@ -250,4 +250,10 @@ machinery which complicates the program code, requiring both
 \emph{UndecidableInstances} and \emph{AllowAmbigousTypes}, meaning the override
 function requires explicit type applications.
 
+There's still a somewhat big problem. How do we define a generic function such as
+\emph{show} taking into consideration the constructors extension point? For
+now, I think most reasonable way is to panic on the default implementation if there's
+nothing like an \emph{monoid empty} on the return type -- and make sure the
+override implementation handles the extra constructor case.
+
 \end{document}
