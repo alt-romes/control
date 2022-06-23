@@ -117,13 +117,137 @@ overriden on some or all constructors, we could have
 override :: (Expr p -> String) -> Expr p -> String
 
 pprDefault :: Expr p -> String
-pprDefault = override $ \case 
+pprDefault = override (\case 
     Lit _ i -> show i
     Var _ s -> s
     Ann _ e t -> "(" <> printE e <> ") :: (" <> printT t <> ")"
     Abs _ v e -> "λ" <> v <> "." <> printE e
     App _ f v -> "(" <> printE f <> ") (" <> printE v <> ")"
-    XExpr _ -> ""
+    XExpr _ -> "")
 \end{lstlisting}
+
+This naive approach doesn't quite solve it for us. First, it's just a sketch.
+The function \emph{override} should be bound by \emph{pprDefault} ensuring each
+client can pass a different override function. However, most importantly, we
+must consider type-class instances whose function signatures we cannot change --
+instances that we want to be defined near the datatypes so as not to create
+orphan instances; and be able to write functions taking constraints rather than
+higher-order functions, so that we have a common language for this pattern and
+forget about which function is the right one to pass where.
+
+Let's continue our example, saying we now want to create a generic instance for
+the \emph{Show} type class instance. Show is defined as
+\begin{lstlisting}
+class Show a where
+    show :: a -> String
+\end{lstlisting}
+
+We now want to instance \emph{Show} for our extensible AST right next to the
+datatype (we don't want orphan instances!), but making sure the instance can
+make use of the \emph{override} method, such that the user can override which
+parts they desire of the default implementation.
+
+So the following logical step is to create a class to abstract over the
+\emph{override} pattern. Note, however, that this class musn't be
+client-specific, as it should work for all clients the same. It should have the
+following skeleton
+
+\begin{lstlisting}
+instance TheOverrideClass ??? => Show (Expr p) where
+    show = override defaultShowExpr
+\end{lstlisting}
+
+The challenge here is what instances the class? \emph{Expr} is defined in the
+client independent side, so we really wouldn't like to have anything to do with
+it, since instancing it from the client side would mean an orphan instance. That
+leaves us with \emph{p}, the pass parameter, which is defined by the client.
+
+Calling the \emph{override} type-class \emph{TTG}, and for now saying the type
+of override to be that needed by \emph{show}, we get
+
+\begin{lstlisting}
+class TTG p where
+    override :: (Expr p -> String) -> Expr p -> String
+\end{lstlisting}
+
+Meaning we could now have, (saying we cautiously turn on UndecidableInstances)
+\begin{lstlisting}
+instance TTG p => Show (Expr p) where
+    show = override defaultShowExpr
+\end{lstlisting}
+
+To address the next challenge of \emph{override} not yet working for any
+function, we realize \emph{override} really is a function that takes some
+function of type \emph{f} and returns a function of the same type \emph{f},
+which can make use of the default one for the cases it doesn't want to override.
+
+So we want to change the type signature of \emph{override} to be polymorphic
+over \emph{f}. Unfortunately, we must extend the type-class with a parameter
+specifying the type \emph{f} of the function we're overriding. By no longer
+using the TTG parameter \emph{p} on the \emph{override} signature we need to
+turn on \emph{AllowAmbiguousTypes}, which will require that \emph{override}
+must always be called with an explicit type application specifying the \emph{p}.
+This is fine, given that the override usage should be confined to the generic
+functions over the extensible data type.
+
+\begin{lstlisting}
+class TTG p f where
+    override :: f -> f
+
+instance TTG p (Expr p -> String) => Show (Expr p) where
+    show = override @p defaultShowExpr
+\end{lstlisting}
+
+Finally, we'll note that we might want to override, for the same pass \emph{p},
+two functions of the same type. To disambiguate between this, and make our
+instance more readable in the way, we'll use the \emph{DataKinds} extension to
+annotate the \emph{TTG} override instance with the function it should override.
+
+The following example showcases the use of the final \emph{TTG} override class
+to define generic functions for both the pretty printer and show classes (which
+have the same type).
+
+Client-independent code
+\begin{lstlisting}
+class TTG p (s :: Symbol) f where
+    override :: f -> f
+
+instance TTG p "ppr" (Expr p -> String) => Pretty (Expr p) where
+    ppr = override @p @"ppr" defaultPprExpr
+
+instance TTG p "show" (Expr p -> String) => Show (Expr p) where
+    show = override @p @"show" defaultShowExpr
+\end{lstlisting}
+
+Client-specific code
+\begin{lstlisting}
+data Decorated
+
+type instance XLit   Decorated = String
+type instance XVar   Decorated = ()
+type instance XAnn   Decorated = Bool
+type instance XAbs   Decorated = ()
+type instance XApp   Decorated = ()
+type instance XXExpr Decorated = Void
+
+instance TTG p "ppr" (Expr p -> String) where
+    override def = \case
+        Lit s i -> "Ann:" <> s <> " -- " <> show i
+        e@(Ann b e t) -> if b then def e else ""
+        x -> def x
+
+instance TTG p "show" (Expr p -> String) where
+    override def = \case
+        Lit s i -> "Ann:" <> s <> " -- " <> show i
+        Ann b e t -> "Bool:" <> show b <> " -- " <> "(" <> printE e <> ") :: (" <> printT t <> ")"
+        x -> def x
+\end{lstlisting}
+
+This approach still has its drawbacks. For one, this makes it impossible to
+reuse parts of the default implementation, leading to code duplication in
+branches similar to the default, and secondly, we depend on much type-level
+machinery which complicates the program code, requiring both
+\emph{UndecidableInstances} and \emph{AllowAmbigousTypes}, meaning the override
+function requires explicit type applications.
 
 \end{document}
