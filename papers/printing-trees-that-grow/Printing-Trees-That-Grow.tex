@@ -1,0 +1,41 @@
+\documentclass{article}
+
+\title{Printing Trees That Grow}
+\author{Rodrigo Mesquita}
+\date{June 2022}
+% \institute{NOVA School of Science and Technology}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\emph{Trees That Grow}\ref{} is a programming idiom to define extensible data
+types, which particularly addresses the need for decorating abstract syntax
+trees with different additional information accross compiler stages. With this
+newfound extensibility, we are able to share one AST data type accross compiler
+stages and other AST clients -- both of which need to define their own
+extensions to the datatype. This extensibility comes from using type-level
+functions in defining the data types, and having the user instance them with the
+needed extension.
+
+A drawback of this extensible definition of a datatype is that few can be done
+without knowing the particular instance of the datatype's extension.
+This means the defined AST is, by itself, unusable.
+
+One of the promises of extensible data types is the reduction of duplicated
+code, therefore, we might be tempted to define generic functions or type-class
+instances for it. However, in doing so, we no longer give the user the
+flexibility of an function or instance that takes into consideration the
+extension points they defined.
+
+We are then faced with the unattractive choice of either reducing duplicated
+code at the cost of flexibility, or of requiring a complete implementation of the
+function from each user.
+
+This paper describes an idiom to define generic functions over the extensible
+abstract syntax tree which allow drop-in definitions from the user that take
+their extension instance into account.
+
+\end{document}
