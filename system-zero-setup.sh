@@ -104,10 +104,12 @@ prompt_optinstall "lyricsx" && brew install --cask lyricsx
 
 echo "4) recommended fonts:"
 
-if prompt_optinstall "the IBM Plex typeface (used by an iTerm profile)"; then
+if prompt_optinstall "the IBM Plex typeface and other fonts (used by an iTerm profile)"; then
     brew tap homebrew/cask-fonts;
     brew install --cask font-ibm-plex;
     brew install --cask font-cozette;
+    brew install font-iosevka;
+    # brew install font-terminus;
 fi;
 
 # TODO: brew install git lfs
@@ -194,6 +196,7 @@ echo "brew install pcalc" # :D
 echo "brew install unar"
 echo "Witgui application (to move Wii games)"
 echo "brew install --cask minecraft"
+echo "brew install --cask curseforge"
 echo "brew install --cask feed-the-beast"
 echo "brew install --cask nvidia-geforce-now"
 echo "brew install z3"
@@ -201,9 +204,21 @@ echo "pip install z3-solver"
 echo "brew install --cask zoom"
 echo "brew install docker"
 echo "brew install wireshark"
-echo "brew install mpv # to use with https://github.com/pystardust/ani-cli"
+echo "// ani-cli https://github.com/pystardust/ani-cli"
 echo "brew install llvm"
 echo "brew install erlang"
+echo "brew install yudai/gotty/gotty"
+echo "brew install tmux"
+echo "npm install -g cob-cli"
+echo "npm install -g purescript"
+echo "npm install -g spago"
+echo "npm install -g purescript-language-server" 
+echo "brew install graphviz" 
+echo "brew install --cask font-victor-mono"
+echo "npm install -g vls"
+echo "cabal install -j2 --global hoogle"
+echo "brew install --cask volt"
+
 
 echo "Vielleicht: Things3, Baba Is You"
 
