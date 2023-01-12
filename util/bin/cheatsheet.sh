@@ -10,3 +10,12 @@ diskutil erasedisk APFS "RAMDisk" \`hdiutil attach -nomount ram://$((2048*1024))
 
 EOF
 
+cat << EOF
+
+# 3) GHC development
+
+./hadrian/ghci    # quick build
+./hadrian/build   # full build
+./hadrian/build --flavour=default+no_profiled_libs+omit_pragmas stage2:exe:haddock -j --freeze1 # quick haddock build
+
+EOF
