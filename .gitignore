@@ -1,2 +1,2 @@
-.qemu/*/*.qcow2
-.qemu/*/*.iso
+archive/.qemu/*/*.qcow2
+archive/.qemu/*/*.iso
