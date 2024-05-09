@@ -1,5 +1,7 @@
 ## Control
 
+OUT OF DATE README
+
 This repository puts together everything needed to build a[read: my] home in any computer.
 Base control sets up the dotfiles, utils/scripts, launch daemon on macos, and the homesite where write ups, albums, movies, ..., are organized and from where they can be published. Additionally some other parts are in movement and trying to find their place.
 Setting up in any system is done 
