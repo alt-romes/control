@@ -10,8 +10,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]
 then
     echo "Move the ssh private key to ~/keys/sshkey"
     read -r -p "Input any key afterwards... "
-    chmod 600 ~/keys/sshkey
-    ssh-add ~/keys/sshkey
+    chmod 600 ~/keys/id_ed25519
+    ssh-add ~/keys/id_ed25519
 fi
 
 echo "To decrypt the private dotfiles (which include, e.g., cryptographic keys),"
@@ -71,3 +71,5 @@ fi
 
 echo "[ Git ] Always use ssh instead of https"
 git config --global url."git@github.com:".insteadOf https://github.com/
+
+

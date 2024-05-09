@@ -1,5 +1,7 @@
 #!/usr/local/bin/bash
 
+echo "Making icns..."
+
 output_path=/tmp/output.iconset
 mkdir -p "$output_path"
 

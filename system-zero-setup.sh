@@ -72,12 +72,12 @@ brew install gnupg # privacy/encryptation tools, used to decrypt the private dot
 echo
 echo "Highly recommended installations..."
 
-echo "1) coreutils and updated tools:"
+# echo "1) coreutils and updated tools:"
 
-prompt_optinstall "GNU coreutils" && brew install coreutils
+# prompt_optinstall "GNU coreutils" && brew install coreutils
 
 echo "Current git version: $(/usr/bin/git --version)"
-prompt_optinstall "a possibly more recent git" && brew install git
+prompt_optinstall "a possibly more recent git (this will also enable e.g. bash completion)" && brew install git
 
 echo "Current ssh version: $(/usr/bin/ssh -V)"
 prompt_optinstall "a possibly more recent openssh" && brew install openssh
@@ -87,10 +87,10 @@ echo "2) recommended terminal programs:"
 echo "(WARNING: 'ls' is set as an alias to 'exa' in .bash_profile, either it's installed or the alias is deleted):"
 prompt_optinstall "exa (modern ls replacement)" && brew install exa # modern ls replacement, 'ls' is set as an alias for it
 prompt_optinstall "pass -- the unix password manager" && brew install pass # unix like password manager
-prompt_optinstall "pywal (to set colors according to the wallpaper)" && pip3 install https://github.com/dylanaraps/pywal/archive/master.zip # pywal
+prompt_optinstall "pywal (to set colors according to the wallpaper)" && brew install python && pip3 install https://github.com/dylanaraps/pywal/archive/master.zip # pywal
 prompt_optinstall "translate-shell" && brew install translate-shell
 prompt_optinstall "weechat" && brew install weechat
-prompt_optinstall "ticker" && brew install achannarasappa/tap/ticker
+# prompt_optinstall "ticker" && brew install achannarasappa/tap/ticker
 
 echo "3) recommended programs:"
 
@@ -99,8 +99,8 @@ prompt_optinstall "anki" && brew install --cask anki
 prompt_optinstall "vlc" && brew install --cask vlc
 prompt_optinstall "webtorrent" && brew install --cask webtorrent
 prompt_optinstall "flycut" && brew install --cask flycut
-prompt_optinstall "f.lux" && brew install --cask flux
-prompt_optinstall "lyricsx" && brew install --cask lyricsx
+# prompt_optinstall "f.lux" && brew install --cask flux
+# prompt_optinstall "lyricsx" && brew install --cask lyricsx
 
 echo "4) recommended fonts:"
 
@@ -120,7 +120,7 @@ git lfs install
 
 if [[ ! -d "$HOME/control" ]]
 then
-    git clone git@github.com:alt-romes/control.git
+    git clone https://github.com/alt-romes/control.git
 fi
 
 cd control || exit 1
@@ -148,6 +148,7 @@ echo "Other recommended instalations..."
 prompt_optinstall "imagemagick (the default pywal backend)" && brew install imagemagick
 
 echo "Current vim version: $(/usr/bin/vim --version)"
+echo "Recommend: Install vim from source with ./configure --enable-termguicolors (if the default doesn't have it)"
 prompt_optinstall "a possibly more recent vim (from --HEAD)" && brew install vim --HEAD
 
 
@@ -157,78 +158,78 @@ prompt_optinstall "and set up a possibly more recent python" && {
     ln -si /usr/local/bin/python3 /usr/local/bin/python # create a symlink for python to shadow /usr/bin/python
     ln -si /usr/local/bin/pip3 /usr/local/bin/pip # create a symlink to write pip instead of pip3
 }
-prompt_optinstall "the Haskell Platform" && ( curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh )
-prompt_optinstall "rust (and its toolchain)" && ( curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh )
-prompt_optinstall "node" && brew install node
-prompt_optinstall "go" && brew install go
+# prompt_optinstall "the Haskell Platform" && ( curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh )
+# prompt_optinstall "rust (and its toolchain)" && ( curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh )
+# prompt_optinstall "node" && brew install node
+# prompt_optinstall "go" && brew install go
 
 # ----- --- -----
 
-echo "Suggested for installation:"
-echo "brew install --cask discord"
-echo "brew install --cask steam"
-echo "brew install tldr"
-echo "brew install ffmpeg"
-echo "brew install youtube-dl"
-echo "brew install pandoc"
-echo "brew install glow"
-echo "brew install cheat.sh # internet based cheatsheet"
-echo "brew install --cask mactex-no-gui"
-echo "azuki font: http://azukifont.com/font/azuki.html"
-echo "brew install gimp"
-echo "brew install --cask krita"
-echo "brew install balenaetcher"
-echo "brew install retroarch # retroarch-metal is the alternative metal graphics API version, however some emulator cores don't support metal."
-echo "brew install shellcheck"
-echo "mkdir -p ~/.local/bin; curl https://cht.sh/:cht.sh > ~/.local/bin/cht.sh ; chmod +x ~/.local/bin/cht.sh"
-echo "XCode from app store; sudo gem install cocoapods"
-echo "iMovie from app store"
-echo "brew install asciinema"
-echo "brew install firefox"
-echo "WIP: ... npm install -g asar # required for pywal discord"
-echo "brew install --cask emacs"
-echo "npm install -g mdanki"
-echo "pip install --upgrade jamdict jamdict-data"
-echo "brew install sdl2"
-echo "brew install csvkit"
-echo "brew install openjdk && brew info openjdk # need to symlink"
-echo "brew install pcalc" # :D
-echo "brew install unar"
-echo "Witgui application (to move Wii games)"
-echo "brew install --cask minecraft"
-echo "brew install --cask curseforge"
-echo "brew install --cask feed-the-beast"
-echo "brew install --cask nvidia-geforce-now"
-echo "brew install z3"
-echo "pip install z3-solver"
-echo "brew install --cask zoom"
-echo "brew install docker"
-echo "brew install wireshark"
-echo "// ani-cli https://github.com/pystardust/ani-cli"
-echo "brew install llvm"
-echo "brew install erlang"
-echo "brew install yudai/gotty/gotty"
-echo "brew install tmux"
-echo "npm install -g cob-cli"
-echo "npm install -g purescript"
-echo "npm install -g spago"
-echo "npm install -g purescript-language-server" 
-echo "brew install graphviz" 
-echo "brew install --cask font-victor-mono"
-echo "npm install -g vls"
-echo "cabal install -j2 --global hoogle"
-echo "brew install --cask volt"
+# echo "Suggested for installation:"
+# echo "brew install --cask discord"
+# echo "brew install --cask steam"
+# echo "brew install tldr"
+# echo "brew install ffmpeg"
+# echo "brew install youtube-dl"
+# echo "brew install pandoc"
+# echo "brew install glow"
+# echo "brew install cheat.sh # internet based cheatsheet"
+# echo "brew install --cask mactex-no-gui"
+# echo "azuki font: http://azukifont.com/font/azuki.html"
+# echo "brew install gimp"
+# echo "brew install --cask krita"
+# echo "brew install balenaetcher"
+# echo "brew install retroarch # retroarch-metal is the alternative metal graphics API version, however some emulator cores don't support metal."
+# echo "brew install shellcheck"
+# echo "mkdir -p ~/.local/bin; curl https://cht.sh/:cht.sh > ~/.local/bin/cht.sh ; chmod +x ~/.local/bin/cht.sh"
+# echo "XCode from app store; sudo gem install cocoapods"
+# echo "iMovie from app store"
+# echo "brew install asciinema"
+# echo "brew install firefox"
+# echo "WIP: ... npm install -g asar # required for pywal discord"
+# echo "brew install --cask emacs"
+# echo "npm install -g mdanki"
+# echo "pip install --upgrade jamdict jamdict-data"
+# echo "brew install sdl2"
+# echo "brew install csvkit"
+# echo "brew install openjdk && brew info openjdk # need to symlink"
+# echo "brew install pcalc" # :D
+# echo "brew install unar"
+# echo "Witgui application (to move Wii games)"
+# echo "brew install --cask minecraft"
+# echo "brew install --cask curseforge"
+# echo "brew install --cask feed-the-beast"
+# echo "brew install --cask nvidia-geforce-now"
+# echo "brew install z3"
+# echo "pip install z3-solver"
+# echo "brew install --cask zoom"
+# echo "brew install docker"
+# echo "brew install wireshark"
+# echo "// ani-cli https://github.com/pystardust/ani-cli"
+# echo "brew install llvm"
+# echo "brew install erlang"
+# echo "brew install yudai/gotty/gotty"
+# echo "brew install tmux"
+# echo "npm install -g cob-cli"
+# echo "npm install -g purescript"
+# echo "npm install -g spago"
+# echo "npm install -g purescript-language-server" 
+# echo "brew install graphviz" 
+# echo "brew install --cask font-victor-mono"
+# echo "npm install -g vls"
+# echo "cabal install -j2 --global hoogle"
+# echo "brew install --cask volt"
 
 
-echo "Vielleicht: Things3, Baba Is You"
+# echo "Vielleicht: Things3, Baba Is You"
 
-# ----- --- -----
+# # ----- --- -----
 
-echo "TODO Manually"
+# echo "TODO Manually"
 
-echo "Set hot corners"
-echo "Set LyricsX, F.lux and Flycut to open on login"
+# echo "Set hot corners"
+# echo "Set LyricsX, F.lux and Flycut to open on login"
 
-# ----- --- -----
+# # ----- --- -----
 
-echo "Complete. Restart your session (on iTerm)."
+# echo "Complete. Restart your session (on iTerm)."
