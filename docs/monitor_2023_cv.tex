@@ -1,0 +1,261 @@
+\documentclass{article}
+
+% \email{r.mesquita@campus.fct.unl.pt}
+% \homepage{alt-romes.github.io}
+% \github{alt-romes}
+
+\usepackage{hyperref}
+\usepackage{geometry}
+%\geometry{
+%  a4paper,
+%  left=20mm,
+%  %right=
+%  %bottom=
+%  top=15mm}
+\geometry{left=1.4cm, top=.8cm, right=1.4cm, bottom=1.8cm, footskip=.5cm}
+
+\pagestyle{empty}
+
+\usepackage{sectsty}
+\sectionfont{\normalsize\sc\sectionrule{0pt}{0pt}{-5pt}{0.5pt}}
+
+\newlength{\spacebox}
+\settowidth{\spacebox}{123456789}
+\newcommand{\sepspace}{\vspace*{1em}}
+
+\newcommand{\name}[1]{\huge#1\normalsize\par\vspace*{0.5em}}
+
+\newcommand{\info}[2]{
+% set specific indentation for personal information
+  \noindent\hangindent=2em\hangafter=0
+% create a box to align two pieces of text
+  \parbox{\spacebox}{%
+  \textsl{#1}} % slanted entry name
+  #2 \par} % entry value
+
+% Skill
+\newcommand{\skill}[2]{
+\noindent\hangindent=2em\hangafter=0
+\parbox{3\spacebox}{ \textsc{#1}} #2 \par}
+
+% Simple Entry
+% title, subtitle, right text, right subtext
+\newcommand{\sientry}[4]{
+  \noindent  \textbf{#1}
+    \hfill \small #3 \normalsize \par
+  \noindent \textit{#2}
+    \hfill \small #4 \normalsize \par
+}
+
+% Line entry
+\newcommand{\lientry}[3]{
+\small
+  \noindent \textbf{#1} #2 \hfill #3
+\normalsize
+}
+
+\newcommand{\entry}[5]{
+  \sientry{#1}{#2}{#3}{#4}
+     \noindent\hangindent=2em\hangafter=0 \small #5
+\normalsize \par
+}
+
+
+\begin{document}
+
+\name{Rodrigo Mesquita}
+\info{Email}{\texttt{rodrigo.m.mesquita@gmail.com}}
+\info{Phone}{+351 937 771 064}
+% \info{Site}{\texttt{alt-romes.github.io}}
+% \info{Address}{Rua do Láparo 263 Q, 2890-551 Alcochete, Portugal}
+
+% \section*{Summary}
+
+\section*{Education}
+
+  \entry
+    {MSc. Computer Science and Engineering}
+    {NOVA School of Science and Technology}
+    {2018 - Today}
+    {Lisboa, Portugal}
+    {Current average grade: 15.80}
+
+\section*{Research}
+
+  \entry
+    {Typechecking Linearity in Core}
+    {NOVA School of Science and Technology}
+    {Oct. 2022 - Today}
+    {Lisboa, Portugal}
+    {The master thesis I'm working on concerns itself with typechecking
+    linearity in Core such that optimizing transformations don't break syntatic
+    linearity (which they currently do), and implementing it on GHC}
+
+  \entry
+    {Synthesis Of Linear Functional Programs}
+    {NOVA School of Science and Technology}
+    {Mar. 2021 - Jul. 2021}
+    {Lisboa, Portugal}
+    {I had the opportunity to be advised by Prof. Dr. Bernardo Toninho in
+    writing this work, which was awarded the highest grade}
+
+\section*{Work Experience}
+
+  \entry
+    {NOVA School of Science and Technology}
+    {Teaching assistant}
+    {Sept. 2022 - Jan. 2023}
+    {Lisbon, Portugal}
+    {
+      \begin{itemize}
+          \item {Teaching the practical course ``Introdução à Programação para
+              Ciência e Engenharia'' in Python}
+      \end{itemize}
+    }
+
+ \entry
+    {Glasgow Haskell Compiler}
+    {\href{https://gitlab.haskell.org/alt-romes}{Contributor}}
+    {Feb. 2022 - Today}
+    {Online, GHC}
+    {
+        \begin{itemize}
+            \item {Making the Haskell AST GHC-independent following \emph{Trees
+                that Grow} by Simon P.J. and Shayan Najd.}
+            % \item {Running experiments on the internal representation of
+            %     \emph{fast strings}.}
+            \item {Drafting \emph{e-graphs} specialized to equality saturation
+                for use in the pattern-match checker.}
+            % \item {Improving the linear linter to successfully accept more
+            %     optimized programs}
+        \end{itemize}
+    }
+
+  \entry
+    {Universität Koblenz}
+    {Research assistant, guest lecturer}
+    {Jun. 2022 - Aug. 2022}
+    {Koblenz, Germany}
+    {
+      \begin{itemize}
+          \item {Writing two modules to extend the course \emph{Introduction to Functional
+              Programming}.}
+          \item {Giving a guest lecture on the added modules.}
+      \end{itemize}
+    }
+
+  \entry
+    {Connektor}
+    {Software developer (half-time)}
+    {Feb. 2022 - Mar. 2022}
+    {Lisboa, Portugal}
+    {
+      \begin{itemize}
+        \item {Development of app to manage PATS (\emph{technical assistance
+            requests in Portuguese})}
+      \end{itemize}
+    }
+
+  \entry
+    {Cult of Bits}
+    {Software developer (internship)}
+    {Nov. 2021 - Feb. 2022}
+    {Lisboa, Portugal}
+    {
+      \begin{itemize}
+        \item {Created a dashboard system for \emph{Efficio Consulting}}
+        \item {Wrote a \href{https://github.com/alt-romes/cob-hs}{Haskell interface to the CoB platform}}
+      \end{itemize}
+    }
+
+  \entry
+    {Biofix}
+    {Software developer (half-time)}
+    {Sep. 2020 - May 2021}
+    {Lisboa, Portugal}
+    {
+      \begin{itemize}
+        \item {Development of a web-app for a salesforce to track their
+            interactions.}
+        % \item {Automated business-specific features using the CoB
+        %     data-processing pipeline in Groovy.}
+      \end{itemize}
+    }
+
+\section*{Relevant Projects}
+
+  \lientry
+    {\href{https://github.com/alt-romes/ghengin}{Ghengin}}
+    {Shader centric, vulkan-based Haskell game engine, (ab)using
+    \href{https://gitlab.com/sheaf/fir}{fir (by Sam Derbyshire)}}
+    % {\textbf{+1} stars on GitHub}
+    {2022 - 2023}
+
+  \lientry
+    {\href{https://github.com/alt-romes/hegg}{Hegg}}
+    {Haskell e-graphs and equality saturation based on
+    \href{https://dl.acm.org/doi/10.1145/3434304}{egg (POPL 2021)}}
+    % {\textbf{+1} stars on GitHub}
+    {2022}
+
+  \lientry
+    {\href{https://github.com/alt-romes/ghc-linear-synthesis-plugin}{GHC Linear Synthesis}}
+    {A GHC plugin for synthesizing programs using bottom-up proof search in
+    linear logic with focusing}
+    % {\textbf{+1} stars on GitHub}
+    {2022}
+
+  \lientry
+    {\href{https://github.com/alt-romes/c-compiler}{C compiler}}
+    {which compiles C to LLVM; written in C}
+    % {\textbf{+1} stars on GitHub}
+    {2022}
+
+  % \lientry
+  %   {\href{https://github.com/alt-romes/operating-system}{Operating system}}
+  %   {with a minimal libk, flat memory model, and paging (WIP)}
+  %   % {\textbf{+2} stars on GitHub}
+  %   {2021}
+
+  % \lientry
+  %   {\href{https://github.com/alt-romes/programmer-calculator}{Programmer calculator}}
+  %   {-- a TUI calculator to work very close to the bits; written in C}
+  %   % {\textbf{+163} stars on GitHub}
+  %   {2021}
+
+  \lientry
+    {\href{https://github.com/alt-romes/gameboyemulator}{Gameboy emulator}}
+    {which runs Tetris and passes the initial standard CPU and MBC1
+    support tests; written in C}
+    % {\textbf{+6} stars on GitHub}
+    {2021}
+
+  \lientry
+    {\href{https://github.com/alt-romes/chip8-emulator-for-gameboy}{CHIP-8 emulator}}
+    {that runs on a gameboy, written directly in gameboy assembly (RGBASM)}
+    % {\textbf{+8} stars on GitHub}
+    {2021}
+
+\section*{Relevant Events}
+
+  \lientry
+    {Sessão de boas-vindas}
+    {-- Sessão para alunos de 1º ano aos quais apresentei a vertente de
+    investigação de APDC}
+    {2021}
+
+% \section*{Technical Skills}
+
+%   \skill
+%     {Fluent in}
+%     {Haskell, C, Vim, Git, Java, HTML/CSS/JS, Portuguese, English}
+
+%   \skill
+%     {Conversational in}
+%     {Python, \LaTeX, Assembly, Bash, German, Spanish}
+
+%   \skill
+%     {Know some}
+%     {Swift, LLVM, Rust, Go, Erlang, Scala, Japanese, Russian}
+
+\end{document}
