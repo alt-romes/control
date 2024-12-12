@@ -1,5 +1,5 @@
 {
-  description = "Example nix-darwin system flake";
+  description = "Romes MBP Nix-Darwin";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -19,6 +19,38 @@
       # Necessary for using flakes on this system.
       nix.settings.experimental-features = "nix-command flakes";
 
+      nix = {
+
+        # linux-builder: background VM running linux to build linux things
+        # (e.g. to later remote-deploy them).
+        # Sets up `org.nixos.linux-builder` `launchd` service.
+        # Inspect with `sudo launchctl list org.nixos.linux-builder`
+        linux-builder = {
+          enable = true;
+          # cleans up machines on restart
+          ephemeral = true;
+          maxJobs = 2; # number of jobs that may be delegated concurrently to this builder.
+          config = {
+            virtualisation = {
+              darwin-builder = {
+                diskSize = 40*1024; # 40GB disk
+                memorySize = 8*1024; # 8GB RAM
+              };
+              cores = 4;
+            };
+          };
+
+        };
+
+        # This line is a prerequisite?
+        # settings.trusted-users = [ "@admin" ];
+
+        # Enable building pkgs on x86_64-darwin as well
+        extraOptions = ''
+          extra-platforms = x86_64-darwin aarch64-darwin
+        '';
+      };
+
       # Enable alternative shell support in nix-darwin.
       # programs.fish.enable = true;
 
@@ -35,8 +67,8 @@
   in
   {
     # Build darwin flake using:
-    # $ darwin-rebuild build --flake .#simple
-    darwinConfigurations."simple" = nix-darwin.lib.darwinSystem {
+    # $ darwin-rebuild build --flake .
+    darwinConfigurations."romes-mbp" = nix-darwin.lib.darwinSystem {
       modules = [ configuration ];
     };
   };
