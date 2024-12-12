@@ -3,9 +3,11 @@
 * Update flake deps with `nix flake update`
 * Apply system configuration `darwin-rebuild switch --flake .`, in this directory.
 
-# WIP:
+Installing on a new computer:
 
-build-users-group = nixbld
+```
+nix run nix-darwin -- switch --flake github:my-user/my-repo#my-config
+```
 
 # References
 
