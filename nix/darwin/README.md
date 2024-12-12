@@ -1,8 +1,7 @@
 # Notes
 
-- Rebuild system with `./apply.sh`, which does:
-    1. `nix flake update`
-    2. `darwin-rebuild switch --flake .`, in this directory.
+* Update flake deps with `nix flake update`
+* Apply system configuration `darwin-rebuild switch --flake .`, in this directory.
 
 # WIP:
 
