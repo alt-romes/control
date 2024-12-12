@@ -20,9 +20,11 @@
         settings = {
 
           # Necessary for using flakes on this system.
-          experimental-features = "nix-command flakes";
+          experimental-features = [ "nix-command" "flakes" ];
 
           trusted-users = [ "root" "romes" "@admin" ];
+
+          system-features = [ "nixos-test" "apple-virt" ];
         };
 
         # linux-builder: background VM running linux to build linux things
@@ -33,8 +35,9 @@
           enable = true;
           # cleans up machines on restart
           ephemeral = true;
-          maxJobs = 2; # number of jobs that may be delegated concurrently to this builder.
+          maxJobs = 4; # number of jobs that may be delegated concurrently to this builder.
           config = {
+            nix.settings.sandbox = false;
             virtualisation = {
               darwin-builder = {
                 diskSize = 40*1024; # 40GB disk
@@ -43,7 +46,7 @@
               cores = 4;
             };
           };
-
+          supportedFeatures = [ "kvm" "benchmark" "big-parallel" "nixos-test" ];
         };
 
         # This line is a prerequisite?
