@@ -1,10 +1,12 @@
+# Notes
+
+- Rebuild system with `./apply.sh`, which does:
+    1. `nix flake update`
+    2. `darwin-rebuild switch --flake .`, in this directory.
+
 # WIP:
 
-/etc/nix/nix.conf
-
-
 build-users-group = nixbld
-trusted-users = root romes
 
 # References
 
