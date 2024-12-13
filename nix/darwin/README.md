@@ -1,13 +1,25 @@
 # Notes
 
-To update the configuration run
-```
-darwin-rebuild switch
-```
+Previously we used flakes, which looked like this:
 
-To set it up from scratch consult `nix-darwin`.
+* Update flake deps with `nix flake update`
+* Apply system configuration
+    ```
+    darwin-rebuild switch --flake $HOME/control/nix/darwin/
+    ```
+
+Installing existing configuration on a new computer:
+
+```
+nix run nix-darwin -- switch --flake github:my-user/my-repo#my-config
+```
 
 # Interacting with linux-builder
+
+You can launch the linux builder standalone as:
+```
+nix run nixpkgs#darwin.linux-builder
+```
 
 The linux builder is launched as a daemon with `launchd`.
 
@@ -28,16 +40,6 @@ The linux builder is launched as a daemon with `launchd`.
 
 # Historical notes
 
-Previously we used flakes, which looked like this:
+Using vanilla channels didn't work for building the linux-builder when doing
+`darwin-rebuild switch`. The flake does work.
 
-* Update flake deps with `nix flake update`
-* Apply system configuration
-    ```
-    darwin-rebuild switch --flake $HOME/control/nix/darwin/
-    ```
-
-Installing existing configuration on a new computer:
-
-```
-nix run nix-darwin -- switch --flake github:my-user/my-repo#my-config
-```
