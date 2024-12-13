@@ -3,11 +3,22 @@
 * Update flake deps with `nix flake update`
 * Apply system configuration `darwin-rebuild switch --flake .`, in this directory.
 
-Installing on a new computer:
+Installing existing configuration on a new computer:
 
 ```
 nix run nix-darwin -- switch --flake github:my-user/my-repo#my-config
 ```
+
+# Interacting with linux-builder
+
+The linux builder is launched as a daemon with `launchd`.
+
+- Get info with `sudo launchctl print system/org.nixos.linux-builder`
+- Info of running services `sudo launchctl list | grep nixos`
+- How to stop it? `launchctl stop` commands didn't really work, it comes back!
+    - We should probably disable it by default and only enable when needed.
+- How to ssh to it? Perhaps better alternative is to build a nixos VM and ssh to
+    that one.
 
 # References
 

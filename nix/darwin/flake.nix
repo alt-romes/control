@@ -32,12 +32,15 @@
         # Sets up `org.nixos.linux-builder` `launchd` service.
         # Inspect with `sudo launchctl list org.nixos.linux-builder`
         linux-builder = {
-          enable = true;
+          # Leave this off by default, and only enable it to build things
+          # specifically in linux (e.g. when configuring mogbit server),
+          # or doing a cool demo.
+          enable = false;
+
           # cleans up machines on restart
           ephemeral = true;
           maxJobs = 4; # number of jobs that may be delegated concurrently to this builder.
           config = {
-            nix.settings.sandbox = false;
             virtualisation = {
               darwin-builder = {
                 diskSize = 40*1024; # 40GB disk
@@ -46,7 +49,7 @@
               cores = 4;
             };
           };
-          supportedFeatures = [ "kvm" "benchmark" "big-parallel" "nixos-test" ];
+          # supportedFeatures = [ "kvm" "benchmark" "big-parallel" "nixos-test" ];
         };
 
         # This line is a prerequisite?
