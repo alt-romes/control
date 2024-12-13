@@ -15,7 +15,8 @@ let
     environment.systemPackages =
       [
         pkgs.vim
-        pkgs.devenv
+        pkgs.colmena       # deployment tool
+        pkgs.nixos-rebuild # to deploy to remote nixos machines directly
       ];
 
     nix = {
@@ -37,6 +38,14 @@ let
         # Leave this off by default, and only enable it to build things
         # specifically in linux (e.g. when configuring mogbit server),
         # or doing a cool demo.
+        #
+        # Remember to shut this down when not needed! Also, using a nixos
+        # docker and running linux-specific tasks in it seems much faster than
+        # the background runner for now, so that's one option
+        #
+        # Note for future: enabling and disabling (and applying) is sufficient
+        # to stop and start the service. Don't worry, it isn't left running in
+        # the background when this is disabled.
         enable = false;
 
         # cleans up machines on restart
