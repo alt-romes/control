@@ -1,13 +1,11 @@
 # Notes
 
-* Update flake deps with `nix flake update`
-* Apply system configuration `darwin-rebuild switch --flake .`, in this directory.
-
-Installing existing configuration on a new computer:
-
+To update the configuration run
 ```
-nix run nix-darwin -- switch --flake github:my-user/my-repo#my-config
+darwin-rebuild switch
 ```
+
+To set it up from scratch consult `nix-darwin`.
 
 # Interacting with linux-builder
 
@@ -28,3 +26,18 @@ The linux builder is launched as a daemon with `launchd`.
 * https://www.tweag.io/blog/2023-02-09-nixos-vm-on-macos/
 * NixOS in Production by Gabriella Gonzales
 
+# Historical notes
+
+Previously we used flakes, which looked like this:
+
+* Update flake deps with `nix flake update`
+* Apply system configuration
+    ```
+    darwin-rebuild switch --flake $HOME/control/nix/darwin/
+    ```
+
+Installing existing configuration on a new computer:
+
+```
+nix run nix-darwin -- switch --flake github:my-user/my-repo#my-config
+```
