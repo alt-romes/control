@@ -85,7 +85,31 @@ let
         ];
       };
 
-      programs.ssh.knownHosts."romes".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ";
+      # Connect over SSH
+      # note: Requires manually setting General > Sharing > Remote Login ON to activate remote login
+      users.users."romes".openssh.authorizedKeys.keys = [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ"
+      ];
+      # Write additional options for sshd_config
+      environment.etc."ssh/sshd_config.d/100-romes-nopassword".text = ''
+        KbdInteractiveAuthentication no
+        PasswordAuthentication no
+      '';
+
+      security.pam.enableSudoTouchIdAuth = true; # enable touch id for sudo
+
+      system.defaults.dock = {
+
+        # Autohide dock
+        autohide = true;
+
+        # Hot Corners!
+        wvous-bl-corner = 4; # bottom left = Desktop
+        wvous-br-corner = 3; # bottom right = Application Windows
+        wvous-tl-corner = 2; # top left = Mission Control
+        wvous-tr-corner = 12; # top right = Notification Center
+      };
+
     };
 in
 {
