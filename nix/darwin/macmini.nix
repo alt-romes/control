@@ -7,6 +7,8 @@
     ];
 
     casks = [
+        "blender"
+        "autodesk-fusion"
 	"bambu-studio"
     ];
   };
