@@ -31,6 +31,25 @@ let
           pkgs.nixos-rebuild # to deploy to remote nixos machines directly
         ];
 
+      homebrew = {
+        # this doesn't install homebrew, needs to be installed manually (see instructions on website)
+        enable = true;
+
+   	brews = []; # non-cask formulaes, per-machine configuration (see relevant files)
+	casks = []; # casks, per-machine configuration (see relevant files)
+
+	# command line for Mac App Store. Not using this (ie `mas`) yet.
+	# List below things to get from App Store:
+	mas = [
+ 	  # 1Password (maybe not from App Store?)
+	  # 1Password for Safari
+    	  # Things
+	  # DaisyDisk
+	  # Logic Pro
+          # Final Cut Pro
+	];
+      };
+
       # Enable alternative shell support in nix-darwin.
       # programs.fish.enable = true;
 
