@@ -84,6 +84,8 @@ let
           pkgs.nixos-rebuild # to deploy to remote nixos machines directly
         ];
       };
+
+      programs.ssh.knownHosts."romes".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ";
     };
 in
 {
