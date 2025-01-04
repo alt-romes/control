@@ -8,21 +8,61 @@
   };
 
 outputs = inputs@{ self, nix-darwin, nixpkgs }:
+let
+  common = 
+    { pkgs, ... }: {
+      nix.settings = {
+
+        # Necessary for using flakes on this system.
+        experimental-features = [ "nix-command" "flakes" ];
+
+        trusted-users = [ "root" "romes" "@admin" ];
+
+        # Apple virtualization for linux builder
+        system-features = [ "nixos-test" "apple-virt" ];
+      };
+
+      # List packages installed in system profile. To search by name, run:
+      # $ nix-env -qaP | grep wget
+      environment.systemPackages =
+        [
+          pkgs.vim
+          pkgs.colmena       # deployment tool
+          pkgs.nixos-rebuild # to deploy to remote nixos machines directly
+        ];
+
+      # Enable alternative shell support in nix-darwin.
+      # programs.fish.enable = true;
+
+      # The platform the configuration will be used on.
+      nixpkgs.hostPlatform = "aarch64-darwin";
+
+      # Set Git commit hash for darwin-version.
+      system.configurationRevision = self.rev or self.dirtyRev or null;
+
+      # Used for backwards compatibility, please read the changelog before changing.
+      # $ darwin-rebuild changelog
+      system.stateVersion = 5;
+    };
+in
 {
   # Build darwin flake using:
   # $ darwin-rebuild build --flake .
-  # (it suffices to use `.` because it will read the hostname, e.g., for romes-mbp it will read associated configuration)
+  # (it suffices to use `.` because it will read the hostname, e.g., for
+  # hostname=romes-mbp it will read associated configuration)
   darwinConfigurations = {
     "romes-mbp" = nix-darwin.lib.darwinSystem {
       modules = [
-        ./shared.nix
+        common
+        ./linux-builder.nix
       ];
     };
 
     # Nix-darwin configuration for Mac Mini M4 2024
     "romes-macmini" = nix-darwin.lib.darwinSystem {
       modules = [
-        ./shared.nix
+        common
+        # ./linux-builder.nix
       ];
     };
   };

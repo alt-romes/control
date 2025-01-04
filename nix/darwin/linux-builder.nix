@@ -1,24 +1,6 @@
+# Darwin linux builder
 { pkgs, ... }: {
-  # List packages installed in system profile. To search by name, run:
-  # $ nix-env -qaP | grep wget
-  environment.systemPackages =
-    [
-      pkgs.vim
-      pkgs.colmena       # deployment tool
-      pkgs.nixos-rebuild # to deploy to remote nixos machines directly
-    ];
-
   nix = {
-    settings = {
-
-      # Necessary for using flakes on this system.
-      experimental-features = [ "nix-command" "flakes" ];
-
-      trusted-users = [ "root" "romes" "@admin" ];
-
-      system-features = [ "nixos-test" "apple-virt" ];
-    };
-
     # linux-builder: background VM running linux to build linux things
     # (e.g. to later remote-deploy them).
     # Sets up `org.nixos.linux-builder` `launchd` service.
@@ -61,16 +43,4 @@
     '';
   };
 
-  # Enable alternative shell support in nix-darwin.
-  # programs.fish.enable = true;
-
-  # Set Git commit hash for darwin-version.
-  system.configurationRevision = self.rev or self.dirtyRev or null;
-
-  # Used for backwards compatibility, please read the changelog before changing.
-  # $ darwin-rebuild changelog
-  system.stateVersion = 5;
-
-  # The platform the configuration will be used on.
-  nixpkgs.hostPlatform = "aarch64-darwin";
 }
