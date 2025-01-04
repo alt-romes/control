@@ -10,6 +10,7 @@
         "blender"
         "autodesk-fusion"
 	"bambu-studio"
+        "affinity-designer"
 
         "ghostty"
     ];
