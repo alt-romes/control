@@ -10,6 +10,8 @@
         "blender"
         "autodesk-fusion"
 	"bambu-studio"
+
+        "ghostty"
     ];
   };
 }

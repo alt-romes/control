@@ -11,6 +11,16 @@ outputs = inputs@{ self, nix-darwin, nixpkgs }:
 let
   common = 
     { pkgs, ... }: {
+      # Used for backwards compatibility, please read the changelog before changing.
+      # $ darwin-rebuild changelog
+      system.stateVersion = 5;
+
+      # Set Git commit hash for darwin-version.
+      system.configurationRevision = self.rev or self.dirtyRev or null;
+
+      # The platform the configuration will be used on.
+      nixpkgs.hostPlatform = "aarch64-darwin";
+
       nix.settings = {
 
         # Necessary for using flakes on this system.
@@ -21,15 +31,6 @@ let
         # Apple virtualization for linux builder
         system-features = [ "nixos-test" "apple-virt" ];
       };
-
-      # List packages installed in system profile. To search by name, run:
-      # $ nix-env -qaP | grep wget
-      environment.systemPackages =
-        [
-          pkgs.vim
-          pkgs.colmena       # deployment tool
-          pkgs.nixos-rebuild # to deploy to remote nixos machines directly
-        ];
 
       homebrew = {
         # this doesn't install homebrew, needs to be installed manually (see instructions on website)
@@ -53,15 +54,36 @@ let
       # Enable alternative shell support in nix-darwin.
       # programs.fish.enable = true;
 
-      # The platform the configuration will be used on.
-      nixpkgs.hostPlatform = "aarch64-darwin";
+      environment = {
+        variables = {
+          HISTCONTROL = "ignoredups";
 
-      # Set Git commit hash for darwin-version.
-      system.configurationRevision = self.rev or self.dirtyRev or null;
+          EDITOR = "vim";
 
-      # Used for backwards compatibility, please read the changelog before changing.
-      # $ darwin-rebuild changelog
-      system.stateVersion = 5;
+          LEDGER_FILE = "$HOME/control/finances/2024.journal";
+        };
+
+        shellAliases = {
+          is = "hledger is -X € -M --change Income Expenses -AT -2 -b'this year' --pretty";
+          bs = "hledger bs -X € -M --historical Assets Liabilities -3 -b'this year' --pretty";
+          cf = "hledger cf -X € -M -AT -3 -b'this year' --pretty";
+
+          mv = "mv -i";
+          cp = "cp -i";
+
+          g = "git";
+          httpserver = "python -m http.server 25565";
+          darwin-nix-switch = "darwin-rebuild switch --flake $HOME/control/nix/darwin/";
+        };
+
+        # List packages installed in system profile. To search by name, run:
+        # $ nix-env -qaP | grep wget
+        systemPackages = [
+          pkgs.vim
+          pkgs.colmena       # deployment tool
+          pkgs.nixos-rebuild # to deploy to remote nixos machines directly
+        ];
+      };
     };
 in
 {
