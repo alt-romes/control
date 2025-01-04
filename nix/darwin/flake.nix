@@ -63,6 +63,7 @@ in
       modules = [
         common
         # ./linux-builder.nix
+        ./macmini.nix
       ];
     };
   };
