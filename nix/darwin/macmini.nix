@@ -13,6 +13,8 @@
         "affinity-designer"
 
         "ghostty"
+        "steam"
+        "vlc"
     ];
   };
 }

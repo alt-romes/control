@@ -37,7 +37,9 @@ let
         enable = true;
 
    	brews = []; # non-cask formulaes, per-machine configuration (see relevant files)
-	casks = []; # casks, per-machine configuration (see relevant files)
+	casks = [ # casks, see also per-machine configuration (see relevant files)
+          "flycut"
+        ];
 
 	# command line for Mac App Store. Not using this (ie `mas`) yet.
 	# List below things to get from App Store:
