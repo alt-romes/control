@@ -51,6 +51,10 @@ let
 	  # Logic Pro
           # Final Cut Pro
 	};
+
+        # Manage brew formulae using nix only
+        # Pass --cleanup --zap to bundle, so everything not referenced is uninstalled.
+        onActivation.cleanup = "zap";
       };
 
       # Enable alternative shell support in nix-darwin.
