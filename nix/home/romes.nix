@@ -24,7 +24,7 @@
 #  };
 
   programs.git = {
-    # enable = true;
+    enable = true;
     userName = "Rodrigo Mesquita";
     userEmail = "rodrigo.m.mesquita@gmail.com";
     signing.key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ";
