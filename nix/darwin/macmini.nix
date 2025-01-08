@@ -15,6 +15,8 @@
         "ghostty"
         "steam"
         "vlc"
+        "firefox"
+        "mattermost"
     ];
   };
 }

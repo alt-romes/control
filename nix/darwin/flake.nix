@@ -5,9 +5,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     nix-darwin.url = "github:LnL7/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-outputs = inputs@{ self, nix-darwin, nixpkgs }:
+outputs = inputs@{ self, nix-darwin, home-manager, nixpkgs }:
 let
   common = 
     { pkgs, ... }: {
@@ -91,6 +93,11 @@ let
         ];
       };
 
+      users.users."romes" = {
+        name = "romes";
+        home = "/Users/romes";
+      };
+
       # Connect over SSH
       # note: Requires manually setting General > Sharing > Remote Login ON to activate remote login
       users.users."romes".openssh.authorizedKeys.keys = [
@@ -135,8 +142,16 @@ in
     "romes-macmini" = nix-darwin.lib.darwinSystem {
       modules = [
         common
-        # ./linux-builder.nix
         ./macmini.nix
+
+        # ./linux-builder.nix
+
+        # Home Manager
+        home-manager.darwinModules.home-manager {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          home-manager.users.romes = import ../home/romes.nix;
+        }
       ];
     };
   };
