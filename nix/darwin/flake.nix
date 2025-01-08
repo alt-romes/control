@@ -82,6 +82,7 @@ let
           g = "git";
           httpserver = "python -m http.server 25565";
           darwin-nix-switch = "darwin-rebuild switch --flake $HOME/control/nix/darwin/";
+          ghc-nix = "nix develop git+https://gitlab.haskell.org/ghc/ghc.nix";
         };
 
         # List packages installed in system profile. To search by name, run:
