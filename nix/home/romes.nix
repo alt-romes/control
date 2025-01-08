@@ -7,8 +7,6 @@
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
-  # imports = lib.mkIf pkgs.stdenv.isDarwin [ ./darwin/romes.nix ];
-
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home.username = "romes";
@@ -26,6 +24,7 @@
 #  };
 
   programs.git = {
+    # enable = true;
     userName = "Rodrigo Mesquita";
     userEmail = "rodrigo.m.mesquita@gmail.com";
     signing.key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ";
@@ -47,10 +46,12 @@
 
       url."git@github.com:".insteadOf = "https://github.com";
       url."ssh://git@gitlab.com/".insteadOf = "https://gitlab.com";
+    } // lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+      "gpg \"ssh\"".program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign";
     };
 
     aliases = {
-      fixup = "!git log -n 50 --pretty=format:'%h %s' --no-merges | fzf | cut -c -7 | xargs -o git commit --fixup"
+      fixup = "!git log -n 50 --pretty=format:'%h %s' --no-merges | fzf | cut -c -7 | xargs -o git commit --fixup";
     }; 
 
     delta = {
