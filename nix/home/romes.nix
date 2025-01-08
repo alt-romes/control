@@ -28,10 +28,10 @@
     userName = "Rodrigo Mesquita";
     userEmail = "rodrigo.m.mesquita@gmail.com";
     signing.key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ";
+    signing.signByDefault = true;
 
     extraConfig = {
       gpg.format = "ssh";
-      commit.gpgsign = true;
 
       push.default = "current";
       pull.default = "origin";
@@ -46,7 +46,7 @@
 
       url."git@github.com:".insteadOf = "https://github.com";
       url."ssh://git@gitlab.com/".insteadOf = "https://gitlab.com";
-    } // lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+    } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
       "gpg \"ssh\"".program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign";
     };
 
