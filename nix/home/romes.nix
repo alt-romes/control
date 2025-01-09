@@ -1,5 +1,5 @@
 # romes home configuration
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, nixvim, ... }:
 {
   # You can update Home Manager without changing this value.
   home.stateVersion = "24.11";

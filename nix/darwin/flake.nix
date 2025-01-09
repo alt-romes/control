@@ -7,9 +7,11 @@
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    nixvim.url = "github:nix-community/nixvim";
+    nixvim.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-outputs = inputs@{ self, nix-darwin, home-manager, nixpkgs }:
+outputs = inputs@{ self, nix-darwin, home-manager, nixvim, nixpkgs }:
 let
   common = 
     { pkgs, ... }: {
@@ -152,6 +154,7 @@ in
           home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
           home-manager.users.romes = import ../home/romes.nix;
+          home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
         }
       ];
     };

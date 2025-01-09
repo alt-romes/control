@@ -12,9 +12,12 @@
 	"bambu-studio"
         "affinity-designer"
 
-        "ghostty"
+        "8bitdo-ultimate-software"
         "steam"
+
         "vlc"
+
+        "ghostty"
         "firefox"
         "mattermost"
     ];
