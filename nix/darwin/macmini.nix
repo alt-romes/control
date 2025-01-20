@@ -15,11 +15,14 @@
         "8bitdo-ultimate-software"
         "steam"
 
+	"anki"
         "vlc"
-
         "ghostty"
         "firefox"
+
         "mattermost"
+        "discord"
+	"qbittorrent"
     ];
   };
 }

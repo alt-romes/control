@@ -82,7 +82,7 @@ let
           cp = "cp -i";
 
           g = "git";
-          httpserver = "python -m http.server 25565";
+          httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
           darwin-nix-switch = "darwin-rebuild switch --flake $HOME/control/nix/darwin/";
           ghc-nix = "nix develop git+https://gitlab.haskell.org/ghc/ghc.nix";
         };
@@ -114,16 +114,18 @@ let
 
       security.pam.enableSudoTouchIdAuth = true; # enable touch id for sudo
 
-      system.defaults.dock = {
-
-        # Autohide dock
-        autohide = true;
-
-        # Hot Corners!
-        wvous-bl-corner = 4; # bottom left = Desktop
-        wvous-br-corner = 3; # bottom right = Application Windows
-        wvous-tl-corner = 2; # top left = Mission Control
-        wvous-tr-corner = 12; # top right = Notification Center
+      system.defaults = {
+        dock = {
+  
+          # Autohide dock
+          autohide = true;
+  
+          # Hot Corners!
+          wvous-bl-corner = 4; # bottom left = Desktop
+          wvous-br-corner = 3; # bottom right = Application Windows
+          wvous-tl-corner = 2; # top left = Mission Control
+          wvous-tr-corner = 12; # top right = Notification Center
+        };
       };
 
     };
