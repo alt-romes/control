@@ -43,7 +43,7 @@
 
     opts = {
       # Options from https://github.com/alt-romes/.vim
-      number=true; relativenumber=true; 	          # Set relative numbered lines
+      number=true; relativenumber=true;               # Set relative numbered lines
       expandtab=true; tabstop=4; shiftwidth=4;        # Indent by 4 spaces
       hlsearch=true; ignorecase=true; incsearch=true; # Highlight case-insensitive search while typing
       wildmenu=true;                                  # Display command-line completion menu
@@ -69,12 +69,12 @@
 
     keymaps = [
       {
-	# Tag jumping
-	mode = "n"; key = "<C-j>"; action = "<C-]>";
+        # Tag jumping
+        mode = "n"; key = "<C-j>"; action = "<C-]>";
       }
       {
         # Insert 80 `-` characters to make a line like:
-	# --------------------------------------------
+        # --------------------------------------------
         mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>";
       }
       {
@@ -102,7 +102,7 @@
             owner = "AndrewRadev";
             repo = "linediff.vim";
             rev = "ddae71ef5f94775d101c1c70032ebe8799f32745";
-	    hash = "sha256-ZyQzLpzvS887J1Gdxv1edC9MhPj1EEITh27rUPuFugU=";
+            hash = "sha256-ZyQzLpzvS887J1Gdxv1edC9MhPj1EEITh27rUPuFugU=";
         };
     })];
   };
