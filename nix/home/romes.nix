@@ -13,33 +13,21 @@
   home.homeDirectory = "/Users/romes";
 
   # Packages that should be installed to the user profile.
-  home.packages = with pkgs; [ fzf ripgrep ];
+  home.packages = with pkgs; [
+    fzf ripgrep
 
-#  programs.emacs = {
-#    enable = true;
-#    extraPackages = epkgs: [
-#      epkgs.nix-mode
-#      epkgs.magit
-#    ];
-#  };
-
-  # Broken because plugins write to their own directory on first start
-  # (also, undofiles can't be written to .vim)
-  # Let's try going to NixVim route
-  # home.file = {
-  #   ".vim".source = pkgs.fetchFromGitHub {
-  #     fetchSubmodules = true;
-  #     owner = "alt-romes";
-  #     repo = ".vim";
-  #     rev = "master";
-  #     sha256 = "sha256-l5PjVUck7jHu6SYazJsvbPOtneM9+U7WNpfutpYcJfA=";
-  #   };
-  # };
+    ghc haskell-language-server
+    cabal-install
+  ];
 
   programs.nixvim = {
     enable = true;
     viAlias = true;
     vimAlias = true;
+
+    colorschemes.oxocarbon.enable = true;
+    # colorschemes.kanagawa.enable = true;
+    opts.background = "dark";
 
     opts = {
       # Options from https://github.com/alt-romes/.vim
@@ -87,9 +75,17 @@
       }
     ];
 
+    /* Language Server Protocols */
+    plugins.lsp = {
+        enable = true;
+        servers.hls = {
+          enable = true;
+          installGhc = false; # Disable a warning for ghc installation
+        };
+    };
+
     /* Plugins */
     plugins.treesitter.enable = true;
-    plugins.lsp.enable = true;
     plugins.telescope.enable = true;
     plugins.web-devicons.enable = true; # required by telescope
     plugins.nvim-surround.enable = true;
@@ -152,4 +148,34 @@
       [ ".DS_Store" "dist-newstyle/" "__pycache__" ".idea" ".vim/undofiles/%*"
         "*.orig" "*.swp" "*.class" "*.aux" "*.log" "*.out" "*.hi" "*.o" "tags" ];
   };
+
+  programs.ghostty = {
+    enable = false; # can't enable because this package is broken. We're using the homebrew installed one.
+    settings = {
+        # Mirror important settings only:
+        # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
+        window-padding-color = "extend";
+    };
+  };
+
+  #  programs.emacs = {
+  #    enable = true;
+  #    extraPackages = epkgs: [
+  #      epkgs.nix-mode
+  #      epkgs.magit
+  #    ];
+  #  };
+  
+  # Broken because plugins write to their own directory on first start
+  # (also, undofiles can't be written to .vim)
+  # Let's try going to NixVim route
+  # home.file = {
+  #   ".vim".source = pkgs.fetchFromGitHub {
+  #     fetchSubmodules = true;
+  #     owner = "alt-romes";
+  #     repo = ".vim";
+  #     rev = "master";
+  #     sha256 = "sha256-l5PjVUck7jHu6SYazJsvbPOtneM9+U7WNpfutpYcJfA=";
+  #   };
+  # };
 }

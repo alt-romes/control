@@ -9,20 +9,22 @@
     casks = [
         "blender"
         "autodesk-fusion"
-	"bambu-studio"
+        "bambu-studio"
         "affinity-designer"
 
         "8bitdo-ultimate-software"
         "steam"
 
-	"anki"
+        "anki"
         "vlc"
         "ghostty"
         "firefox"
+        "qbittorrent"
+
+        "inform" # interactive fiction tool, ref. in that talk at TFP
 
         "mattermost"
         "discord"
-	"qbittorrent"
     ];
   };
 }
