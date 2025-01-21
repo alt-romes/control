@@ -20,8 +20,7 @@
         "ghostty"
         "firefox"
         "qbittorrent"
-
-        "inform" # interactive fiction tool, ref. in that talk at TFP
+        "skim"
 
         "mattermost"
         "discord"
