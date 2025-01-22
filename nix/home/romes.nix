@@ -22,6 +22,10 @@
 
   programs.zsh = {
     enable = true;
+    autosuggestion.enable = true;
+    localVariables = {
+        PROMPT="%F{000}%(?.%K{148}.%K{red}) %(?.λ.✘) %F{249}%K{236} %1~ %k%f ";
+    };
   };
 
   programs.nixvim = {
