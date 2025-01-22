@@ -24,12 +24,6 @@
     enable = true;
   };
 
-  programs.starship = {
-    enable = true;
-    enableZshIntegration = true;
-    settings = builtins.fromTOML (builtins.readFile ./gruvbox-rainbow.toml);
-  };
-
   programs.nixvim = {
     enable = true;
     viAlias = true;
