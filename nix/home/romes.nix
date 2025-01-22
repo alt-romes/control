@@ -20,6 +20,16 @@
     cabal-install
   ];
 
+  programs.zsh = {
+    enable = true;
+  };
+
+  programs.starship = {
+    enable = true;
+    enableZshIntegration = true;
+    settings = builtins.fromTOML (builtins.readFile ./gruvbox-rainbow.toml);
+  };
+
   programs.nixvim = {
     enable = true;
     viAlias = true;
@@ -152,6 +162,7 @@
   programs.ghostty = {
     enable = false; # can't enable because this package is broken. We're using the homebrew installed one.
     settings = {
+        theme = "oxocarbon";
         # Mirror important settings only:
         # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
         window-padding-color = "extend";

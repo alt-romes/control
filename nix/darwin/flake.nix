@@ -13,7 +13,7 @@
 
 outputs = inputs@{ self, nix-darwin, home-manager, nixvim, nixpkgs }:
 let
-  common = 
+  common =
     { pkgs, ... }: {
       # Used for backwards compatibility, please read the changelog before changing.
       # $ darwin-rebuild changelog
