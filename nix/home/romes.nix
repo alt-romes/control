@@ -24,8 +24,20 @@
     enable = true;
     autosuggestion.enable = true;
     localVariables = {
-        PROMPT="%F{000}%(?.%K{148}.%K{red}) %(?.λ.✘) %F{249}%K{236} %1~ %k%f ";
+        TYPEWRITTEN_PROMPT_LAYOUT="pure";
     };
+    plugins = [
+      {
+        # will source zsh-autosuggestions.plugin.zsh
+        name = "typewritten";
+        src = pkgs.fetchFromGitHub {
+          owner = "reobin";
+          repo = "typewritten";
+          rev = "v1.5.2";
+          sha256 = "ZHPe7LN8AMr4iW0uq3ZYqFMyP0hSXuSxoaVSz3IKxCc=";
+        };
+      }
+    ];
   };
 
   programs.nixvim = {
@@ -33,9 +45,10 @@
     viAlias = true;
     vimAlias = true;
 
-    colorschemes.oxocarbon.enable = true;
+    colorschemes.ayu.enable = true;
+    # colorschemes.oxocarbon.enable = true;
     # colorschemes.kanagawa.enable = true;
-    opts.background = "dark";
+    opts.background = "light";
 
     opts = {
       # Options from https://github.com/alt-romes/.vim
@@ -95,6 +108,7 @@
     /* Plugins */
     plugins.treesitter.enable = true;
     plugins.telescope.enable = true;
+    plugins.telescope.extensions.fzf-native.enable = true;
     plugins.web-devicons.enable = true; # required by telescope
     plugins.nvim-surround.enable = true;
     plugins.fugitive.enable = true;
