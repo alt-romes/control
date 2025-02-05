@@ -40,21 +40,21 @@ let
         # this doesn't install homebrew, needs to be installed manually (see instructions on website)
         enable = true;
 
-   	brews = []; # non-cask formulaes, per-machine configuration (see relevant files)
-	casks = [ # casks, see also per-machine configuration (see relevant files)
-          "flycut"
-        ];
+        brews = []; # non-cask formulaes, per-machine configuration (see relevant files)
+        casks = [ # casks, see also per-machine configuration (see relevant files)
+              "flycut"
+            ];
 
-	# command line for Mac App Store. Not using this (ie `mas`) yet.
-	# List below things to get from App Store:
-	masApps = {
- 	  # 1Password (maybe not from App Store?)
-	  # 1Password for Safari
-    	  # Things
-	  # DaisyDisk
-	  # Logic Pro
-          # Final Cut Pro
-	};
+        # command line for Mac App Store. Not using this (ie `mas`) yet.
+        # List below things to get from App Store:
+        masApps = {
+          # 1Password (maybe not from App Store?)
+          # 1Password for Safari
+              # Things
+          # DaisyDisk
+          # Logic Pro
+              # Final Cut Pro
+        };
 
         # Manage brew formulae using nix only
         # Pass --cleanup --zap to bundle, so everything not referenced is uninstalled.
@@ -65,6 +65,17 @@ let
       # programs.fish.enable = true;
 
       environment = {
+        # List packages installed in system profile. To search by name, run:
+        # $ nix-env -qaP | grep wget
+        systemPackages = [
+          pkgs.vim
+          pkgs.colmena       # deployment tool
+          pkgs.nixos-rebuild # to deploy to remote nixos machines directly
+
+          pkgs.haskellPackages.fast-tags
+          pkgs.haskellPackages.hledger
+        ];
+
         variables = {
           HISTCONTROL = "ignoredups";
 
@@ -86,14 +97,6 @@ let
           darwin-nix-switch = "darwin-rebuild switch --flake $HOME/control/nix/darwin/";
           ghc-nix = "nix develop git+https://gitlab.haskell.org/ghc/ghc.nix";
         };
-
-        # List packages installed in system profile. To search by name, run:
-        # $ nix-env -qaP | grep wget
-        systemPackages = [
-          pkgs.vim
-          pkgs.colmena       # deployment tool
-          pkgs.nixos-rebuild # to deploy to remote nixos machines directly
-        ];
       };
 
       users.users."romes" = {
