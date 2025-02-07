@@ -13,6 +13,7 @@
 
 outputs = inputs@{ self, nix-darwin, home-manager, nixvim, nixpkgs }:
 let
+  hledgerfile = "/Users/romes/control/finances/2024.journal";
   common =
     { pkgs, ... }: {
       # Used for backwards compatibility, please read the changelog before changing.
@@ -81,7 +82,7 @@ let
 
           EDITOR = "vim";
 
-          LEDGER_FILE = "$HOME/control/finances/2024.journal";
+          LEDGER_FILE = hledgerfile;
         };
 
         shellAliases = {
@@ -148,6 +149,10 @@ in
 
     # Nix-darwin configuration for Mac Mini M4 2024
     "romes-macmini" = nix-darwin.lib.darwinSystem {
+      # Arguments passed to each module \in modules below
+      specialArgs = {
+        inherit hledgerfile;
+      };
       modules = [
         common
         ./macmini.nix
