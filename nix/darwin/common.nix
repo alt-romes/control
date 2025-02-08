@@ -59,7 +59,7 @@
 
       g = "git";
       httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
-      darwin-nix-switch = "darwin-rebuild switch --flake '/Users/romes/control/nix/darwin/?submodules=1'"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
+      darwin-nix-switch = "darwin-rebuild switch --flake '/Users/romes/control/nix/darwin/.?submodules=1'"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
       ghc-nix = "nix develop git+https://gitlab.haskell.org/ghc/ghc.nix";
     };
   };

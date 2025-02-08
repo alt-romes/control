@@ -25,7 +25,7 @@ in
 {
   # Build darwin flake using:
   #
-  # $ darwin-rebuild build --flake .?submodules=1
+  # $ darwin-rebuild build --flake <path>?submodules=1
   # (it suffices to use `.` because it will read the hostname, e.g., for
   # hostname=romes-mbp it will read associated configuration)
   #
