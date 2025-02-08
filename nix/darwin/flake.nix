@@ -13,7 +13,6 @@
 
 outputs = inputs@{ self, nix-darwin, home-manager, nixvim, nixpkgs }:
 let
-  hledgerfile = "/Users/romes/control/finances/2024.journal";
   common =
     { pkgs, ... }: {
       # Used for backwards compatibility, please read the changelog before changing.
@@ -74,24 +73,19 @@ let
           pkgs.nixos-rebuild # to deploy to remote nixos machines directly
 
           pkgs.haskellPackages.fast-tags
-          pkgs.haskellPackages.hledger
+
+          pkgs.eza           # ls replacement
         ];
 
         variables = {
           HISTCONTROL = "ignoredups";
-
           EDITOR = "vim";
-
-          LEDGER_FILE = hledgerfile;
         };
 
         shellAliases = {
-          is = "hledger is -X € -M --change Income Expenses -AT -2 -b'this year' --pretty";
-          bs = "hledger bs -X € -M --historical Assets Liabilities -3 -b'this year' --pretty";
-          cf = "hledger cf -X € -M -AT -3 -b'this year' --pretty";
-
           mv = "mv -i";
           cp = "cp -i";
+          ls = "eza";
 
           g = "git";
           httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
@@ -149,10 +143,6 @@ in
 
     # Nix-darwin configuration for Mac Mini M4 2024
     "romes-macmini" = nix-darwin.lib.darwinSystem {
-      # Arguments passed to each module \in modules below
-      specialArgs = {
-        inherit hledgerfile;
-      };
       modules = [
         common
         ./macmini.nix
