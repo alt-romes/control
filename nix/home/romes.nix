@@ -18,8 +18,12 @@
   home.packages = with pkgs; [
     fzf ripgrep
 
+    haskellPackages.fast-tags
     ghc haskell-language-server
     cabal-install
+
+    colmena       # deployment tool
+    nixos-rebuild # to deploy to remote nixos machines directly
   ];
 
   programs.zsh = {
@@ -105,17 +109,4 @@
   #      epkgs.magit
   #    ];
   #  };
-  
-  # Broken because plugins write to their own directory on first start
-  # (also, undofiles can't be written to .vim)
-  # Let's try going to NixVim route
-  # home.file = {
-  #   ".vim".source = pkgs.fetchFromGitHub {
-  #     fetchSubmodules = true;
-  #     owner = "alt-romes";
-  #     repo = ".vim";
-  #     rev = "master";
-  #     sha256 = "sha256-l5PjVUck7jHu6SYazJsvbPOtneM9+U7WNpfutpYcJfA=";
-  #   };
-  # };
 }

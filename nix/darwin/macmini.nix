@@ -2,22 +2,11 @@
 { pkgs, config, ... }:
 {
 
-  imports = [
-    ../../finances/finances.nix
-  ];
-
-  finances = {
-    enable = true;
-    daemons.enable = true;
-    personal.ledger = "/Users/romes/control/finances/2024.journal";
-    mogbit.ledger = "/Users/romes/control/finances/mogbit/2024.journal";
-  };
+  finances.daemons.enable = true;
 
   homebrew = {
 
-    brews = [
-
-    ];
+    brews = [ ];
 
     casks = [
         "blender"
