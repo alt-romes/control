@@ -21,6 +21,13 @@ let
     system.configurationRevision = self.rev or self.dirtyRev or null;
     nixpkgs.hostPlatform = "aarch64-darwin";
   };
+
+  home-manager = home-manager.darwinModules.home-manager {
+    home-manager.useGlobalPkgs = true;
+    home-manager.useUserPackages = true;
+    home-manager.users.romes = import ../home/romes.nix;
+    home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
+  };
 in
 {
   # Build darwin flake using:
@@ -37,7 +44,7 @@ in
       modules = [
         sys
         ./common.nix
-        ./linux-builder.nix
+        ./mbp.nix
       ];
 
     };
@@ -47,21 +54,13 @@ in
 
       modules = [
         sys
+        home-manager
         ./common.nix
         ./macmini.nix
-
-        # Enable linux builder, to allow building locally for a linux target
-        # ./linux-builder.nix
-
-        # Home Manager
-        home-manager.darwinModules.home-manager {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.users.romes = import ../home/romes.nix;
-          home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
-        }
       ];
+
     };
+
   };
 };
 }
