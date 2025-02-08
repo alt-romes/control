@@ -2,9 +2,9 @@
 { pkgs, lib, config, ... }: {
 
   options.process.linux-builder.enable
-    = mkEnableOption "Enable a linux-builder background-running VM to send target=linux jobs to.";
+    = lib.mkEnableOption "Enable a linux-builder background-running VM to send target=linux jobs to.";
 
-  config = lib.mkIf _ {
+  config = lib.mkIf config.process.linux-builder.enable {
 
     nix = {
 
