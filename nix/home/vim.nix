@@ -42,23 +42,17 @@
     };
 
     keymaps = [
-      {
-        # Tag jumping
-        mode = "n"; key = "<C-j>"; action = "<C-]>";
-      }
-      {
-        # Insert 80 `-` characters to make a line like:
+      { # Tag jumping
+        mode = "n"; key = "<C-j>"; action = "<C-]>"; }
+      { # Insert 80 `-` characters to make a line like:
         # --------------------------------------------
-        mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>";
-      }
-      {
-        # Telescope find files
-        mode = "n"; key = "<leader>ff"; action = "<cmd>Telescope find_files<cr>";
-      }
-      {
-        # Telescope live grep
-        mode = "n"; key = "<leader>fg"; action = "<cmd>Telescope live_grep<cr>";
-      }
+        mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
+      { # Telescope find files
+        mode = "n"; key = "<leader>f"; action = "<cmd>Telescope find_files<cr>"; }
+      { # Telescope live grep
+        mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
+      { # Nvim-tree open
+        mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
     ];
 
     /* Language Server Protocols */
@@ -78,6 +72,11 @@
     plugins.nvim-surround.enable = true;
     plugins.fugitive.enable = true;
     plugins.emmet.enable = true;
+
+    plugins.nvim-tree = {
+      enable = true;
+      disableNetrw = true;
+    };
 
     extraPlugins = [(pkgs.vimUtils.buildVimPlugin {
         name = "linediff.vim";
