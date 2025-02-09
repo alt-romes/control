@@ -4,6 +4,7 @@
   imports = [
     ./git.nix
     ./vim.nix
+    ../private/ssh.nix
   ];
 
   # You can update Home Manager without changing this value.

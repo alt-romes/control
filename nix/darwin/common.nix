@@ -70,11 +70,12 @@
   };
 
   # Connect over SSH
-  # note: Requires manually setting General > Sharing > Remote Login ON to activate remote login
+  # NOTE: Requires manually setting General > Sharing > Remote Login ON to activate remote login
   users.users."romes".openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ"
   ];
   # Write additional options for sshd_config
+  # to disable password and interactive authentication
   environment.etc."ssh/sshd_config.d/100-romes-nopassword".text = ''
     KbdInteractiveAuthentication no
     PasswordAuthentication no
