@@ -22,7 +22,7 @@
       rerere.enabled = true;
 
       url."git@github.com:".insteadOf = "https://github.com";
-      url."ssh://git@gitlab.com/".insteadOf = "https://gitlab.com";
+      url."git@gitlab.com:".insteadOf = "https://gitlab.com";
     } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
       "gpg \"ssh\"".program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign";
     };
