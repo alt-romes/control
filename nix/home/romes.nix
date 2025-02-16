@@ -28,6 +28,8 @@
 
     colmena       # deployment tool
     nixos-rebuild # to deploy to remote nixos machines directly
+
+    imhex
   ];
 
   programs.zsh = {
