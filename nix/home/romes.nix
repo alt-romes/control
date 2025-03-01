@@ -1,5 +1,9 @@
 # romes home configuration
 { config, lib, pkgs, nixvim, ... }:
+let
+  hs-comp = pkgs.haskell.compiler.ghc910;
+  hs-pkgs = pkgs.haskell.packages.ghc910;
+in
 {
   imports = [
     ./git.nix
@@ -22,9 +26,10 @@
   home.packages = with pkgs; [
     fzf ripgrep
 
+    hs-comp
+    hs-pkgs.cabal-install
+    hs-pkgs.haskell-language-server
     haskellPackages.fast-tags
-    ghc haskell-language-server
-    cabal-install
 
     colmena       # deployment tool
     nixos-rebuild # to deploy to remote nixos machines directly

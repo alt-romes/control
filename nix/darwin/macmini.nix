@@ -16,6 +16,7 @@
         # Recreative
         "8bitdo-ultimate-software"
         "steam"
+        "ultrastardeluxe"
 
         # Utilities
         "anki"
