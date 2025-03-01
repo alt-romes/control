@@ -82,7 +82,7 @@
     PasswordAuthentication no
   '';
 
-  security.pam.enableSudoTouchIdAuth = true; # enable touch id for sudo
+  security.pam.services.sudo_local.touchIdAuth = true; # enable touch id for sudo
 
   system.defaults = {
     dock = {
