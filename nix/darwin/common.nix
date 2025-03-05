@@ -34,6 +34,11 @@
     # Manage brew formulae using nix only
     # Pass --cleanup --zap to bundle, so everything not referenced is uninstalled.
     onActivation.cleanup = "zap";
+
+    # Update brew packages on activation. No point in trying to have
+    # reproducibility / idempotence of brew formulas and casks, as they're not
+    # pinned in any meaningful way. This applies mostly to Casks anyway :)
+    onActivation.autoUpdate = true;
   };
 
   # Enable alternative shell support in nix-darwin.
