@@ -53,8 +53,6 @@
         mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
       { # Nvim-tree open
         mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
-      { # Show LSP diagnostics
-        mode = "n"; key = "<leader>d"; action = "<c-w>d"; }
     ];
 
     /* Language Server Protocols */
