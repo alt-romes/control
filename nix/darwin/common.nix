@@ -118,8 +118,8 @@
   # Finances management
   finances = {
     enable = true;
-    personal.ledger = "/Users/romes/control/finances/2024.journal";
-    mogbit.ledger = "/Users/romes/control/finances/mogbit/2024.journal";
+    personal.ledger = "/Users/romes/control/finances/2025.journal";
+    mogbit.ledger = "/Users/romes/control/finances/mogbit/2025.journal";
     # Note: finances.daemons.enable must be set per-machine depending on
     # whether the periodically scheduled launchd daemons are wanted
     # Currently, this is macmini = ON, mbp = OFF
