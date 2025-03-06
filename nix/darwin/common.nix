@@ -118,6 +118,7 @@
   # Finances management
   finances = {
     enable = true;
+    all.ledger = "/Users/romes/control/finances/all.journal";
     personal.ledger = "/Users/romes/control/finances/2025.journal";
     mogbit.ledger = "/Users/romes/control/finances/mogbit/2025.journal";
     # Note: finances.daemons.enable must be set per-machine depending on
