@@ -4,6 +4,9 @@
 
   finances.daemons.enable = true;
 
+  # Background linux VM runner process is enabled per-machine as needed
+  process.linux-builder.enable = false;
+
   homebrew = {
     brews = [ ];
     casks = [

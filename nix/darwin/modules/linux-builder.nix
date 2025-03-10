@@ -24,7 +24,7 @@
         # Note for future: enabling and disabling (and applying) is sufficient
         # to stop and start the service. Don't worry, it isn't left running in
         # the background when this is disabled.
-        enable = false;
+        enable = true;
 
         # cleans up machines on restart
         ephemeral = true;

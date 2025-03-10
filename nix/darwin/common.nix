@@ -111,10 +111,6 @@
     ../../finances/finances.nix
   ];
 
-  # Background linux VM runner process is off by default
-  # and enabled per-machine.
-  process.linux-builder.enable = false;
-
   # Finances management
   finances = {
     enable = true;

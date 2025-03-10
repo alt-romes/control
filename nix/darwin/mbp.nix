@@ -2,8 +2,7 @@
 { pkgs, config, ... }:
 {
 
-  # Enable the linux builder as needed.
-  # Off for now.
+  # Background linux VM runner process is enabled per-machine as needed
   process.linux-builder.enable = false;
 
   # Leave journal synchronisation for the macmini
