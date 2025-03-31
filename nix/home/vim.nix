@@ -82,6 +82,34 @@
     /* DAP */
     plugins.dap = {
       enable = true;
+
+      adapters.servers = {
+        haskell = {
+          host = "127.0.0.1";
+          port = 4711; # TODO: use `${port}` for dynamic free port, and use `executable`
+          id = "ghc-debugger";
+
+          # Launch this server automatically for each launch
+          # executable = {
+          #   command = "haskell-debugger-server";
+          #   args = ["${port}"]; # and other required args
+          # };
+        };
+      };
+
+      configurations = {
+        haskell = [
+          {
+            type = "haskell";
+            request = "launch";
+            name = "Haskell Debugger";
+            projectRoot = "\${workspaceFolder}";
+            entryFile = "app/Main.hs";
+            entryArgs = [];
+          }
+        ];
+      };
+
     };
 
     extraPlugins = [(pkgs.vimUtils.buildVimPlugin {
