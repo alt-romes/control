@@ -79,6 +79,11 @@
       openOnSetup = true;
     };
 
+    /* DAP */
+    plugins.dap = {
+      enable = true;
+    };
+
     extraPlugins = [(pkgs.vimUtils.buildVimPlugin {
         name = "linediff.vim";
         src = pkgs.fetchFromGitHub {

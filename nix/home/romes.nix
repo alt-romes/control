@@ -31,6 +31,8 @@ in
     hs-pkgs.haskell-language-server
     haskellPackages.fast-tags
 
+    zlib # needed a lot
+
     colmena       # deployment tool
     nixos-rebuild # to deploy to remote nixos machines directly
 

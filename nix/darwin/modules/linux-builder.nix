@@ -1,4 +1,6 @@
 # Darwin linux builder
+# On the first time that the linux-builder is being run on any given machine:
+# See https://github.com/NixOS/nixpkgs/blob/master/doc/packages/darwin-builder.section.md for bootstrapping
 { pkgs, lib, config, ... }: {
 
   options.process.linux-builder.enable
@@ -42,7 +44,7 @@
       };
 
       # This line is a prerequisite?
-      # settings.trusted-users = [ "@admin" ];
+      settings.trusted-users = [ "@admin" ];
 
       # Enable building pkgs on x86_64-darwin as well
       extraOptions = ''

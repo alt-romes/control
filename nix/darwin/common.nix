@@ -70,6 +70,10 @@
     };
   };
 
+  fonts.packages = [
+    pkgs.noto-fonts
+  ];
+
   users.users."romes" = {
     name = "romes";
     home = "/Users/romes";
