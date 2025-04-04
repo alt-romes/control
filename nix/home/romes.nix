@@ -31,17 +31,27 @@ in
     hs-pkgs.haskell-language-server
     haskellPackages.fast-tags
 
-    zlib # needed a lot
-
     colmena       # deployment tool
     nixos-rebuild # to deploy to remote nixos machines directly
 
     imhex
+
+    # For (building) GHC
+    hs-pkgs.alex hs-pkgs.happy autoconf automake python3
   ];
 
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;
+    initExtra = ''
+      # Delete words like bash (up to slash)
+      # Very important to usefully do Alt+backspace and friends.
+      autoload -U select-word-style
+      select-word-style bash
+
+      # GHCUP
+      # [ -f ~/.ghcup/env ] && . ~/.ghcup/env
+    '';
     localVariables = {
         TYPEWRITTEN_PROMPT_LAYOUT="pure";
     };

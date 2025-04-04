@@ -29,13 +29,15 @@
       # set path+=** ??
       foldenable=false; foldmethod="marker";          # Fold with markers (e.g. set in a modeline to marker), open by default
       # termguicolors=true;
-      # clipboard^=unnamed ??
       conceallevel=2;                                 # Conceal level to hide typesetting details
       smartcase=true;                                 # Will use case-sensitive if capital or \C letter is present
       smarttab=true;                                  # Makes tabbing smarter will realize you have 2 vs 4, and default to tabstop/tabwidth when not obvious
       cursorline=true; cursorlineopt="both";          # Highlight the line number of the cursor line (cursorlineopt=number is also good)
       swapfile=true;                                  # We want swapfiles, and use vim's macOS default 'directory' option, which is within ~/Library
     };
+
+    # Share clipboard between vim and system
+    clipboard.register = "unnamedplus";
 
     files."ftplugin/nix.lua".opts = {
         tabstop=2; shiftwidth=2;
@@ -102,10 +104,13 @@
           {
             type = "haskell";
             request = "launch";
-            name = "Haskell Debugger";
+            name = "Default Haskell Debugger";
             projectRoot = "\${workspaceFolder}";
             entryFile = "app/Main.hs";
-            entryArgs = [];
+            entryPoint = "main";
+            entryArgs = [
+              "" # without this entryArgs is gone?
+            ];
           }
         ];
       };

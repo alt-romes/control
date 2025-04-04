@@ -30,6 +30,7 @@
         "skim"
         "mattermost"
         "discord"
+        "visual-studio-code" # debugger
     ];
   };
 
