@@ -43,6 +43,10 @@
         tabstop=2; shiftwidth=2;
     };
 
+    files."ftplugin/haskell.lua".opts = {
+        tabstop=2; shiftwidth=2;
+    };
+
     keymaps = [
       { # Tag jumping
         mode = "n"; key = "<C-j>"; action = "<C-]>"; }

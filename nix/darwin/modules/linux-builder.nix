@@ -40,7 +40,7 @@
             cores = 4;
           };
         };
-        # supportedFeatures = [ "kvm" "benchmark" "big-parallel" "nixos-test" ];
+        supportedFeatures = [ "kvm" "benchmark" "big-parallel" "nixos-test" ];
       };
 
       # This line is a prerequisite?
