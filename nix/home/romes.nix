@@ -31,7 +31,6 @@ in
     hs-pkgs.haskell-language-server
     haskellPackages.fast-tags
 
-    colmena       # deployment tool
     nixos-rebuild # to deploy to remote nixos machines directly
 
     imhex
