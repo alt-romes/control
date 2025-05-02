@@ -19,6 +19,7 @@
         # Recreative
         "8bitdo-ultimate-software"
         "steam"
+        "minecraft"
         "ultrastardeluxe"
 
         # Utilities

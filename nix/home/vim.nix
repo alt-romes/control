@@ -59,6 +59,10 @@
         mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
       { # Nvim-tree open
         mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
+      { # Nvim-lsp code action
+        mode = "n"; key = "<leader>a"; action = "<cmd>lua vim.lsp.buf.code_action()<cr>"; }
+      { # Nvim-lsp jump to definition
+        mode = "n"; key = "gd"; action = "<cmd>lua vim.lsp.buf.definition()<cr>"; }
     ];
 
     /* Language Server Protocols */
