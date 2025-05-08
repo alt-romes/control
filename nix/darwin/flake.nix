@@ -9,9 +9,11 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     nixvim.url = "github:nix-community/nixvim";
     nixvim.inputs.nixpkgs.follows = "nixpkgs";
+    inputs.agenix.url = "github:ryantm/agenix";
+    inputs.agenix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-outputs = inputs@{ self, nix-darwin, home-manager, nixvim, nixpkgs }:
+outputs = inputs@{ self, nix-darwin, home-manager, nixvim, agenix, nixpkgs }:
 let
   sys = {pkgs, ...}: {
     # Used for backwards compatibility, please read the changelog before changing.
@@ -21,6 +23,22 @@ let
     system.configurationRevision = self.rev or self.dirtyRev or null;
     nixpkgs.hostPlatform = "aarch64-darwin";
   };
+
+  common = [
+    sys
+    ./common.nix
+
+    # Home-manager
+    (home-manager.darwinModules.home-manager {
+      home-manager.useGlobalPkgs = true;
+      home-manager.useUserPackages = true;
+      home-manager.users.romes = import ../home/romes.nix;
+      home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
+    })
+
+    # Agenix
+    agenix.darwinModules.default
+  ];
 in
 {
   # Build darwin flake using:
@@ -34,9 +52,7 @@ in
 
     "romes-mbp" = nix-darwin.lib.darwinSystem {
 
-      modules = [
-        sys
-        ./common.nix
+      modules = common ++ [
         ./mbp.nix
       ];
 
@@ -45,16 +61,8 @@ in
     # Nix-darwin configuration for Mac Mini M4 2025
     "romes-macmini" = nix-darwin.lib.darwinSystem {
 
-      modules = [
-        sys
-        ./common.nix
+      modules = common ++ [
         ./macmini.nix
-        home-manager.darwinModules.home-manager {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.users.romes = import ../home/romes.nix;
-          home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
-        }
       ];
 
     };

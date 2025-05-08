@@ -112,6 +112,14 @@
   };
 
   # ------------------------------------------------------------------------
+  # Agenix secrets
+
+  # While SSH_AUTH_SOCKET doesn't work, we need to download from 1Password the
+  # key into this path to decrypt the secrets.
+  # See https://github.com/ryantm/agenix/issues/182
+  age.identityPaths = [ "~/.ssh/agenix" ];
+
+  # ------------------------------------------------------------------------
   # Custom modules and options
 
   imports = [
