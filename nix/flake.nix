@@ -9,8 +9,8 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     nixvim.url = "github:nix-community/nixvim";
     nixvim.inputs.nixpkgs.follows = "nixpkgs";
-    inputs.agenix.url = "github:ryantm/agenix";
-    inputs.agenix.inputs.nixpkgs.follows = "nixpkgs";
+    agenix.url = "github:ryantm/agenix";
+    agenix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
 outputs = inputs@{ self, nix-darwin, home-manager, nixvim, agenix, nixpkgs }:
@@ -29,12 +29,13 @@ let
     ./darwin/common.nix
 
     # Home-manager
-    (home-manager.darwinModules.home-manager {
+    home-manager.darwinModules.home-manager
+    {
       home-manager.useGlobalPkgs = true;
       home-manager.useUserPackages = true;
       home-manager.users.romes = import ./home/romes.nix;
       home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
-    })
+    }
 
     # Agenix
     agenix.darwinModules.default

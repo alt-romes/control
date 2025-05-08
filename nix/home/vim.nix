@@ -96,13 +96,13 @@
       adapters.servers = {
         haskell = {
           host = "127.0.0.1";
-          port = ${port};
+          port = "\${port}";
           id = "ghc-debugger";
 
           # Launch this server automatically for each launch
           executable = {
             command = "ghc-debug-adapter";
-            args = ["${port}"]; # and other required args
+            args = ["\${port}"]; # and other required args
           };
         };
       };
