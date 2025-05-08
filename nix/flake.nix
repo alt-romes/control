@@ -26,13 +26,13 @@ let
 
   common = [
     sys
-    ./common.nix
+    ./darwin/common.nix
 
     # Home-manager
     (home-manager.darwinModules.home-manager {
       home-manager.useGlobalPkgs = true;
       home-manager.useUserPackages = true;
-      home-manager.users.romes = import ../home/romes.nix;
+      home-manager.users.romes = import ./home/romes.nix;
       home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
     })
 
@@ -53,7 +53,7 @@ in
     "romes-mbp" = nix-darwin.lib.darwinSystem {
 
       modules = common ++ [
-        ./mbp.nix
+        ./darwin/mbp.nix
       ];
 
     };
@@ -62,7 +62,7 @@ in
     "romes-macmini" = nix-darwin.lib.darwinSystem {
 
       modules = common ++ [
-        ./macmini.nix
+        ./darwin/macmini.nix
       ];
 
     };
