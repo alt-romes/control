@@ -30,12 +30,6 @@ let
 
     # Home-manager
     home-manager.darwinModules.home-manager
-    {
-      home-manager.useGlobalPkgs = true;
-      home-manager.useUserPackages = true;
-      home-manager.users.romes = import ./home/romes.nix;
-      home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
-    }
 
     # Agenix
     agenix.darwinModules.default
@@ -52,6 +46,7 @@ in
   darwinConfigurations = {
 
     "romes-mbp" = nix-darwin.lib.darwinSystem {
+      specialArgs = { inherit nixvim; };
 
       modules = common ++ [
         ./darwin/mbp.nix
@@ -61,6 +56,7 @@ in
 
     # Nix-darwin configuration for Mac Mini M4 2025
     "romes-macmini" = nix-darwin.lib.darwinSystem {
+      specialArgs = { inherit nixvim; };
 
       modules = common ++ [
         ./darwin/macmini.nix

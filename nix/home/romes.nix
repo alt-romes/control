@@ -1,5 +1,5 @@
 # romes home configuration
-{ config, lib, pkgs, nixvim, ... }:
+{ config, lib, pkgs, ... }:
 let
   hs-comp = pkgs.haskell.compiler.ghc910;
   hs-pkgs = pkgs.haskell.packages.ghc910;
@@ -46,7 +46,7 @@ in
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;
-    initExtra = ''
+    initContent = ''
       # Delete words like bash (up to slash)
       # Very important to usefully do Alt+backspace and friends.
       autoload -U select-word-style

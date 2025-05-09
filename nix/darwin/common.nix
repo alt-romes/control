@@ -1,4 +1,4 @@
-{ pkgs, ... }: {
+{ pkgs, config, nixvim, ... }: {
 
   nix.settings = {
 
@@ -112,12 +112,26 @@
   };
 
   # ------------------------------------------------------------------------
+  # Home Manager
+  home-manager.useGlobalPkgs = true;
+  home-manager.useUserPackages = true;
+  home-manager.users.romes = import ../home/romes.nix;
+  home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
+  home-manager.extraSpecialArgs.systemConfig = config;
+
+  # ------------------------------------------------------------------------
   # Agenix secrets
 
   # While SSH_AUTH_SOCKET doesn't work, we need to download from 1Password the
   # key into this path to decrypt the secrets.
   # See https://github.com/ryantm/agenix/issues/182
-  age.identityPaths = [ "~/.ssh/agenix" ];
+  age.identityPaths = [ "/Users/romes/.ssh/agenix" ];
+  age.secrets.kimai = {
+    file = ../../secrets/kimai.age;
+    # this secret will be accessed on home-manager activation and when used as a tool
+    # so the user needs permissions
+    owner = "romes";
+  };
 
   # ------------------------------------------------------------------------
   # Custom modules and options
