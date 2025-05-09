@@ -66,21 +66,30 @@ in
       type = types.path;
       description = "Path to a file exporting KIMAI_USER and KIMAI_TOKEN environment variables";
     };
+
+    package = mkOption {
+      type = types.package;
+      description = ''
+        The kimai package used and that is made available. By default, this
+        package is a wrapper which sets the authentication environment vars and
+        then calls the Haskell binary.'';
+      default = kimaiWrapper;
+    };
   };
 
   config = mkIf cfg.enable {
     home.activation.kimaiSetup = lib.hm.dag.entryAfter ["writeBoundary"] ''
       echo "Configuring Kimai CLI..."
 
-      ${kimaiWrapper}/bin/kimai server ${cfg.server}
-      ${kimaiWrapper}/bin/kimai port ${toString cfg.port}
+      ${cfg.package}/bin/kimai server ${cfg.server}
+      ${cfg.package}/bin/kimai port ${toString cfg.port}
 
-      ${concatStringsSep "\n" (lib.mapAttrsToList (id: alias: "${kimaiWrapper}/bin/kimai alias-project ${id} ${alias}") cfg.alias-project)}
-      ${concatStringsSep "\n" (lib.mapAttrsToList (id: alias: "${kimaiWrapper}/bin/kimai alias-activity ${id} ${alias}") cfg.alias-activity)}
+      ${concatStringsSep "\n" (lib.mapAttrsToList (id: alias: "${cfg.package}/bin/kimai alias-project ${id} ${alias}") cfg.alias-project)}
+      ${concatStringsSep "\n" (lib.mapAttrsToList (id: alias: "${cfg.package}/bin/kimai alias-activity ${id} ${alias}") cfg.alias-activity)}
     '';
 
     # Make kimai available as the wrapper that sets the right variables from the secret.
-    home.packages = [ kimaiWrapper ];
+    home.packages = [ cfg.package ];
   };
 }
 
