@@ -9,6 +9,10 @@ in
     ./git.nix
     ./vim.nix
     ../private/ssh.nix
+    ../private/kimai.nix
+
+    # Home-manager modules
+    ./modules/kimai.nix
   ];
 
   # You can update Home Manager without changing this value.
