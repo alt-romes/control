@@ -91,7 +91,6 @@
     plugins.nvim-surround.enable = true;
     plugins.fugitive.enable = true;
     plugins.emmet.enable = true;
-    plugins.copilot-vim.enable = true; # experimenting...
 
     plugins.nvim-tree = {
       enable = true;
@@ -134,6 +133,19 @@
       };
 
     };
+
+    plugins.copilot-vim = {
+      enable = false; # experimenting...
+
+      settings = {
+        enabled = false; # disabled by default. Use :Copilot enable
+        filetypes = {
+          # "*" = false;
+          # python = true;
+        };
+      };
+    };
+
 
     /* Extra Plugins */
     extraPlugins = [(pkgs.vimUtils.buildVimPlugin {
