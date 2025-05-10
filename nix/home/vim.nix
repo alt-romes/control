@@ -4,6 +4,13 @@
   imports = [ inputs.nixvim.homeManagerModules.nixvim ];
 
   programs.nixvim = {
+    # use nixvim pkgs == home-manager pkgs == nixos nixpkgs
+    # Not always a win since we may diverge from what is tested upstream and
+    # run into new issues, but allows us to re-use the same pkgs (more
+    # consistent) and share configs like allowUnfree. See
+    # https://github.com/nix-community/nixvim/issues/2147
+    nixpkgs.useGlobalPackages = true;
+
     enable = true;
     viAlias = true;
     vimAlias = true;
@@ -84,6 +91,7 @@
     plugins.nvim-surround.enable = true;
     plugins.fugitive.enable = true;
     plugins.emmet.enable = true;
+    plugins.copilot-vim.enable = true; # experimenting...
 
     plugins.nvim-tree = {
       enable = true;
