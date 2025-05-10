@@ -142,7 +142,7 @@
   home-manager.users.romes = import ../home/romes.nix;
   home-manager.extraSpecialArgs = {
     inherit inputs system;
-    systemConfig = config;
+    # osConfig is inherited and points to the NixOS configuration
   };
 
   # ------------------------------------------------------------------------

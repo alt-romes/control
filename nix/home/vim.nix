@@ -127,6 +127,7 @@
 
     };
 
+    /* Extra Plugins */
     extraPlugins = [(pkgs.vimUtils.buildVimPlugin {
         name = "linediff.vim";
         src = pkgs.fetchFromGitHub {
