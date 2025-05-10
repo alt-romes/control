@@ -1,4 +1,28 @@
-{ pkgs, config, nixvim, ... }: {
+{ pkgs, config, inputs, system, configurationRevision, ... }: {
+
+  # -- System Meta -------------------------------------------------------------
+
+  # Used for backwards compatibility, please read the changelog before changing.
+  # $ darwin-rebuild changelog
+  system.stateVersion = 5;
+  system.configurationRevision = configurationRevision;
+  nixpkgs.hostPlatform = system;
+
+  # ----------------------------------------------------------------------------
+
+  imports = [
+    # Home-manager
+    inputs.home-manager.darwinModules.home-manager
+
+    # Agenix
+    inputs.agenix.darwinModules.default
+
+    # Linux Builder (custom)
+    ./modules/linux-builder.nix
+
+    # Finances (custom)
+    ../../finances/finances.nix
+  ];
 
   nix.settings = {
 
@@ -116,8 +140,10 @@
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.users.romes = import ../home/romes.nix;
-  home-manager.sharedModules = [ nixvim.homeManagerModules.nixvim ];
-  home-manager.extraSpecialArgs.systemConfig = config;
+  home-manager.extraSpecialArgs = {
+    inherit inputs system;
+    systemConfig = config;
+  };
 
   # ------------------------------------------------------------------------
   # Agenix secrets
@@ -134,12 +160,7 @@
   };
 
   # ------------------------------------------------------------------------
-  # Custom modules and options
-
-  imports = [
-    ./modules/linux-builder.nix
-    ../../finances/finances.nix
-  ];
+  # Custom modules options
 
   # Finances management
   finances = {

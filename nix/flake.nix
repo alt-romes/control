@@ -5,35 +5,41 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     nix-darwin.url = "github:LnL7/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Home manager
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Nixvim
     nixvim.url = "github:nix-community/nixvim";
     nixvim.inputs.nixpkgs.follows = "nixpkgs";
-    agenix.url = "github:ryantm/agenix";
-    agenix.inputs.nixpkgs.follows = "nixpkgs";
-  };
-
-outputs = inputs@{ self, nix-darwin, home-manager, nixvim, agenix, nixpkgs }:
-let
-  sys = {pkgs, ...}: {
-    # Used for backwards compatibility, please read the changelog before changing.
-    # $ darwin-rebuild changelog
-    system.stateVersion = 5;
-
-    system.configurationRevision = self.rev or self.dirtyRev or null;
-    nixpkgs.hostPlatform = "aarch64-darwin";
-  };
-
-  common = [
-    sys
-    ./darwin/common.nix
-
-    # Home-manager
-    home-manager.darwinModules.home-manager
 
     # Agenix
-    agenix.darwinModules.default
-  ];
+    agenix.url = "github:ryantm/agenix";
+    agenix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Kimai client
+    kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git?ref=bolt12/patch"; # remove the ref once merged
+  };
+
+outputs = inputs@{ self, nix-darwin, nixpkgs, ... }:
+let
+
+  commonMDarwinSystem = customSystemModule: nix-darwin.lib.darwinSystem {
+
+    specialArgs = {
+      inherit inputs;
+      system = "aarch64-darwin";
+      configurationRevision = self.rev or self.dirtyRev or null;
+    };
+
+    modules = [
+      ./darwin/common.nix
+      customSystemModule
+    ];
+
+  };
+
 in
 {
   # Build darwin flake using:
@@ -45,25 +51,12 @@ in
   # `?submodules=1` is needed because some modules live inside of git submodules
   darwinConfigurations = {
 
-    "romes-mbp" = nix-darwin.lib.darwinSystem {
-      specialArgs = { inherit nixvim; };
-
-      modules = common ++ [
-        ./darwin/mbp.nix
-      ];
-
-    };
+    "romes-mbp" = commonMDarwinSystem ./darwin/mbp.nix;
 
     # Nix-darwin configuration for Mac Mini M4 2025
-    "romes-macmini" = nix-darwin.lib.darwinSystem {
-      specialArgs = { inherit nixvim; };
-
-      modules = common ++ [
-        ./darwin/macmini.nix
-      ];
-
-    };
+    "romes-macmini" = commonMDarwinSystem ./darwin/macmini.nix;
 
   };
+
 };
 }

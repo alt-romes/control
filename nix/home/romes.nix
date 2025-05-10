@@ -1,5 +1,5 @@
 # romes home configuration
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, inputs, ... }:
 let
   hs-comp = pkgs.haskell.compiler.ghc910;
   hs-pkgs = pkgs.haskell.packages.ghc910;
@@ -10,9 +10,6 @@ in
     ./vim.nix
     ../private/ssh.nix
     ../private/kimai.nix
-
-    # Home-manager modules
-    ./modules/kimai.nix
   ];
 
   # You can update Home Manager without changing this value.
