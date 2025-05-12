@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ lib, pkgs }:
 let
   # Get all the *.shortcut files from the folder
   shortcutsDir = ./.;

@@ -77,9 +77,15 @@
     /* Language Server Protocols */
     plugins.lsp = {
         enable = true;
-        servers.hls = {
-          enable = true;
-          installGhc = false; # Disable a warning for ghc installation
+        servers = {
+          # Haskell
+          hls = {
+            enable = true;
+            installGhc = false; # Disable a warning for ghc installation
+          };
+
+          # Nix
+          nixd.enable = true;
         };
     };
 
@@ -135,7 +141,7 @@
     };
 
     plugins.copilot-vim = {
-      enable = false; # experimenting...
+      enable = true; # experimenting...
 
       settings = {
         enabled = false; # disabled by default. Use :Copilot enable

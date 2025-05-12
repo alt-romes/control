@@ -1,8 +1,17 @@
 # Mac Mini M4
-{ pkgs, config, ... }:
+{ lib, pkgs, config, ... }:
 {
 
-  finances.daemons.enable = true;
+  finances = {
+    daemons = {
+      fetchers.enable = true;
+      gen-invoice.enable = true;
+    };
+    packages = {
+      kimai = config.home-manager.users.romes.programs.kimai.package;
+      run-things-url = (import ./shortcuts/shortcuts.nix { inherit pkgs lib; }).Run-Things-URL;
+    };
+  };
 
   # Background linux VM runner process is enabled per-machine as needed
   process.linux-builder.enable = false;

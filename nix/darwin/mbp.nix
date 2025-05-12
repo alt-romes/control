@@ -7,6 +7,7 @@
 
   # Leave journal synchronisation for the macmini
   finances.daemons.enable = false;
+  finances.gen-invoice.enable = false;
 
   homebrew = {
     brews = [ ];
