@@ -11,11 +11,12 @@ let
 in
 {
   # To create or edit a secret file, run
-  #   `nix run github:ryantm/agenix -- -e secret1.age`
+  #   `nix run github:ryantm/agenix -- -e secret1.age --identity ~/.ssh/agenix`
   # in this directory
-  # Since SSH_AUTH_SOCKET is broken, pass --identity ~/.ssh/agenix as well, for now.
+  # Since SSH_AUTH_SOCKET is broken, pass --identity ~/.ssh/agenix as well, for now (since that is the private key for the macmini pub key).
   # See https://github.com/ryantm/agenix/issues/182
   "kimai.age".publicKeys = romes-machines;
+  "duckdns.age".publicKeys = romes-machines;
 
   # "secret1.age".publicKeys = [ user1 system1 ];
   # "secret2.age".publicKeys = users ++ systems;

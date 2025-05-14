@@ -2,6 +2,8 @@
 { lib, pkgs, config, ... }:
 {
 
+  imports = [ ./modules/duckdns.nix ];
+
   finances = {
     daemons = {
       fetchers.enable = true;
@@ -51,4 +53,17 @@
       pkgs.tart
     ];
   };
+
+  # --- Network ----------------------------------------------------------------
+
+  age.secrets.duckdns.file = ../../secrets/duckdns.age;
+
+  # Dynamic DNS
+  services.duckdns = {
+    enable = true;
+    domains = [ "alt-romes" ];
+    passwordFile = config.age.secrets.duckdns.path;
+    interval = 1800; # every 30min
+  };
+
 }
