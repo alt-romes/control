@@ -57,6 +57,7 @@
   # --- Network ----------------------------------------------------------------
 
   age.secrets.duckdns.file = ../../secrets/duckdns.age;
+  age.secrets.wireguard-macmini.file = ../../secrets/wireguard-macmini.age;
 
   # Dynamic DNS
   services.duckdns = {
@@ -66,4 +67,19 @@
     interval = 1800; # every 30min
   };
 
+  # Wireguard
+  networking.wg-quick.interfaces = {
+    wg0 = {
+      address = [ "10.10.10.1/24" "fc10:10:10::1/64" ];
+      listenPort = 55902;
+      privateKeyFile = config.age.secrets.wireguard-macmini.path; # for hroqsfMWbBsCYhZTiPLNeE/3AK+AdBV3Zn16EJspPX8=
+      peers = [
+        # wireguard-mbp
+        {
+          publicKey = "kmpmnUIFpfS4mdOzi7RlGShhSqOcelwIDG+/8mJUAzM=";
+          allowedIPs = [ "10.10.10.2/32" "fc10:10:10::2/128" ];
+        }
+      ];
+    };
+  };
 }
