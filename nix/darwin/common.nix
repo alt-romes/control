@@ -1,4 +1,4 @@
-{ pkgs, config, inputs, system, configurationRevision, ... }: {
+{ pkgs, lib, config, inputs, system, configurationRevision, ... }: {
 
   # -- System Meta -------------------------------------------------------------
 
@@ -171,7 +171,14 @@
     personal.ledger = "/Users/romes/control/finances/2025.journal";
     mogbit.ledger = "/Users/romes/control/finances/mogbit/2025.journal";
     prices.ledger = "/Users/romes/control/finances/prices.journal";
-    # Note: finances.daemons.enable must be set per-machine depending on
+
+    # Packages needed to build some of the finance utilities
+    packages = {
+      kimai = config.home-manager.users.romes.programs.kimai.package;
+      run-things-url = (import ./shortcuts/shortcuts.nix { inherit pkgs lib; }).Run-Things-URL;
+    };
+
+    # Note: finances.daemons must be set per-machine depending on
     # whether the periodically scheduled launchd daemons are wanted
     # Currently, this is macmini = ON, mbp = OFF
   };

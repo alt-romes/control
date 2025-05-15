@@ -5,9 +5,13 @@
   # Background linux VM runner process is enabled per-machine as needed
   process.linux-builder.enable = false;
 
-  # Leave journal synchronisation for the macmini
-  finances.daemons.enable = false;
-  finances.gen-invoice.enable = false;
+  # Leave daemons for the macmini
+  finances.daemons = {
+    fetchers.enable = false;
+    gen-invoice.enable = false;
+  };
+
+  nixpkgs.config.allowUnfree = true;
 
   homebrew = {
     brews = [ ];

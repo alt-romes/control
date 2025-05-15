@@ -4,15 +4,9 @@
 
   imports = [ ./modules/duckdns.nix ];
 
-  finances = {
-    daemons = {
-      fetchers.enable = true;
-      gen-invoice.enable = true;
-    };
-    packages = {
-      kimai = config.home-manager.users.romes.programs.kimai.package;
-      run-things-url = (import ./shortcuts/shortcuts.nix { inherit pkgs lib; }).Run-Things-URL;
-    };
+  finances.daemons = {
+    fetchers.enable = true;
+    gen-invoice.enable = true;
   };
 
   # Background linux VM runner process is enabled per-machine as needed
