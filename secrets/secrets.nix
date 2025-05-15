@@ -26,7 +26,5 @@ in
   "duckdns.age".publicKeys = romes-machines;
   "wireguard-macmini.age".publicKeys = [ romes-macmini ]; # private key for macmini
   "wireguard-mbp.age".publicKeys = [ romes-mbp ]; # private key for mbp
-
-  # "secret1.age".publicKeys = [ user1 system1 ];
-  # "secret2.age".publicKeys = users ++ systems;
+  "remote-builder-key.age".publicKeys = [ romes-mbp ]; # mbp uses key to access remote builder (on mac mini)
 }

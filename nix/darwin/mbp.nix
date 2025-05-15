@@ -1,5 +1,8 @@
 # Mac Mini M4
 { pkgs, config, ... }:
+let
+  macminiWireguardIp = "10.0.0.1";
+in
 {
 
   # Background linux VM runner process is enabled per-machine as needed
@@ -11,7 +14,24 @@
     gen-invoice.enable = false;
   };
 
-  nixpkgs.config.allowUnfree = true;
+  # --- Remote Builders --------------------------------------------------------
+
+  nix.distributedBuilds = true;
+  nix.settings.builders-use-substitutes = true;
+
+  nix.buildMachines = [
+    {
+      hostName = macminiWireguardIp;
+      sshUser = "nix-builder";
+      sshKey = config.age.secrets.remote-builder-key.path;
+      system = pkgs.stdenv.hostPlatform.system;
+      supportedFeatures = [ "nixos-test" "big-parallel" "kvm" ];
+    }
+  ];
+
+  age.secrets.remote-builder-key.file = ../../secrets/remote-builder-key.age;
+
+  # --- Packages ---------------------------------------------------------------
 
   homebrew = {
     brews = [];
@@ -24,6 +44,8 @@
     ];
   };
 
+  nixpkgs.config.allowUnfree = true;
+
   environment = {
     systemPackages = [
       pkgs.tart
@@ -31,6 +53,7 @@
   };
 
   # --- Networking -------------------------------------------------------------
+
   age.secrets.wireguard-mbp.file = ../../secrets/wireguard-mbp.age;
 
   # Wireguard client
@@ -59,7 +82,7 @@
   # Add an SSH alias
   home-manager.users.romes.programs.ssh.matchBlocks = {
     "macmini" = {
-      hostname = "10.0.0.1";
+      hostname = macminiWireguardIp;
       extraOptions = { SetEnv = "TERM=xterm-256color"; };
     };
   };
