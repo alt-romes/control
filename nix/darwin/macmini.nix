@@ -28,15 +28,7 @@
         "ultrastardeluxe"
 
         # Utilities
-        "anki"
-        "ghostty"
-        "vlc"
-        "firefox"
         "qbittorrent"
-        "skim"
-        "mattermost"
-        "discord"
-        "visual-studio-code" # debugger
     ];
   };
 

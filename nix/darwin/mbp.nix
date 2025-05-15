@@ -14,8 +14,17 @@
   nixpkgs.config.allowUnfree = true;
 
   homebrew = {
-    brews = [ ];
-    casks = [ ];
+    brews = [];
+    casks = [
+        "bambu-studio"
+        "affinity-designer"
+    ];
+  };
+
+  environment = {
+    systemPackages = [
+      pkgs.tart
+    ];
   };
 
   # --- Networking -------------------------------------------------------------

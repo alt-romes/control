@@ -42,6 +42,14 @@
     brews = []; # non-cask formulaes, per-machine configuration (see relevant files)
     casks = [ # casks, see also per-machine configuration (see relevant files)
       "flycut"
+      "ghostty"
+      "anki"
+      "firefox"
+      "vlc"
+      "mattermost"
+      "skim"
+      "visual-studio-code" # debugger
+      "discord"
     ];
 
     # command line for Mac App Store. Not using this (ie `mas`) yet.
