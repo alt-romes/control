@@ -73,8 +73,8 @@
     onActivation.autoUpdate = true;
   };
 
-  # Enable alternative shell support in nix-darwin.
-  # programs.fish.enable = true;
+  # 1Password CLI
+  programs._1password.enable = true;
 
   environment = {
     # List packages installed in system profile. To search by name, run:
@@ -104,6 +104,19 @@
       # ghc-nix = "nix develop git+https://gitlab.haskell.org/ghc/ghc.nix";
       ghc-nix = "nix-shell -p haskell.compiler.ghc910 haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib";
     };
+
+    # Write additional options for sshd_config
+    # to disable password and interactive authentication
+    etc."ssh/sshd_config.d/100-romes-nopassword".text = ''
+      KbdInteractiveAuthentication no
+      PasswordAuthentication no
+    '';
+
+    # Add zsh to /etc/shells
+    shells = [ pkgs.zsh ];
+    # and add more zsh autocompletions as said in the home-manager docs
+    pathsToLink = [ "/usr/share/zsh" ];
+
   };
 
   fonts.packages = [
@@ -113,19 +126,14 @@
   users.users."romes" = {
     name = "romes";
     home = "/Users/romes";
-  };
+    shell = pkgs.zsh; # zsh shell; configured in home/romes
 
-  # Connect over SSH
-  # NOTE: Requires manually setting General > Sharing > Remote Login ON to activate remote login
-  users.users."romes".openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ"
-  ];
-  # Write additional options for sshd_config
-  # to disable password and interactive authentication
-  environment.etc."ssh/sshd_config.d/100-romes-nopassword".text = ''
-    KbdInteractiveAuthentication no
-    PasswordAuthentication no
-  '';
+    # Connect over SSH
+    # NOTE: Requires manually setting General > Sharing > Remote Login ON to activate remote login
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ"
+    ];
+  };
 
   security.pam.services.sudo_local.touchIdAuth = true; # enable touch id for sudo
 

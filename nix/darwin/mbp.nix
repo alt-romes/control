@@ -18,6 +18,7 @@
     casks = [
         "bambu-studio"
         "affinity-designer"
+        "steam"
     ];
   };
 

@@ -40,8 +40,11 @@ in
     hs-pkgs.alex hs-pkgs.happy autoconf automake python3
   ];
 
+  home.shell.enableZshIntegration = true;
   programs.zsh = {
-    enable = true;
+    enable = true; # will use the same zsh as the one in nixpkgs shared with nix-darwin
+    enableCompletion = true;
+    syntaxHighlighting.enable = true;
     autosuggestion.enable = true;
     initContent = ''
       # Delete words like bash (up to slash)
