@@ -21,6 +21,9 @@
     # Kimai client
     kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git?ref=bolt12/patch"; # remove the ref once merged
     # kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
+
+    # Vscode extensions
+    nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
   };
 
 outputs = inputs@{ self, nix-darwin, nixpkgs, ... }:

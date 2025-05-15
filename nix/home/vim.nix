@@ -15,10 +15,11 @@
     viAlias = true;
     vimAlias = true;
 
-    colorschemes.ayu.enable = true;
-    # colorschemes.oxocarbon.enable = true;
+    # colorschemes.ayu.enable = true;
+    colorschemes.oxocarbon.enable = true;
     # colorschemes.kanagawa.enable = true;
-    opts.background = "light";
+
+    # opts.background = "light";
 
     opts = {
       # Options from https://github.com/alt-romes/.vim

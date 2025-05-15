@@ -56,6 +56,7 @@
   # Wireguard
   networking.wg-quick.interfaces = {
     wg0 = {
+      autostart = true;
       address = [ "10.10.10.1/24" "fc10:10:10::1/64" ];
       listenPort = 55902;
       privateKeyFile = config.age.secrets.wireguard-macmini.path; # for hroqsfMWbBsCYhZTiPLNeE/3AK+AdBV3Zn16EJspPX8=

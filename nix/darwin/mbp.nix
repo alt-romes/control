@@ -19,6 +19,8 @@
         "bambu-studio"
         "affinity-designer"
         "steam"
+
+        "claude"
     ];
   };
 
@@ -34,6 +36,7 @@
   # Wireguard client
   networking.wg-quick.interfaces = {
     wg0 = {
+      autostart = true;
       address = [ "10.10.10.2/32" "fc10:10:10::2/128" ];
       privateKeyFile = config.age.secrets.wireguard-mbp.path; # for kmpmnUIFpfS4mdOzi7RlGShhSqOcelwIDG+/8mJUAzM=
       peers = [

@@ -73,10 +73,11 @@ in
   };
 
   programs.ghostty = {
-    enable = false; # can't enable because this package is broken. We're using the homebrew installed one.
+    enable = true;
+    package = null; # Broken on MacOS, so use the homebrew app. Configuration is still managed here.
+    enableZshIntegration = true;
     settings = {
         theme = "oxocarbon";
-        # Mirror important settings only:
         # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
         window-padding-color = "extend";
     };

@@ -7,6 +7,8 @@
   system.stateVersion = 5;
   system.configurationRevision = configurationRevision;
   nixpkgs.hostPlatform = system;
+  # VSCode marketplace overlay
+  # nixpkgs.overlays = [ inputs.nix-vscode-extensions.overlays.default ];
 
   # ----------------------------------------------------------------------------
 
@@ -48,7 +50,7 @@
       "vlc"
       "mattermost"
       "skim"
-      "visual-studio-code" # debugger
+      "visual-studio-code" # experimenting debugger and agents
       "discord"
     ];
 
