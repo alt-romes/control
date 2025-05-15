@@ -9,8 +9,34 @@
     gen-invoice.enable = true;
   };
 
+  # --- Builders ---------------------------------------------------------------
+  # TODO: Can I expose the linux-builder as a remote builder for the mbp?
+
   # Background linux VM runner process is enabled per-machine as needed
   process.linux-builder.enable = false;
+
+  # Create a user on this machine for when this machine is used as a remote
+  # builder (e.g. by the MBP)
+  users.users."nix-builder" = {
+    uid = 4323;
+    gid = config.users.groups."nix-builders".gid;
+    shell = pkgs.zsh;
+
+    createHome = false;
+
+    # NOTE: For remote access to work, Remote Login must be allowed in the
+    # MacOS settings!!
+    openssh.authorizedKeys.keys = [
+      # public key from secrets/remote-builder-key.age
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF7pAwlZfwA4kGL4NhWZy9tSnu0jKoXt77L2Noj5hw7z"
+    ];
+  };
+  users.groups."nix-builders" = { gid = 4322; }; # made up number for groupid
+  nix.settings.trusted-users = [ "nix-builder" ];
+  users.knownUsers  = [ "nix-builder" ];  # users managed by nix-darwin
+  users.knownGroups = [ "nix-builders" ]; # groups managed by nix-darwin
+
+  # --- Packages ---------------------------------------------------------------
 
   homebrew = {
     brews = [ ];

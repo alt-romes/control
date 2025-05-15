@@ -129,6 +129,7 @@
     name = "romes";
     home = "/Users/romes";
     shell = pkgs.zsh; # zsh shell; configured in home/romes
+    isHidden = false;
 
     # Connect over SSH
     # NOTE: Requires manually setting General > Sharing > Remote Login ON to activate remote login
