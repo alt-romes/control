@@ -5,8 +5,7 @@ let
 in
 {
 
-  # Background linux VM runner process is enabled per-machine as needed
-  process.linux-builder.enable = false;
+  imports = [ (import ./modules/macmini-builder.nix macminiWireguardIp) ];
 
   # Leave daemons for the macmini
   finances.daemons = {
@@ -16,20 +15,11 @@ in
 
   # --- Remote Builders --------------------------------------------------------
 
-  nix.distributedBuilds = true;
-  nix.settings.builders-use-substitutes = true;
+  # Enable distributed builds with the macmini as a builder
+  process.macmini-builder.enable = true;
 
-  nix.buildMachines = [
-    {
-      hostName = macminiWireguardIp;
-      sshUser = "nix-builder";
-      sshKey = config.age.secrets.remote-builder-key.path;
-      system = pkgs.stdenv.hostPlatform.system;
-      supportedFeatures = [ "nixos-test" "big-parallel" "kvm" ];
-    }
-  ];
-
-  age.secrets.remote-builder-key.file = ../../secrets/remote-builder-key.age;
+  # Background linux VM runner process is enabled per-machine as needed
+  process.linux-builder.enable = false;
 
   # --- Packages ---------------------------------------------------------------
 
