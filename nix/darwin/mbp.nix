@@ -55,4 +55,12 @@
       ];
     };
   };
+
+  # Add an SSH alias
+  home-manager.users.romes.programs.ssh.matchBlocks = {
+    "macmini" = {
+      hostname = "10.0.0.1";
+      extraOptions = { SetEnv = "TERM=xterm-256color"; };
+    };
+  };
 }
