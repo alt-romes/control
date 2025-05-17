@@ -10,6 +10,9 @@ in
     ./vim.nix
     ../private/ssh.nix
     ../private/kimai.nix
+
+    # Modules
+    ./modules/colors.nix
   ];
 
   # You can update Home Manager without changing this value.
@@ -72,12 +75,23 @@ in
     ];
   };
 
+  # Color management
+  style.colors.oxocarbon.enable = true;
+  # style.colors.base16.enable = true;
+  # style.colors.base16.colorScheme = inputs.nix-colors.colorSchemes.rose-pine-dawn;
+
+  # programs.nixvim.colorschemes.base16.enable = true;
+  # programs.nixvim.colorschemes.base16.colorscheme =
+  #     lib.mapAttrs (_: color: "#${color}")
+  #       inputs.nix-colors.colorSchemes.rose-pine-dawn.palette;
+
   programs.ghostty = {
     enable = true;
     package = null; # Broken on MacOS, so use the homebrew app. Configuration is still managed here.
     enableZshIntegration = true;
     settings = {
-        theme = "oxocarbon";
+        # Theme is managed by colors.nix
+
         # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
         window-padding-color = "extend";
     };

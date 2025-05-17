@@ -15,11 +15,7 @@
     viAlias = true;
     vimAlias = true;
 
-    # colorschemes.ayu.enable = true;
-    colorschemes.oxocarbon.enable = true;
-    # colorschemes.kanagawa.enable = true;
-
-    # opts.background = "light";
+    # Color management done via the colors module in romes.nix
 
     opts = {
       # Options from https://github.com/alt-romes/.vim
