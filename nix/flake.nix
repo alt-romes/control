@@ -25,8 +25,6 @@
     # Vscode extensions
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
 
-    # Nix-colors
-    nix-colors.url = "github:Misterio77/nix-colors";
   };
 
 outputs = inputs@{ self, nix-darwin, nixpkgs, ... }:
