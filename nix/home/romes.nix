@@ -76,7 +76,7 @@ in
   };
 
   # Color management
-  style.colors.oxocarbon.enable = true;
+  style.colors.ayu-light.enable = true;
 
   programs.ghostty = {
     enable = true;

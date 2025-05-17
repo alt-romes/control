@@ -8,6 +8,16 @@ let
       ghostty = "oxocarbon";
       background = "dark";
     };
+    ayu-light = {
+      vim = "ayu";
+      background = "light";
+      ghostty = "ayu_light";
+    };
+    ayu-dark = {
+      vim = "ayu";
+      background = "dark";
+      ghostty = "ayu";
+    };
     everforest = {
       vim = "everforest";
       ghostty = "Everforest Dark - Hard";
@@ -16,7 +26,6 @@ let
         programs.nixvim.colorschemes.everforest.settings.background = "hard";
       };
     };
-    # ayu-light = { vim = "ayu"; ghostty = "ayu"; background = "light"; };
   };
 
   theme = themeName: themeConf:
@@ -34,7 +43,8 @@ in
   options = {
     style.colors.oxocarbon.enable = lib.mkEnableOption "Oxocarbon dark";
     style.colors.everforest.enable = lib.mkEnableOption "Everforest dark hard";
-    # style.colors.ayu.enable = lib.mkEnableOption "Ayu light";
+    style.colors.ayu-light.enable = lib.mkEnableOption "Ayu light";
+    style.colors.ayu-dark.enable = lib.mkEnableOption "Ayu dark";
   };
 
   config = lib.mkMerge (
