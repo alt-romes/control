@@ -11,6 +11,7 @@ macminiWireguardIp: { pkgs, lib, config, ... }:
     # Builds locally and on the buildMachines
     nix.buildMachines = [
       {
+        maxJobs = 4; # concurrent jobs
         hostName = macminiWireguardIp;
         sshUser = "nix-builder";
         sshKey = config.age.secrets.remote-builder-key.path;

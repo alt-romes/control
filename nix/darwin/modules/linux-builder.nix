@@ -1,6 +1,8 @@
 # Darwin linux builder
 # On the first time that the linux-builder is being run on any given machine:
 # See https://github.com/NixOS/nixpkgs/blob/master/doc/packages/darwin-builder.section.md for bootstrapping
+# i.e. on the first run you may need to run this first:
+#  nix run nixpkgs#darwin.linux-builder
 { pkgs, lib, config, ... }: {
 
   options.process.linux-builder.enable
