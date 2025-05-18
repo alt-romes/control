@@ -65,6 +65,13 @@ in
           allowedIPs = [ "10.0.0.1/24" ]; # allow server to be anywhere
           endpoint = "alt-romes.duckdns.org:55902"; # the dynamic dns we set up with duckdns
         }
+        # mogbit.com
+        {
+          publicKey = "jXdArfJv5HWvPgCWiaCtslExWXKn5PQgSSBnw0Kn0h8=";
+          allowedIPs = [ "10.0.0.3/32" ];
+          # use mail subdomain bc it is not proxied
+          endpoint = "mail.mogbit.com:55820";
+        }
       ];
     };
   };

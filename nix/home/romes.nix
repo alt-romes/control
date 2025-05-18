@@ -75,9 +75,6 @@ in
     ];
   };
 
-  # Color management
-  style.colors.ayu-light.enable = true;
-
   programs.ghostty = {
     enable = true;
     package = null; # Broken on MacOS, so use the homebrew app. Configuration is still managed here.
@@ -95,4 +92,7 @@ in
   #      epkgs.magit
   #    ];
   #  };
+
+  # Color management
+  style.colors.ayu-dark.enable = true;
 }

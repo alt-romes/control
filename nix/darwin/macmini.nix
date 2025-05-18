@@ -98,6 +98,13 @@
           publicKey = "kmpmnUIFpfS4mdOzi7RlGShhSqOcelwIDG+/8mJUAzM=";
           allowedIPs = [ "10.0.0.2/32" ];
         }
+        # mogbit.com
+        {
+          publicKey = "jXdArfJv5HWvPgCWiaCtslExWXKn5PQgSSBnw0Kn0h8=";
+          allowedIPs = [ "10.0.0.3/32" ];
+          # use mail subdomain bc it is not proxied
+          endpoint = "mail.mogbit.com:55820";
+        }
       ];
     };
   };
