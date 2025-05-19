@@ -21,6 +21,8 @@
       merge.conflictstyle = "zdiff3";
       rerere.enabled = true;
 
+      commit.verbose = true; # show diff below message on "git commit"
+
       url."git@github.com:".insteadOf = "https://github.com";
       url."git@gitlab.com:".insteadOf = "https://gitlab.com";
     } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
