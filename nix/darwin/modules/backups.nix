@@ -7,6 +7,7 @@
     uid = 4335;
     gid = config.users.groups."mogbit-backups".gid;
     shell = pkgs.zsh;
+    packages = [ pkgs.borgbackup ]; # borgbackup required to do the backups!
 
     createHome = false;
 
