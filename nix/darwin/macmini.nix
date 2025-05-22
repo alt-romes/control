@@ -79,6 +79,9 @@
     interval = 1800; # every 30min
   };
 
+  # Wake on LaN
+  networking.wakeOnLan.enable = true;
+
   # Wireguard
   # ---
   # It seems like this doesn't get applied properly while wg is up? possibly
