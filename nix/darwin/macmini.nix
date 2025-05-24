@@ -55,6 +55,7 @@
 
         # Utilities
         "qbittorrent"
+        "vorta" # borgbackup gui
     ];
   };
 

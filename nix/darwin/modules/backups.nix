@@ -15,6 +15,7 @@
     # MacOS settings!!
     openssh.authorizedKeys.keys = [
       # public key from mogbit's backup keys
+      # allows the matching key to write backups
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKCkRdWpIj8qEIpmC25T/4bxCe1CMhQNfgTAPWN/YhZG"
     ];
   };
