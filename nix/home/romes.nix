@@ -37,7 +37,7 @@ in
 
     nixos-rebuild # to deploy to remote nixos machines directly
 
-    imhex
+    # imhex
 
     # For (building) GHC
     hs-pkgs.alex hs-pkgs.happy autoconf automake python3
@@ -82,6 +82,9 @@ in
     settings = {
         # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
         window-padding-color = "extend";
+        unfocused-split-opacity = 1; # don't dim unfocused panes
+        # background-opacity = 0.85;
+        # background-blur = true;
     };
   };
 

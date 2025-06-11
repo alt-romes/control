@@ -5,6 +5,8 @@ let
 in
 {
 
+  nix.settings.trusted-public-keys = [ "cult-m4:ptTV1P5s2mpYCfFQMUb+6S8LbtrYK5HfCYas3YrUbho=" ];
+
   imports = [ (import ./modules/macmini-builder.nix macminiWireguardIp) ];
 
   # Leave daemons for the macmini
