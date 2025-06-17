@@ -41,7 +41,18 @@ in
 
     # For (building) GHC
     hs-pkgs.alex hs-pkgs.happy autoconf automake python3
+
+    # Make this available by default
+    pkgs.pkg-config
   ];
+
+  home.sessionVariables = {
+    # Commonly needed in the env for building haskell pkgs
+    # ncurses, gmp, zlib
+    PKG_CONFIG_PATH = "${pkgs.zlib.dev}/lib/pkgconfig:${pkgs.gmp.dev}/lib/pkgconfig:${pkgs.ncurses.dev}/lib/pkgconfig";
+    C_INCLUDE_PATH = "${pkgs.zlib.dev}/include:${pkgs.gmp.dev}/include:${pkgs.ncurses.dev}/include";
+    LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
+  };
 
   home.shell.enableZshIntegration = true;
   programs.zsh = {
@@ -97,5 +108,5 @@ in
   #  };
 
   # Color management
-  style.colors.ayu-dark.enable = true;
+  style.colors.ayu-light.enable = true;
 }

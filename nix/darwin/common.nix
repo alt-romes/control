@@ -41,7 +41,8 @@
     # this doesn't install homebrew, needs to be installed manually (see instructions on website)
     enable = true;
 
-    brews = []; # non-cask formulaes, per-machine configuration (see relevant files)
+    brews = [ # non-cask formulaes, per-machine configuration (see relevant files)
+    ];
     casks = [ # casks, see also per-machine configuration (see relevant files)
       "flycut"
       "ghostty"
@@ -84,10 +85,6 @@
     systemPackages = [
       pkgs.vim
       pkgs.eza           # ls replacement
-
-      # Commonly needed in the env for building code
-      # NOTE: Use .dev output to guarantee correct paths to libs et all.
-      pkgs.zlib pkgs.gmp pkgs.zlib.dev pkgs.gmp.dev
     ];
 
     variables = {
