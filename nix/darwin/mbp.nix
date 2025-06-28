@@ -83,6 +83,7 @@ in
     "macmini" = {
       hostname = macminiWireguardIp;
       extraOptions = { SetEnv = "TERM=xterm-256color"; };
+      forwardAgent = true; # Forward Agent authentication to mbp (basically allowing auth with local 1Pass)
     };
   };
 }
