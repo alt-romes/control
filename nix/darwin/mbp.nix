@@ -18,7 +18,7 @@ in
   # --- Remote Builders --------------------------------------------------------
 
   # Enable distributed builds with the macmini as a builder
-  process.macmini-builder.enable = true;
+  process.macmini-builder.enable = false;
 
   # Background linux VM runner process is enabled per-machine as needed
   process.linux-builder.enable = false;

@@ -59,10 +59,10 @@
       { # Insert 80 `-` characters to make a line like:
         # --------------------------------------------
         mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
-      { # Telescope find files
-        mode = "n"; key = "<leader>f"; action = "<cmd>Telescope find_files find_command=rg,--ignore,--hidden,--files prompt_prefix=🔍<cr>"; }
-      { # Telescope live grep
-        mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
+      # { # Telescope find files
+      #   mode = "n"; key = "<leader>f"; action = "<cmd>Telescope find_files<cr>"; }
+      # { # Telescope live grep
+      #   mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
       { # Nvim-tree open
         mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
       { # Nvim-lsp code action
@@ -90,8 +90,16 @@
 
     /* Plugins */
     plugins.treesitter.enable = true;
-    plugins.telescope.enable = true;
-    plugins.telescope.extensions.fzf-native.enable = true;
+    # Telescope is too slow, use FZF
+    # plugins.telescope.enable = true;
+    # plugins.telescope.extensions.fzf-native.enable = true;
+    plugins.fzf-lua.enable = true;
+    plugins.fzf-lua.keymaps = {
+      "<leader>f" = "files";
+      "<leader>g" = "live_grep";
+      "<leader>b" = "builtin";
+    };
+    plugins.fzf-lua.settings.winopts.backdrop = 100;
     plugins.web-devicons.enable = true; # required by telescope
     plugins.nvim-surround.enable = true;
     plugins.fugitive.enable = true;
