@@ -60,7 +60,7 @@
         # --------------------------------------------
         mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
       { # Telescope find files
-        mode = "n"; key = "<leader>f"; action = "<cmd>Telescope find_files<cr>"; }
+        mode = "n"; key = "<leader>f"; action = "<cmd>Telescope find_files find_command=rg,--ignore,--hidden,--files prompt_prefix=🔍<cr>"; }
       { # Telescope live grep
         mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
       { # Nvim-tree open
@@ -69,6 +69,8 @@
         mode = "n"; key = "<leader>a"; action = "<cmd>lua vim.lsp.buf.code_action()<cr>"; }
       { # Nvim-lsp jump to definition
         mode = "n"; key = "gd"; action = "<cmd>lua vim.lsp.buf.definition()<cr>"; }
+      { # Open file selector in the directory of the current file
+        mode = "n"; key = "<leader>o"; action = "<cmd>lua require(\"nvim-tree.api\").tree.open({ path = vim.fn.expand('%:p:h'), find_file = true })<cr>"; }
     ];
 
     /* Language Server Protocols */

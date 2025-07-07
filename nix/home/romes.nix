@@ -33,7 +33,7 @@ in
     hs-comp
     hs-pkgs.cabal-install
     hs-pkgs.haskell-language-server
-    haskellPackages.fast-tags
+    hs-pkgs.fast-tags
 
     nixos-rebuild # to deploy to remote nixos machines directly
 
