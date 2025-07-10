@@ -59,10 +59,16 @@
       { # Insert 80 `-` characters to make a line like:
         # --------------------------------------------
         mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
+      # Use fzf-lua for finding and grepping. Much faster.
       # { # Telescope find files
       #   mode = "n"; key = "<leader>f"; action = "<cmd>Telescope find_files<cr>"; }
       # { # Telescope live grep
       #   mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
+      # Use Telescope for its plugins like Hoogle and Manix
+      { # Telescope Hoogle
+        mode = "n"; key = "<leader>h"; action = "<cmd>Telescope hoogle<cr>"; }
+      { # Telescope Manix
+        mode = "n"; key = "<leader>m"; action = "<cmd>Telescope manix<cr>"; }
       { # Nvim-tree open
         mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
       { # Nvim-lsp code action
@@ -90,9 +96,13 @@
 
     /* Plugins */
     plugins.treesitter.enable = true;
-    # Telescope is too slow, use FZF
-    # plugins.telescope.enable = true;
-    # plugins.telescope.extensions.fzf-native.enable = true;
+
+    # Telescope is too slow to find files, so we use fzf-lua there.
+    # However, telescope has the manix and hoogle plugins.
+    # We use it for those searches only
+    plugins.telescope.enable = true;
+    plugins.telescope.extensions.fzf-native.enable = true;
+    plugins.telescope.extensions.manix.enable = true; dependencies.manix.enable = true;
     plugins.fzf-lua.enable = true;
     plugins.fzf-lua.keymaps = {
       "<leader>f" = "files";
@@ -100,7 +110,9 @@
       "<leader>b" = "builtin";
     };
     plugins.fzf-lua.settings.winopts.backdrop = 100;
+    plugins.fzf-lua.settings.winopts.fullscreen = true;
     plugins.web-devicons.enable = true; # required by telescope
+
     plugins.nvim-surround.enable = true;
     plugins.fugitive.enable = true;
     plugins.emmet.enable = true;
@@ -159,9 +171,9 @@
       };
     };
 
-
     /* Extra Plugins */
-    extraPlugins = [(pkgs.vimUtils.buildVimPlugin {
+    extraPlugins = [
+      (pkgs.vimUtils.buildVimPlugin {
         name = "linediff.vim";
         src = pkgs.fetchFromGitHub {
             owner = "AndrewRadev";
@@ -169,7 +181,15 @@
             rev = "ddae71ef5f94775d101c1c70032ebe8799f32745";
             hash = "sha256-ZyQzLpzvS887J1Gdxv1edC9MhPj1EEITh27rUPuFugU=";
         };
-    })];
+      })
+
+      pkgs.vimPlugins.telescope_hoogle
+    ];
+
+    # Custom extra telescope extensions
+    plugins.telescope.enabledExtensions = [ "hoogle" ];
+
+    extraPackages = [ pkgs.haskellPackages.hoogle ]; # for telescope hoogle
   };
 
 }
