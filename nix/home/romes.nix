@@ -13,6 +13,7 @@ in
 
     # Modules
     ./modules/colors.nix
+    ./modules/static_haskell.nix
   ];
 
   # You can update Home Manager without changing this value.
@@ -53,6 +54,9 @@ in
     C_INCLUDE_PATH = "${pkgs.zlib.dev}/include:${pkgs.gmp.dev}/include:${pkgs.ncurses.dev}/include";
     LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
   };
+
+  # export STATIC_HASKELL_CABAL_OPTS with cabal options for producing a static binary
+  haskell.env.STATIC_HASKELL_CABAL_OPTS = true;
 
   home.shell.enableZshIntegration = true;
   programs.zsh = {
