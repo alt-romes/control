@@ -1,7 +1,11 @@
 { config, pkgs, lib, inputs, ... }:
 let
+  pypkgs = (pkgs.python3.withPackages(ps: with ps; [llm llm-ollama]));
+
+  llm-wrapper = pkgs.writeShellScriptBin "llm" ''
+    exec "${pypkgs}/bin/llm" "$@"
+  '';
   review = pkgs.writeShellScriptBin "review" ''
-#!/usr/bin/env bash
 set -euo pipefail
 
 function usage {
@@ -154,10 +158,6 @@ error() {
   usage 1
 }
 
-if ! command -v llm >/dev/null 2>&1; then
-  error "Missing required command llm. On mac: brew install llm"
-fi
-
 # Default unified context if none specified. The idea here is to increase the
 # context (git defaults to 3 lines) so that the LLM has more context for its
 # review. Later on we'll check if this generates too much output and shorten it
@@ -236,11 +236,7 @@ if [[ -n "$additional_context" ]]; then
 $additional_context"
 fi
 
-if command -v bat >/dev/null 2>&1; then
-  echo "$diff_output" | llm -s "$prompt" | bat --paging=never --style=plain --language=markdown
-else
-  echo "$diff_output" | llm -s "$prompt"
-fi
+echo "$diff_output" | ${pypkgs}/bin/llm -m gemma3n:e4b -s "$prompt" | ${pkgs.bat}/bin/bat --paging=never --style=plain --language=markdown
 exit_status=${"$"}{PIPESTATUS[1]}
 
 if [[ "$exit_status" -eq 130 ]]; then
@@ -255,9 +251,6 @@ in
 {
   home.packages = [
     review
-
-    # dependencies
-    pkgs.llm
-    pkgs.bat
+    llm-wrapper
   ];
 }

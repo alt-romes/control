@@ -136,7 +136,7 @@
           # Launch this server automatically for each launch
           executable = {
             command = "ghc-debug-adapter";
-            args = ["\${port}"]; # and other required args
+            args = ["--port" "\${port}"];
           };
         };
       };
