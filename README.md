@@ -1,6 +1,16 @@
-## Control
+## New instructions
 
-OUT OF DATE README
+### Setting up a MacOS machine
+
+- Install nix from https://nixos.org
+- Install 1Password from https://1password.com
+- Login and enable the 1Password SSH Agent under the Developer tab in 1Password
+    - Maybe: export the agenix private key to `~/.ssh/agenix`, since agenix doesn't read from the SSH agent.
+- Clone `control` with `cd $HOME && SSH_AUTH_SOCK=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock && git clone --recurse-submodules git@github.com:alt-romes/control`
+- Apply the nix-darwin system with `sudo nix --extra-experimental-features 'nix-command flakes' run nix-darwin/master#darwin-rebuild -- switch --flake '/Users/romes/control/nix/.?submodules=1'#romes-mbp`
+    - If you mean to use a different configuration in the `flake.nix` other than `romes-mbp` don't forget to change the command to use it.
+
+## Outdated Control
 
 This repository puts together everything needed to build a[read: my] home in any computer.
 Base control sets up the dotfiles, utils/scripts, launch daemon on macos, and the homesite where write ups, albums, movies, ..., are organized and from where they can be published. Additionally some other parts are in movement and trying to find their place.

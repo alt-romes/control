@@ -39,6 +39,8 @@ in
 
     nixos-rebuild # to deploy to remote nixos machines directly
 
+    cachix
+
     # imhex
 
     # For (building) GHC
