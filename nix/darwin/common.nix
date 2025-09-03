@@ -37,6 +37,8 @@
     system-features = [ "nixos-test" "apple-virt" ];
   };
 
+  system.primaryUser = "romes";
+
   homebrew = {
     # this doesn't install homebrew, needs to be installed manually (see instructions on website)
     enable = true;

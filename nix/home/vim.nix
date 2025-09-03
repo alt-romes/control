@@ -1,7 +1,7 @@
 { config, lib, pkgs, inputs, ... }:
 {
 
-  imports = [ inputs.nixvim.homeManagerModules.nixvim ];
+  imports = [ inputs.nixvim.homeModules.nixvim ];
 
   programs.nixvim = {
     # use nixvim pkgs == home-manager pkgs == nixos nixpkgs
@@ -119,7 +119,7 @@
 
     plugins.nvim-tree = {
       enable = true;
-      disableNetrw = true;
+      settings = { disable_netrw = true; };
       openOnSetup = true;
     };
 
