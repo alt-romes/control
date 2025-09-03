@@ -47,6 +47,8 @@ in
 
   config = {
     home.sessionVariables = {
+      # THIS IS GETTING EXPORTED WITH QUOTES
+      # TO USE; TRY $(echo $STATIC_HASKELL_CABAL_OPTS) to force expansion
       STATIC_HASKELL_CABAL_OPTS =
         "--extra-lib-dirs=${pkgs.zlib.static}/lib --extra-lib-dirs=${libffiStaticOnly}/lib --extra-lib-dirs=${gmpStaticOnly}/lib --ghc-options=-pgml=${filter_iconv_wrapper}/bin/static-cc-wrapper";
     };
