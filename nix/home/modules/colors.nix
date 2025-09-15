@@ -11,12 +11,12 @@ let
     ayu-light = {
       vim = "ayu";
       background = "light";
-      ghostty = "ayu_light";
+      ghostty = "Ayu Light";
     };
     ayu-dark = {
       vim = "ayu";
       background = "dark";
-      ghostty = "ayu";
+      ghostty = "Ayu";
     };
     everforest = {
       vim = "everforest";
