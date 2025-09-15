@@ -47,7 +47,7 @@
     ];
     casks = [ # casks, see also per-machine configuration (see relevant files)
       "flycut"
-      # "ghostty"
+      "ghostty"
       "anki"
       "firefox"
       "vlc"
