@@ -57,6 +57,7 @@ in
   darwinConfigurations = {
 
     "romes-mbp" = commonMDarwinSystem ./darwin/mbp.nix;
+    "romes-mercury" = commonMDarwinSystem ./darwin/mbp.nix;
 
     # Nix-darwin configuration for Mac Mini M4 2025
     "romes-macmini" = commonMDarwinSystem ./darwin/macmini.nix;
