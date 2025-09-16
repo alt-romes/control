@@ -33,6 +33,7 @@ in
         "steam"
 
         "claude"
+        "ollama"
     ];
   };
 
