@@ -129,14 +129,13 @@
 
       adapters.servers = {
         haskell = {
-          host = "127.0.0.1";
+          id = "haskell-debugger";
           port = "\${port}";
-          id = "ghc-debugger";
 
           # Launch this server automatically for each launch
           executable = {
-            command = "ghc-debug-adapter";
-            args = ["--port" "\${port}"];
+            command = "hdb";
+            args = ["server" "--port" "\${port}"];
           };
         };
       };
@@ -144,15 +143,17 @@
       configurations = {
         haskell = [
           {
-            type = "haskell";
+            type = "haskell-debugger";
             request = "launch";
-            name = "Default Haskell Debugger";
-            projectRoot = "\${workspaceFolder}";
-            entryFile = "app/Main.hs";
-            entryPoint = "main";
-            entryArgs = [
-              "" # without this entryArgs is gone?
-            ];
+            name = "hdb:launch";
+            # projectRoot = "\${workspaceFolder}";
+            # entryFile = "\${file}";
+            # entryPoint = "main";
+            # entryArgs = [
+            #   "" # without this entryArgs is gone?
+            # ];
+            # extraGhcArgs = [
+            # ];
           }
         ];
       };
