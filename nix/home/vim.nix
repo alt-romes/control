@@ -91,6 +91,9 @@
 
           # Nix
           nixd.enable = true;
+
+          # Swift
+          sourcekit.enable = true;
         };
     };
 
