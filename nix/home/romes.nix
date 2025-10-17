@@ -32,10 +32,14 @@ in
   home.packages = with pkgs; [
     fzf ripgrep
 
+    # Haskell
     hs-comp
     hs-pkgs.cabal-install
     hs-pkgs.haskell-language-server
     hs-pkgs.fast-tags
+
+    # Lean
+    elan
 
     nixos-rebuild # to deploy to remote nixos machines directly
 
