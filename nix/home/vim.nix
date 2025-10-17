@@ -175,6 +175,11 @@
       };
     };
 
+    # Lean
+    plugins.lean = {
+      enable = true;
+    };
+
     /* Extra Plugins */
     extraPlugins = [
       (pkgs.vimUtils.buildVimPlugin {
