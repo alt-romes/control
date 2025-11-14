@@ -37,6 +37,7 @@ let
     };
     kanagawa = {
       vim = "kanagawa";
+      vim-colorscheme = "kanagawa-dragon";
       background = "dark";
       ghostty = "Kanagawa Dragon";
     };
