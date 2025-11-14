@@ -1,8 +1,6 @@
 { config, pkgs, lib, inputs, ... }:
 let
   simpleThemes = {
-    # colorschemes.ayu.enable = true;
-    # colorschemes.kanagawa.enable = true;
     oxocarbon = {
       vim = "oxocarbon";
       ghostty = "oxocarbon";
@@ -26,17 +24,34 @@ let
         programs.nixvim.colorschemes.everforest.settings.background = "hard";
       };
     };
+    hotblue = {
+      vim-colorscheme = "blue";
+      background = "dark";
+      ghostty = "Hot Dog Stand";
+    };
+    github = {
+      vim = "github-theme";
+      vim-colorscheme = "github_light_default";
+      background = "light";
+      ghostty = "GitHub";
+    };
   };
 
   theme = themeName: themeConf:
     let opt = config.style.colors.${themeName};
         base = {
           programs.ghostty.settings.theme = themeConf.ghostty;
-          programs.nixvim.colorschemes.${themeConf.vim}.enable = true;
           programs.nixvim.opts.background = themeConf.background; # "light" or "dark"
         };
+        # Either vim or vim-builtin is defined
+        vim1 = (if themeConf ? vim then {
+          programs.nixvim.colorschemes.${themeConf.vim}.enable = true;
+        } else {});
+        vim2 = (if themeConf ? vim-colorscheme then {
+            programs.nixvim.colorscheme = themeConf.vim-colorscheme;
+          } else {});
         extra = if themeConf ? extraSettings then themeConf.extraSettings else {};
-    in lib.mkIf (opt.enable) (lib.recursiveUpdate base extra);
+    in lib.mkIf (opt.enable) (lib.recursiveUpdate (lib.recursiveUpdate base (lib.recursiveUpdate vim1 vim2)) extra);
 in
 {
 
@@ -45,6 +60,8 @@ in
     style.colors.everforest.enable = lib.mkEnableOption "Everforest dark hard";
     style.colors.ayu-light.enable = lib.mkEnableOption "Ayu light";
     style.colors.ayu-dark.enable = lib.mkEnableOption "Ayu dark";
+    style.colors.hotblue.enable = lib.mkEnableOption "Hot-Blue";
+    style.colors.github.enable = lib.mkEnableOption "GitHub";
   };
 
   config = lib.mkMerge (
