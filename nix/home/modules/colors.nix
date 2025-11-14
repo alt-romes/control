@@ -35,6 +35,11 @@ let
       background = "light";
       ghostty = "GitHub";
     };
+    kanagawa = {
+      vim = "kanagawa";
+      background = "dark";
+      ghostty = "Kanagawa Dragon";
+    };
   };
 
   theme = themeName: themeConf:
@@ -62,6 +67,7 @@ in
     style.colors.ayu-dark.enable = lib.mkEnableOption "Ayu dark";
     style.colors.hotblue.enable = lib.mkEnableOption "Hot-Blue";
     style.colors.github.enable = lib.mkEnableOption "GitHub";
+    style.colors.kanagawa.enable = lib.mkEnableOption "Kanagawa";
   };
 
   config = lib.mkMerge (

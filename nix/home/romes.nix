@@ -120,5 +120,5 @@ in
 
   # Color management
   # style.colors.ayu-light.enable = true;
-  style.colors.github.enable = true;
+  style.colors.kanagawa.enable = true;
 }
