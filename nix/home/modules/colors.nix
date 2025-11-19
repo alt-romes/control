@@ -41,23 +41,15 @@ let
       background = "dark";
       ghostty = "Kanagawa Dragon";
     };
-    coffee = {
-      vim-colorscheme = "coffee";
+    gruvbox-light = {
+      vim = "gruvbox";
+      background = "light";
+      ghostty = "Gruvbox Light";
+    };
+    gruvbox-dark = {
+      vim = "gruvbox";
       background = "dark";
-      ghostty = "Coffee Theme";
-      extraSettings = {
-        programs.nixvim.extraPlugins = [
-          (pkgs.vimUtils.buildVimPlugin {
-            name = "coffee.vim";
-            src = pkgs.fetchFromGitHub {
-                owner = "coffee-theme";
-                repo = "coffee.vim";
-                rev = "9b433aa6fa160b5bb9420caca6fcfbf2f899e389";
-                hash = "sha256-cOI3XBsbMesgPjfj7sDZfEtupVxjyB90z5c+JHrC9mg=";
-            };
-          })
-        ];
-      };
+      ghostty = "Gruvbox Dark";
     };
   };
 
@@ -87,7 +79,8 @@ in
     style.colors.hotblue.enable = lib.mkEnableOption "Hot-Blue";
     style.colors.github.enable = lib.mkEnableOption "GitHub";
     style.colors.kanagawa.enable = lib.mkEnableOption "Kanagawa";
-    style.colors.coffee.enable = lib.mkEnableOption "Coffee Theme";
+    style.colors.gruvbox-light.enable = lib.mkEnableOption "Gruvbox Light";
+    style.colors.gruvbox-dark.enable = lib.mkEnableOption "Gruvbox Dark";
   };
 
   config = lib.mkMerge (
