@@ -120,5 +120,6 @@ in
 
   # Color management
   # style.colors.ayu-light.enable = true;
-  style.colors.kanagawa.enable = true;
+  # style.colors.kanagawa.enable = true;
+  style.colors.coffee.enable = true;
 }
