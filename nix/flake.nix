@@ -27,42 +27,48 @@
 
   };
 
-outputs = inputs@{ self, nix-darwin, nixpkgs, ... }:
-let
+  outputs = inputs@{ self, nix-darwin, nixpkgs, ... }:
+    let
 
-  commonMDarwinSystem = customSystemModule: nix-darwin.lib.darwinSystem {
+    commonMDarwinSystem = customSystemModule: nix-darwin.lib.darwinSystem {
 
-    specialArgs = {
-      inherit inputs;
-      system = "aarch64-darwin";
-      configurationRevision = self.rev or self.dirtyRev or null;
+      specialArgs = {
+        inherit inputs;
+        system = "aarch64-darwin";
+        configurationRevision = self.rev or self.dirtyRev or null;
+      };
+
+      modules = [
+        ./darwin/common.nix
+          customSystemModule
+      ];
+
     };
 
-    modules = [
-      ./darwin/common.nix
-      customSystemModule
-    ];
+  in
+  {
+    # Build darwin flake using:
+    #
+    # $ darwin-rebuild build --flake <path>?submodules=1
+    # (it suffices to use `.` because it will read the hostname, e.g., for
+    # hostname=romes-mbp it will read associated configuration)
+    #
+    # `?submodules=1` is needed because some modules live inside of git submodules
+    darwinConfigurations = {
 
+      "romes-mbp" = commonMDarwinSystem ./darwin/mbp.nix;
+      "romes-mercury" = commonMDarwinSystem ./darwin/mbp.nix;
+
+      # Nix-darwin configuration for Mac Mini M4 2025
+      "romes-macmini" = commonMDarwinSystem ./darwin/macmini.nix;
+
+    };
+
+    nixosConfigurations = {
+      # nixos-rebuild --flake .#red --target-host romes@remote-host # and if not using linux-builder: --build-host romes@remote-host
+      "red" = nixpkgs.lib.nixosSystem {
+        modules = [ ./linux/red/configuration.nix ];
+      };
+    };
   };
-
-in
-{
-  # Build darwin flake using:
-  #
-  # $ darwin-rebuild build --flake <path>?submodules=1
-  # (it suffices to use `.` because it will read the hostname, e.g., for
-  # hostname=romes-mbp it will read associated configuration)
-  #
-  # `?submodules=1` is needed because some modules live inside of git submodules
-  darwinConfigurations = {
-
-    "romes-mbp" = commonMDarwinSystem ./darwin/mbp.nix;
-    "romes-mercury" = commonMDarwinSystem ./darwin/mbp.nix;
-
-    # Nix-darwin configuration for Mac Mini M4 2025
-    "romes-macmini" = commonMDarwinSystem ./darwin/macmini.nix;
-
-  };
-
-};
 }
