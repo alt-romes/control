@@ -87,4 +87,7 @@ in
       forwardAgent = true; # Forward Agent authentication to mbp (basically allowing auth with local 1Pass)
     };
   };
+
+  # UID is necessary. I listed mine out.
+  users.users."romes".uid = 501;
 }
