@@ -36,22 +36,22 @@
     useXkbConfig = true; # use xkb.options in tty.
   };
 
-  services.xserver = {
-    # Enable the X11 windowing system.
-    enable = true;
-
-    # Configure keymap in X11
-    xkb = {
-      layout = "pt";
-      # options = "eurosign:e,caps:escape";
-    };
-
-    desktopManager = {
-      wallpaper.mode = "max";
-      budgie.enable = true;
-    };
-
-  };
+  # services.xserver = {
+  #   # Enable the X11 windowing system.
+  #   enable = true;
+  #
+  #   # Configure keymap in X11
+  #   xkb = {
+  #     layout = "pt";
+  #     # options = "eurosign:e,caps:escape";
+  #   };
+  #
+  #   desktopManager = {
+  #     wallpaper.mode = "max";
+  #     budgie.enable = true;
+  #   };
+  #
+  # };
 
   # Enable CUPS to print documents.
   services.printing.enable = true;

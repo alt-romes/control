@@ -42,19 +42,15 @@
             cores = 4;
           };
         };
-        supportedFeatures = [ "kvm" "benchmark" "big-parallel" "nixos-test" ];
+        supportedFeatures = [ "kvm" "benchmark" "big-parallel" "nixos-test" "qemu" ];
+        # Enable building pkgs on x86_64-darwin as well
+        systems = ["x86_64-linux" "aarch64-linux"];
+        config.boot.binfmt.emulatedSystems = ["x86_64-linux"];
       };
 
       # This line is a prerequisite?
       settings.trusted-users = [ "@admin" ];
-
-      # Enable building pkgs on x86_64-darwin as well
-      extraOptions = ''
-        extra-platforms = x86_64-darwin aarch64-darwin
-      '';
-
     };
-
   };
 
 }

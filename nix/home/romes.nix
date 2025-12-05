@@ -42,6 +42,7 @@ in
     elan
 
     nixos-rebuild # to deploy to remote nixos machines directly
+    nixos-rebuild-ng # better version?
 
     cachix
 
