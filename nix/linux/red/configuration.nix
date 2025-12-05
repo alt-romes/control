@@ -19,6 +19,10 @@
 
   networking.hostName = "red"; # Define your hostname.
 
+  # For remote nixos-rebuild
+  nix.settings.trusted-users = [ "romes" ];
+  security.sudo.wheelNeedsPassword = false;
+
   # Configure network connections interactively with nmcli or nmtui.
   networking.networkmanager.enable = true;
 
@@ -52,6 +56,17 @@
   #   };
   #
   # };
+  services.cage = {
+      enable = true;
+      user = "romes";
+      program = "${pkgs.firefox}/bin/firefox -kiosk -private-window https://mimes.cultofbits.com";
+  };
+
+  # wait for network and DNS
+  systemd.services."cage-tty1".after = [
+    "network-online.target"
+    "systemd-resolved.service"
+  ];
 
   # Enable CUPS to print documents.
   services.printing.enable = true;
