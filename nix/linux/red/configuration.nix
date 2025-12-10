@@ -8,6 +8,7 @@
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
+      # <nixpkgs/nixos/modules/profiles/all-hardware.nix>
     ];
 
   # Use the systemd-boot EFI boot loader.
@@ -21,7 +22,6 @@
 
   # For remote nixos-rebuild
   nix.settings.trusted-users = [ "romes" ];
-  security.sudo.wheelNeedsPassword = false;
 
   # Configure network connections interactively with nmcli or nmtui.
   networking.networkmanager.enable = true;
@@ -59,14 +59,13 @@
   services.cage = {
       enable = true;
       user = "romes";
-      program = "${pkgs.firefox}/bin/firefox -kiosk -private-window https://mimes.cultofbits.com";
+      # program = "${pkgs.firefox}/bin/firefox --kiosk --private-window https://mimes.cultofbits.com";
+      program = "${pkgs.chromium}/bin/chromium --kiosk --no-sandbox --disable-gpu --incognito https://mimes.cultofbits.com";
   };
+  hardware.graphics.enable = true;
 
-  # wait for network and DNS
-  systemd.services."cage-tty1".after = [
-    "network-online.target"
-    "systemd-resolved.service"
-  ];
+  services.seatd.enable = true;
+  services.dbus.enable = true;
 
   # Enable CUPS to print documents.
   services.printing.enable = true;
@@ -75,6 +74,11 @@
   services.pipewire = {
     enable = true;
     pulse.enable = true;
+  };
+
+  security.sudo = {
+    enable = true;
+    wheelNeedsPassword = false;
   };
 
   # Enable touchpad support (enabled default in most desktopManager).
@@ -86,9 +90,10 @@
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ romes@world"
     ];
-    extraGroups = [ "wheel" "networkmanager" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "networkmanager" "video" "input" "seat" ]; # Enable ‘sudo’ for the user.
     packages = with pkgs; [
     ];
+    uid = 1000;
   };
 
   # users.users.cata = {
