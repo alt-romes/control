@@ -26,14 +26,17 @@ in
   # --- Packages ---------------------------------------------------------------
 
   homebrew = {
-    brews = [];
+    brews = [
+        "qwen-code"
+        "llama.cpp" # for use with llama.vim
+        # also use with: nix run github:numtide/nix-ai-tools#crush
+    ];
     casks = [
         "bambu-studio"
         "affinity-designer"
         "steam"
 
-        "claude"
-        "ollama"
+        # "claude"
     ];
   };
 

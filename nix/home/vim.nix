@@ -164,7 +164,9 @@
     };
 
     plugins.copilot-vim = {
-      enable = true; # experimenting...
+      enable = false; # experimenting...
+      # ^ super annoying when you run out of tokens.
+      # will have more by 09-01-2026
 
       settings = {
         enabled = false; # disabled by default. Use :Copilot enable
@@ -193,7 +195,15 @@
       })
 
       pkgs.vimPlugins.telescope_hoogle
+      pkgs.vimPlugins.llama-vim
     ];
+
+    extraConfigLua = ''
+      vim.g.llama_config = {
+        show_info = 0,
+        enable_at_startup = false
+      }
+    '';
 
     # Custom extra telescope extensions
     plugins.telescope.enabledExtensions = [ "hoogle" ];
