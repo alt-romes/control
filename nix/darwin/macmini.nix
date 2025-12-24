@@ -117,4 +117,7 @@
     };
   };
 
+  # UID is necessary. See man id(1) to find the right one for a machine.
+  # The one for macmini:
+  users.users."romes".uid = 501;
 }
