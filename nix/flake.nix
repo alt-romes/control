@@ -19,8 +19,7 @@
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
     # Kimai client
-    kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git?ref=bolt12/patch"; # remove the ref once merged
-    # kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
+    kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
 
     # Vscode extensions
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
