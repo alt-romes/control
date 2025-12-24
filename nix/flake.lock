@@ -179,16 +179,15 @@
       "locked": {
         "lastModified": 1746920103,
         "narHash": "sha256-I6ab8lLIQtd6jnSAvgobtQjfgCuHFsiMes0fKMmXl/I=",
-        "ref": "bolt12/patch",
+        "ref": "refs/heads/bolt12/patch",
         "rev": "44c8b4148556f1992443b0d4325ffb7127d98174",
         "revCount": 120,
         "type": "git",
-        "url": "ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git"
+        "url": "file:///Users/romes/Developer/kimai-client"
       },
       "original": {
-        "ref": "bolt12/patch",
         "type": "git",
-        "url": "ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git"
+        "url": "file:///Users/romes/Developer/kimai-client"
       }
     },
     "nix-darwin": {
