@@ -41,7 +41,7 @@ in
     # Lean
     elan
 
-    nixos-rebuild # to deploy to remote nixos machines directly
+    # nixos-rebuild # to deploy to remote nixos machines directly
     nixos-rebuild-ng # better version?
 
     cachix
@@ -69,7 +69,7 @@ in
   home.shell.enableZshIntegration = true;
   programs.zsh = {
     enable = true; # will use the same zsh as the one in nixpkgs shared with nix-darwin
-    enableCompletion = true;
+    enableCompletion = false; # disable because of https://github.com/nix-community/home-manager/issues/8392. Maybe fine to re-enable later.
     syntaxHighlighting.enable = true;
     autosuggestion.enable = true;
     initContent = ''

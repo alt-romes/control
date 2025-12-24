@@ -19,8 +19,8 @@
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
     # Kimai client
-    # kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
-    kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
+    kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
+    # kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
 
     # Vscode extensions
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
