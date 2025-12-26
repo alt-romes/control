@@ -22,6 +22,10 @@
     kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
     # kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
 
+    # Charmbracelet NUR
+    nur-charmbracelet.url = "github:charmbracelet/nur";
+    nur-charmbracelet.inputs.nixpkgs.follows = "nixpkgs";
+
     # Vscode extensions
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
 

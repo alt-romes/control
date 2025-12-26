@@ -267,6 +267,26 @@
         "type": "github"
       }
     },
+    "nur-charmbracelet": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1766428585,
+        "narHash": "sha256-sdTxqbxjaS+P6VDNSHwknkGlQ6vMlEpnrLNuLwdep3Y=",
+        "owner": "charmbracelet",
+        "repo": "nur",
+        "rev": "1116a2cbd18cbd95700401926aad9d845a67f8e9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "charmbracelet",
+        "repo": "nur",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "agenix": "agenix",
@@ -275,7 +295,8 @@
         "nix-darwin": "nix-darwin",
         "nix-vscode-extensions": "nix-vscode-extensions",
         "nixpkgs": "nixpkgs_3",
-        "nixvim": "nixvim"
+        "nixvim": "nixvim",
+        "nur-charmbracelet": "nur-charmbracelet"
       }
     },
     "systems": {
