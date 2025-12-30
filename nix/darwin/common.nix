@@ -50,7 +50,6 @@
       "ghostty"
       "anki"
       "firefox"
-      "vlc"
       "mattermost"
       "skim"
       "visual-studio-code" # experimenting debugger and agents
@@ -88,6 +87,8 @@
     systemPackages = [
       pkgs.vim
       pkgs.eza           # ls replacement
+
+      pkgs.iina   # video player
     ];
 
     variables = {

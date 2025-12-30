@@ -120,6 +120,16 @@ in
   #    ];
   #  };
 
+  # MPV plugins which also work for IINA
+  # (just make sure Advanced Configuration is enabled in IINA and it points to .config/mpv)
+  programs.mpv = {
+    enable = true;
+    scripts = [
+      # pkgs.mpvScripts.autosubsync-mpv # doesn't seem to work for IINA
+      # TODO: japanese things...
+    ];
+  };
+
   # Color management
   # style.colors.ayu-light.enable = true;
   # style.colors.kanagawa.enable = true;
