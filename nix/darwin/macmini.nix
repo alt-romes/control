@@ -13,7 +13,7 @@
   # TODO: Can I expose the linux-builder as a remote builder for the mbp?
 
   # Background linux VM runner process is enabled per-machine as needed
-  process.linux-builder.enable = false;
+  process.linux-builder.enable = true;
 
   # Create a user on this machine for when this machine is used as a remote
   # builder (e.g. by the MBP)
