@@ -182,6 +182,28 @@
       enable = true;
     };
 
+    # Formatters
+    plugins.conform-nvim = {
+      enable = true;
+      settings = {
+        formatters_by_ft = {
+          haskell = [ "ormolu" ];
+          "_" = [
+            "trim_whitespace"
+            "trim_newlines"
+          ];
+        };
+        log_level = "warn";
+        notify_on_error = false;
+        notify_no_formatters = false;
+        formatters = {
+          ormolu = {
+            command = lib.getExe pkgs.ormolu;
+          };
+        };
+      };
+    };
+
     /* Extra Plugins */
     extraPlugins = [
       (pkgs.vimUtils.buildVimPlugin {
