@@ -79,6 +79,25 @@
         mode = "n"; key = "<leader>o"; action = "<cmd>lua require(\"nvim-tree.api\").tree.open({ path = vim.fn.expand('%:p:h'), find_file = true })<cr>"; }
     ];
 
+    userCommands = {
+      Format = {
+        command.__raw = ''
+          function(args)
+            local range = nil
+            if args.count ~= -1 then
+              local end_line = vim.api.nvim_buf_get_lines(0, args.line2 - 1, args.line2, true)[1]
+                range = {
+                  start = { args.line1, 0 },
+                  ["end"] = { args.line2, end_line:len() },
+                }
+            end
+            require("conform").format({ async = true, lsp_format = "fallback", range = range })
+          end
+          '';
+        range = true;
+      };
+    };
+
     /* Language Server Protocols */
     plugins.lsp = {
         enable = true;
@@ -166,6 +185,7 @@
     plugins.copilot-vim = {
       enable = false; # experimenting...
       # ^ super annoying when you run out of tokens.
+      # much prefer the local llama.cpp version.
       # will have more by 09-01-2026
 
       settings = {
@@ -187,7 +207,7 @@
       enable = true;
       settings = {
         formatters_by_ft = {
-          haskell = [ "ormolu" ];
+          haskell = [ "stylish-haskell" ];
           "_" = [
             "trim_whitespace"
             "trim_newlines"
@@ -197,8 +217,8 @@
         notify_on_error = false;
         notify_no_formatters = false;
         formatters = {
-          ormolu = {
-            command = lib.getExe pkgs.ormolu;
+          stylish-haskell = {
+            command = lib.getExe pkgs.stylish-haskell;
           };
         };
       };
@@ -222,9 +242,10 @@
       pkgs.vimPlugins.llama-vim
     ];
 
+        # show_info = 0,
+        # endpoint = "http://192.168.68.130:8022/infill"
     extraConfigLua = ''
       vim.g.llama_config = {
-        show_info = 0,
         enable_at_startup = false
       }
     '';
