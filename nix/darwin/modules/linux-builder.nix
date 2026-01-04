@@ -23,7 +23,8 @@
     # See more available options in module.nix's `options.nix-rosetta-builder`
 
     # Shutdown automatically and only run it on demand
-    # nix-rosetta-builder.onDemand = true;
+    nix-rosetta-builder.onDemand = true;
+    nix-rosetta-builder.memory = "12GiB";
   };
 
 }
