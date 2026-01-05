@@ -14,7 +14,6 @@ in
     # Modules
     ./modules/colors.nix
     ./modules/static_haskell.nix
-    ./modules/llm_review.nix
     ./modules/crush.nix
   ];
 
