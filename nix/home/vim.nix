@@ -204,6 +204,8 @@
       };
     };
 
+    plugins.opencode.enable = true;
+
     /* Extra Plugins */
     extraPlugins = [
       (pkgs.vimUtils.buildVimPlugin {

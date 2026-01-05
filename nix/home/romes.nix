@@ -42,6 +42,8 @@ in
     # Lean
     elan
 
+    opencode
+
     # nixos-rebuild # to deploy to remote nixos machines directly
     nixos-rebuild-ng # better version?
 
