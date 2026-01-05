@@ -45,7 +45,6 @@
 
     brews = [ # non-cask formulaes
       "llama.cpp" # for use with llama.vim
-                  # also use with: nix run github:numtide/nix-ai-tools#crush
     ];
     casks = [ # casks, see also per-machine configuration (see relevant files)
       "flycut"
