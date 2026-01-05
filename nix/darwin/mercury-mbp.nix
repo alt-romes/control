@@ -9,14 +9,8 @@ in
 
   imports = [ (import ./modules/macmini-builder.nix macminiWireguardIp) ];
 
-  finances = {
-    enable = true;
-    # Leave daemons for the macmini
-    daemons = {
-      fetchers.enable = false;
-      gen-invoice.enable = false;
-    };
-  };
+  # Not here!
+  finances.enable = false;
 
   # --- Remote Builders --------------------------------------------------------
 
@@ -30,16 +24,17 @@ in
 
   homebrew = {
     brews = [
+        "qwen-code"
     ];
     casks = [
-        "bambu-studio"
         "steam"
+        "claude"
     ];
   };
 
   # --- Networking -------------------------------------------------------------
 
-  age.secrets.wireguard-mbp.file = ../../secrets/wireguard-mbp.age;
+  age.secrets.wireguard-mercury-mbp.file = ../../secrets/wireguard-mercury-mbp.age;
 
   # Wireguard client
   # ---
@@ -51,8 +46,8 @@ in
   networking.wg-quick.interfaces = {
     wg0 = {
       autostart = true;
-      address = [ "10.0.0.2/32" ];
-      privateKeyFile = config.age.secrets.wireguard-mbp.path; # for kmpmnUIFpfS4mdOzi7RlGShhSqOcelwIDG+/8mJUAzM=
+      address = [ "10.0.0.4/32" ];
+      privateKeyFile = config.age.secrets.wireguard-mercury-mbp.path; # for ?
       peers = [
         # wireguard-macmini
         {

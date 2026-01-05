@@ -18,9 +18,9 @@
       inputs.nix-rosetta-builder.darwinModules.default
   ];
 
-  config = lib.mkIf config.process.linux-builder.enable {
-
+  config = {
     # See more available options in module.nix's `options.nix-rosetta-builder`
+    nix-rosetta-builder.enable = config.process.linux-builder.enable;
 
     # Shutdown automatically and only run it on demand
     nix-rosetta-builder.onDemand = true;

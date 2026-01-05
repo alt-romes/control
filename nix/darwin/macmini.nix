@@ -4,13 +4,15 @@
 
   imports = [ ./modules/duckdns.nix ./modules/backups.nix ];
 
-  finances.daemons = {
-    fetchers.enable = true;
-    gen-invoice.enable = true;
+  finances = {
+    enable = true;
+    daemons = {
+      fetchers.enable = true;
+      gen-invoice.enable = true;
+    };
   };
 
   # --- Builders ---------------------------------------------------------------
-  # TODO: Can I expose the linux-builder as a remote builder for the mbp?
 
   # Background linux VM runner process is enabled per-machine as needed
   process.linux-builder.enable = true;
@@ -41,15 +43,12 @@
   homebrew = {
     brews = [
         "qwen-code"
-        "llama.cpp" # for use with llama.vim
-        # also use with: nix run github:numtide/nix-ai-tools#crush
     ];
     casks = [
         # Creative
         "blender"
         "autodesk-fusion"
         "bambu-studio"
-        "affinity-designer"
 
         # Recreative
         "8bitdo-ultimate-software"
@@ -64,14 +63,6 @@
         # Wine
         # "wine@staging"
         # "winetricks"
-    ];
-  };
-
-  nixpkgs.config.allowUnfree = true;
-
-  environment = {
-    systemPackages = [
-      pkgs.tart
     ];
   };
 

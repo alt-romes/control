@@ -8,7 +8,8 @@ let
   # In 1Password, under Agenix SSH Keys
   romes-macmini = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOh7oeTq9ThSabXTQiRlJ2hZG499HdH6uBoxWUZ85xPu";
   romes-mbp = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBuBXaTD+KVCC3+9xOL42MImerdQ6xEE4CCTJMwi4zr/";
-  romes-machines = [ romes-macmini romes-mbp ];
+  romes-mercury-mbp = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOIvfvvTeRi9U8Le+u0unZ+0sN2lUgSNK9bRiR8XR+7R";
+  romes-machines = [ romes-macmini romes-mbp romes-mercury-mbp ];
 in
 {
   # To create or edit a secret file, run
@@ -26,5 +27,6 @@ in
   "duckdns.age".publicKeys = romes-machines;
   "wireguard-macmini.age".publicKeys = [ romes-macmini ]; # private key for macmini
   "wireguard-mbp.age".publicKeys = [ romes-mbp ]; # private key for mbp
+  "wireguard-mercury-mbp.age".publicKeys = [ romes-mercury-mbp ]; # private key for mercury-mbp
   "remote-builder-key.age".publicKeys = [ romes-mbp ]; # mbp uses key to access remote builder (on mac mini)
 }

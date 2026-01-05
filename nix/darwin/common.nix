@@ -43,7 +43,9 @@
     # this doesn't install homebrew, needs to be installed manually (see instructions on website)
     enable = true;
 
-    brews = [ # non-cask formulaes, per-machine configuration (see relevant files)
+    brews = [ # non-cask formulaes
+      "llama.cpp" # for use with llama.vim
+                  # also use with: nix run github:numtide/nix-ai-tools#crush
     ];
     casks = [ # casks, see also per-machine configuration (see relevant files)
       "flycut"
@@ -54,6 +56,7 @@
       "skim"
       "visual-studio-code" # experimenting debugger and agents
       "discord"
+      "affinity-designer"
     ];
 
     # command line for Mac App Store. Not using this (ie `mas`) yet.
@@ -81,14 +84,18 @@
   # 1Password CLI
   programs._1password.enable = true;
 
+  nixpkgs.config.allowUnfree = true;
+
   environment = {
     # List packages installed in system profile. To search by name, run:
     # $ nix-env -qaP | grep wget
     systemPackages = [
       pkgs.vim
-      pkgs.eza           # ls replacement
+      pkgs.eza    # ls replacement
 
       pkgs.iina   # video player
+
+      pkgs.tart   # virtualization
     ];
 
     variables = {
@@ -186,7 +193,6 @@
 
   # Finances management
   finances = {
-    enable = true;
     all.ledger = "/Users/romes/control/finances/all.journal";
     personal.ledger = "/Users/romes/control/finances/2025.journal";
     mogbit.ledger = "/Users/romes/control/finances/mogbit/2025.journal";
