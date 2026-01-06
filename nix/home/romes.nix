@@ -1,8 +1,8 @@
 # romes home configuration
 { config, lib, pkgs, inputs, ... }:
 let
-  hs-comp = pkgs.haskell.compiler.ghc910;
-  hs-pkgs = pkgs.haskell.packages.ghc910;
+  hs-comp = pkgs.haskell.compiler.ghc912;
+  hs-pkgs = pkgs.haskell.packages.ghc912;
 in
 {
   imports = [
