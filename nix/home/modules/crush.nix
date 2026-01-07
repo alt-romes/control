@@ -21,8 +21,19 @@
             {
               id = "qwen3:30b";
               name = "Qwen 3 30B";
-              # context_window = 32000;
-              # default_max_tokens = 20000;
+            }
+          ];
+        };
+        lm-studio = {
+          id = "lm-studio";
+          name = "LM Studio";
+          base_url = "http://127.0.0.1:8012/v1";
+          type = "openai";
+          api_key = "irrelevant";
+          models = [
+            {
+              id = "mistralai/devstral-small-2-2512";
+              name = "Devstral Small 2 2512";
             }
           ];
         };

@@ -77,6 +77,12 @@
         mode = "n"; key = "gd"; action = "<cmd>lua vim.lsp.buf.definition()<cr>"; }
       { # Open file selector in the directory of the current file
         mode = "n"; key = "<leader>o"; action = "<cmd>lua require(\"nvim-tree.api\").tree.open({ path = vim.fn.expand('%:p:h'), find_file = true })<cr>"; }
+
+      { # Remove all trailing whitespace
+        mode = "n"; key = "<leader>w";
+        action = ":let _s=@/ | %s/\\s\\+$//e | let @/=_s<CR>";
+        options = { noremap = true; silent = true; };
+      }
     ];
 
     userCommands = {

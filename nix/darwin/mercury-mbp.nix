@@ -29,6 +29,8 @@ in
     casks = [
         "steam"
         "claude"
+        "zed"
+        "lm-studio" # llama-server crashes on some models...
     ];
   };
 
