@@ -46,7 +46,7 @@ in
     # nixos-rebuild # to deploy to remote nixos machines directly
     nixos-rebuild-ng # better version?
 
-    cachix
+    gh # github cli
 
     # imhex
 
