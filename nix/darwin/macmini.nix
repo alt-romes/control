@@ -60,9 +60,8 @@
         "qbittorrent"
         "vorta" # borgbackup gui
 
-        # Wine
-        # "wine@staging"
-        # "winetricks"
+        # Xperiments
+        "antigravity"
     ];
   };
 
