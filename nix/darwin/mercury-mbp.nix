@@ -25,6 +25,8 @@ in
   homebrew = {
     brews = [
         "qwen-code"
+        "gemini-cli"
+        "brandonchinn178/tap/hooky"
     ];
     casks = [
         "steam"
