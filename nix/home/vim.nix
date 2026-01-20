@@ -104,6 +104,14 @@
       };
     };
 
+    plugins.orgmode = {
+      enable = true;
+      settings = {
+        org_agenda_files = "~/control/orgfiles/**/*";
+        org_default_notes_file = "~/control/orgfiles/refile.org";
+      };
+    };
+
     /* Language Server Protocols */
     plugins.lsp = {
         enable = true;
