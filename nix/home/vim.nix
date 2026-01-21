@@ -104,21 +104,30 @@
       };
     };
 
-    plugins.orgmode = {
+    plugins.orgmode =
+    let orgdir = "~/control/orgfiles"; in
+    {
       enable = true;
       settings = {
-        org_agenda_files = "~/control/orgfiles/**/*";
-        org_default_notes_file = "~/control/orgfiles/refile.org";
+        org_agenda_files = "${orgdir}/**/*";
+        org_default_notes_file = "${orgdir}/refile.org";
         org_capture_templates = {
-          d = {
-            description = "Daily note";
-            template = "* %?\n  %U\n";
-            target = "~/org/notes/%<%Y%m%d>.org";
+          t = {
+            description = "Todo";
+            template = "* TODO %?\n  %i\n  %a";
+            target = "${orgdir}/gtd.org";
+            headline = "Inbox";
           };
           n = {
-            description = "New titled note";
+            description = "New note";
             template = "#+title: %^{Title}\n#+date: %U\n\n%?";
-            target = "~/org/notes/%<%Y%m%d>-%^{Title}.org";
+            target = "${orgdir}/notes/%<%Y-%m-%d-%H%M>.org";
+          };
+          j = {
+            description = "Journal";
+            template = "* %?\nEntered on %U\n  %i\n  %a";
+            target = "${orgdir}/journal.org";
+            datetree = true;
           };
         };
       };

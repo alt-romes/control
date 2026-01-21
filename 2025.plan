@@ -1,9 +1,0 @@
-Updating all of these submodules is kind of insane.
-I think the better way may be to have a nix configuration that is applied on
-all these programs from a single configuration, perhaps with home-manager.have
-a nix configuration that is applied on all these programs from a single
-configuration, e.g. nix-vim, nix-homebrew kind of thing.
-
-Also, write up somewhere how to better manage individual project tasks with
-something like .plan files in the same directory as the project...
-There could be a nice viewer, and we get version control for free...

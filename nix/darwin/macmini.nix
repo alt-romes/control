@@ -43,6 +43,7 @@
   homebrew = {
     brews = [
         "qwen-code"
+        "gemini-cli"
     ];
     casks = [
         # Creative
