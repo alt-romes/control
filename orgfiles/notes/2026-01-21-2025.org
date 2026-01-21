@@ -90,7 +90,81 @@
 ** Motivation for Linear Types
 
    It may seem useless to restrict an integer to be used exactly once...
-   However, with a bit creativity, we can see pointers, file handles, ...
+   However, with a bit creativity, we can see pointers, file handles, GPU allocated memory, Vulkan resources...
+   Also: security, deadlock freedom with session types, ...
+
+** Linear Haskell
+
+   By default, all datatypes have linear fields:
+
+   #+begin_src haskell
+   data T1 a = MkT1 a
+
+   mk :: a %1 -> T1
+   mk x = T1 x
+   #+end_src
+
+   But if we use GADT syntax, we can specify the multiplicity of the datatype
+   arrows:
+   #+begin_src haskell
+   data T1 a where
+    MkT1 :: a -> T1 a -- Note the unrestricted arrow
+
+   mk :: a %1 -> T1
+   mk x = T1 x
+   #+end_src
+
+   When you match on a constructor, you need to consume all its linear fields linearly, or *exactly once*
+   #+begin_src haskell
+   data T2 a b where
+    MkT1 :: a %1 -> b -> T2 a b -- a is linear, b is unrestricted
+
+   take :: T2 a b %1 -> (a, b, b)
+   take (T2 x y) = (x, y, y)
+
+   bad :: T2 a b %1 -> (a, a, b, b)
+   bad (T2 x y) = (x, x, y, y)
+   #+end_src
+
+** Linear Base
+
+
+   [[https://hackage.haskell.org/package/linear-base][linear-base]]
+
+   Makes programming with linear types much more convenient, and brings interesting linearly-typed abstractions.
+   Example: Mutable, pure, linear arrays. In place mutation made possible (at
+   the library level) because linearly typed API constrains how the user can
+   use the mutable array.
+
+   Introducing: Ur
+
+   #+begin_src haskell
+   data Ur a where
+     Ur :: a -> Ur a
+   -- (Ur a ⊸ b) and (a -> b) are equivalent. The argument is unrestricted
+   #+end_src
+
+*** Linearity as a property of the function, not value
+
+    How to construct APIs which can leverage linearity? CPS
+
+*** Linear IO and a tale of two functors
+
+    [[https://www.tweag.io/blog/2020-01-16-data-vs-control/][A tale of two functors]]
+
+    - Data functor vs Control functor
+
+    Linear Monad guarantees a resource "in the monad" can only be used by `>>=` which takes a linear continuation (guaranteeing that the value is always threaded linearly)
+
+    Linear IO guarantees all resources created in linear IO are used linearly.
+
+
+*** CPS based APIs
+
+    For a linearly-typed api you need to require of your user a function which guaranteedly will use the resource exactly once. You never give the resource to the user.
+    You just pass your resource to the linear continuation the user gives you and you ensure the user can only use and modify that resource using the linearly typed API that you give it.
+
+    More examples: linear-text-builder
 
 ** Exercises
 
@@ -106,6 +180,7 @@
 
 ** Further reading:
 
+- Linear Haskell paper
 - [[https://www.cs.cornell.edu/courses/cs4110/2018fa/lectures/lecture29.pdf][(CMU) CS 4110 – Programming Languages and Logics Lecture #29: Linear Types]]
 - [[https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/linear_types.html][GHC's user guide on Linear Types]]
 

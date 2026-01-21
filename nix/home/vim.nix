@@ -85,6 +85,10 @@
       }
     ];
 
+    digraphs = {
+      ll = "8888";
+    };
+
     userCommands = {
       Format = {
         command.__raw = ''
@@ -114,7 +118,7 @@
         org_capture_templates = {
           t = {
             description = "Todo";
-            template = "* TODO %?\n  %i\n  %a";
+            template = "* TODO %?\n  %U\n  %a";
             target = "${orgdir}/gtd.org";
             headline = "Inbox";
           };
@@ -125,7 +129,7 @@
           };
           j = {
             description = "Journal";
-            template = "* %?\nEntered on %U\n  %i\n  %a";
+            template = "* %?\nEntered on %U\n  %a";
             target = "${orgdir}/journal.org";
             datetree = true;
           };
