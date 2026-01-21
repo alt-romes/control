@@ -1,0 +1,112 @@
+#+title: Linear Types
+#+author: Rodrigo Mesquita
+#+bibliography: references.bib
+#+date: <2026-01-21 Wed>
+
+* Linear Types
+
+   Linear types correspond to Linear Logic [cite:@GIRARD19871], via the
+   Curry-Howard isomorphism [cite:@Howard1969TheFN].
+
+* Introduction to Linear Types in Haskell
+
+** Introduction
+
+   Linear types increase the expressiveness of Haskell by making it possible to
+   restrict the way certain resources are used. Namely, they introduce /linear functions/.
+   The key definition for working with linear types is:
+
+   #+BEGIN_CENTER
+    A linear function consumes its argument *exactly once*
+   #+END_CENTER
+
+   Example
+   #+BEGIN_SRC haskell
+
+   id :: a %1 -> a
+   id x = x
+
+   id' :: a ⊸ a
+   id' x = x
+
+   tuple :: a %1 -> b %1 -> (a, b)
+   tuple a b = (a, b)
+
+   fst :: (a, b) %1 -> a
+   fst (a, b) = a
+
+   snd :: (a, b) %1 -> b
+   snd (a, b) = b
+
+   swap :: (a, b) %1 -> (b, a)
+   swap (a, b) = (b, a)
+
+   inl :: a %1 -> Either b a
+   inl a = Left a
+
+   inr :: b %1 -> Either a b
+   inr b = Right b
+
+   #+END_SRC
+
+   Example with good logic analogy (typically having A -> B, A -> C, A |- B ^ C, but this is not true in Linear Logic!)
+   #+BEGIN_SRC haskell
+
+   f :: (a -> b) -> (a -> c) -> a -> (b, c)
+   f a2b a2c a = (a2b a, a2c a)
+
+   -- Not true in Linear Haskell!
+   f :: (a ⊸ b) ⊸ (a ⊸ c) ⊸ a ⊸ (b, c)
+   f a2b a2c a = (a2b a, a2c a)
+
+   #+END_SRC
+
+   A more precise definition can be taken from the [[https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/linear_types.html][GHC's user guide]]:
+   #+BEGIN_QUOTE
+   A function ~f~ is linear if: when its result is consumed exactly once, then
+   its argument is consumed exactly once. Intuitively, it means that in every
+   branch of the definition of ~f~, its argument ~x~ must be used exactly once.
+   Which can be done by
+
+   - Returning ~x~ unmodified.
+   - Passing ~x~ to a linear function and using the result exactly once in the same fashion.
+   - Pattern-matching on ~x~ and using each argument exactly once in the same fashion.
+   - Calling it as a function and using the result exactly once in the same fashion.
+   #+END_QUOTE
+
+   Linear types were added to Haskell in GHC 9.0 (roughly 5 years ago).
+
+*** Encodings
+
+   It's not easy nor practical to encode linear types in a non-linearly typed
+    language. See, for instance, [[https://stackoverflow.com/a/34231618][András Kovács encoding using indexed monads]], or
+    [[https://dl.acm.org/doi/10.1145/2887747.2804309][Embedding a Full Linear Lambda Calculus in Haskell]] [cite:@10.1145/2887747.2804309].
+
+   Fundamentally, that's because linear types require taking away something
+    which is taken for granted in most languages: /weakening/ and /contraction/.
+    In other words, linear types take away the ability to freely forget and
+    duplicate (linear) variables.
+
+** Motivation for Linear Types
+
+   It may seem useless to restrict an integer to be used exactly once...
+   However, with a bit creativity, we can see pointers, file handles, ...
+
+** Exercises
+
+   #+begin_src haskell
+
+   -- A ⊗ (B ⊕ C) ≣ (A ⊗ B) ⊕ (A ⊗ C)
+   proof1 :: (a, Either b c) %1 -> Either (a, b) (a, c)
+   proof1 = _
+
+   #+end_src
+
+   Exercise: implement ~meshNormalise~ in [[file:code/linear-mutable-arrays/app/Main.hs]]
+
+** Further reading:
+
+- [[https://www.cs.cornell.edu/courses/cs4110/2018fa/lectures/lecture29.pdf][(CMU) CS 4110 – Programming Languages and Logics Lecture #29: Linear Types]]
+- [[https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/linear_types.html][GHC's user guide on Linear Types]]
+
+
