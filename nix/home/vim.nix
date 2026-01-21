@@ -109,6 +109,18 @@
       settings = {
         org_agenda_files = "~/control/orgfiles/**/*";
         org_default_notes_file = "~/control/orgfiles/refile.org";
+        org_capture_templates = {
+          d = {
+            description = "Daily note";
+            template = "* %?\n  %U\n";
+            target = "~/org/notes/%<%Y%m%d>.org";
+          };
+          n = {
+            description = "New titled note";
+            template = "#+title: %^{Title}\n#+date: %U\n\n%?";
+            target = "~/org/notes/%<%Y%m%d>-%^{Title}.org";
+          };
+        };
       };
     };
 
