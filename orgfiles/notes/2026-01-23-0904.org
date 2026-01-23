@@ -1,0 +1,172 @@
+#+title: Call notes Nick Wu
+#+date: [2026-01-23 Fri 09:04]
+
+* E-graphs
+
+  E-graphs represents multiple expressions and maintain a congruence relationship ...
+
+   add :: Enode -> Egraph -> ClassId
+
+   -- Merge two eq-classes
+   merge :: ClassId -> ClassId -> Egraph -> Egraph
+
+   -- E-graph invariant: maintain congruence relation
+
+   data Expr a
+    = K Int
+    | Plus a a
+
+   type NExpr = Fix Expr
+
+   add :: Expr ClassId -> Egraph -> ClassId
+   merge :: ClassId -> ClassId -> Egraph -> Egraph
+
+   represent :: Fix Expr -> Egraph -> ClassId
+   represent (Plus (K 1) (K 2)) =
+     c1 <- add (K 1)
+     c2 <- add (K 2)
+     add (Plus c1 c2)
+
+   Nick: Good representation for free monads with theory
+       - Free Monad gives you the terms, theory gives you the equivalence relation
+
+   Trace:
+   plus(a, b)  and   plus(a, c)
+   merge b c --- only things which get "dirty" are parents of b and c
+   plus(a, b) ~ plus(a, c)
+   -- maintaining congruence relation  
+    -- ends up being finding the fixpoint e-graph with the invariants rebuild
+
+  Nick: sounds like a Comonad which gives rise to the loeb theorem
+
+** Löb and Comonads
+
+   loeb :: Comonad w => w (w a -> a) -> a
+
+   extract :: w a -> a
+   duplicate :: w a -> w (w a)
+   extend :: w a -> (w a -> b) -> w b
+
+   Nick: when I think of merge and congruence,
+       it feels like duplicate and extend
+
+   something with Ids, extract :: E-graph -> ClassId
+   duplicate is saying something like, if I have a graph of Ids, I can make a
+   graph of graph of Ids...
+
+   ~w~ is Egraph, ~a~ is the set of all ids in the graph presently
+
+   If we want to change an e-graph, ~a~ has to change! (depedent types...)
+
+   ~emptyEGraph :: Egraph Void~
+   
+   ~extract :: Egraph a -> a~ -> give me all ids of the e-graph
+
+   ~duplicate :: Egraph a -> Egraph (Egraph a)~ -> id space has become the space of all the nodes
+
+** Equality Saturation(Fixpoint)
+
+   Given a list of rewrite rules, and a starting e-graph representing some expressions,
+   apply rewrite rules to the e-graph until a fixpoint is reached
+
+   Rewrite = Pattern :=> Rhs
+
+   Plus "a" "b"
+
+   {a -> classId1, b -> classId2 }
+
+   matches <- for lhs := rhs in rw
+    ematch eg lhs
+
+   for (match, rhs) ..
+    c <- represent rhs
+    merge c match
+
+   rebuild
+
+   At the end, extract the best expression from the eq-class you are interested
+   in.
+
+** Rebuilding
+
+    "Delay maintaining the invariants"
+
+   Maybe we can delay merges TOO, not just rebuilding invariants
+   Maybe we can delay ematching too by batching cartesian query (see databases below)...
+
+   Nick: Really hoping to see comm or associative law, which would allow 
+
+   merge/filter <=> filter/merge?
+   POSTPONE merges until we can filter maximally. Get smaller merge.
+
+*** Databases
+    ICFP: "Relational Algebra by Way of Adjunctions" -- Same idea!
+        - Delay the cartesian product, wait until we can filter out things on each branch of the cartesian product
+
+    The relation algebra lets us treat a database as if it was a bunch of
+    relations, to which we can apply operations etc...
+
+    "Give all nodes in this graph, filtered by get(put) = ∅"
+
+    Querying the e-graph to get a database, ...
+    Database query returns the database filtered by things filtered by ....
+
+** Analysis
+
+   Attach data from semilattice to every equiv. class
+
+    - make (node) = data
+    - join data1 data2 = ...
+    - modify eg data = ...
+
+     modify(modify(c)) = c
+
+*** Constant folding
+
+    add (K 2) = Just 2
+    join _ _ = error "better be 2"
+    modify eg (Just 2) = prune out all nodes except for K 2
+
+    Egraph ~a~, ~a~ 
+
+    Strengthen ~a~ to set of things ...
+
+** Typed indexes
+
+** Variable id types and e-graphs for pattern match checking
+
+   In GHC, we really want an e-graph where the Id type is ~Id~
+
+** Category of ids and nodes
+
+   N: Functor between category of ids and category nodes
+
+
+
+
+** Call notes
+
+    Free monad over a signature (e.g. gets + puts)
+        Theory/equations:
+            get(put(x)) = x
+    Free monad over gets and puts is a tree which distinguishes between puts and gets
+        In a tree get(put(x)) is distinguished from x, but in an interpretation flatten this
+
+    We can quotient the tree, which considers the equivalence relation given by the theory.
+    Quotient of tree means we can't see the syntactic difference
+
+
+** Equivalence Relation
+
+   Relation which behaves like equality (refl, trns, ...)
+   Equivalence relation, we mean "let's treat things as equal, even though
+   they're not equal (just equiv)"
+
+   Equivalence class: all things which are in equivalence relation to each other
+   Can use the repr. element to represent everything else in the same eq-class
+    [x] to mean x and all things equiv relation
+
+   Congruence relation ==> equivalence relation
+    (stronger, eq in all contx) vs (weaker, observationally equal)
+
+

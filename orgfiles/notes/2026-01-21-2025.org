@@ -126,6 +126,16 @@
    bad (T2 x y) = (x, x, y, y)
    #+end_src
 
+*** Multiplicity polymorphism
+
+    In ~a %1 -> b~ we say ~a~ has multiplicity ~1~, or ~One~.
+    We could also specify the multiplicity to be unrestricted, written ~Many~.
+
+    Example using a normal function as a higher order function, like map
+
+    Can we define map with mult poly?
+
+
 ** Linear Base
 
 

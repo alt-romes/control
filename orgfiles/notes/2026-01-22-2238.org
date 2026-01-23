@@ -1,0 +1,31 @@
+#+title: Call with Michael Chavinda on hegg and dataframe
+#+date: [2026-01-22 Thu 22:38]
+
+
+* Dataframe and Hegg
+
+  - Heterogenously typed set of columns
+  - You can run correlations, computations, random forest, to determine what
+    the best "features" (columns, combinations), to find the things which are
+    more predictive.
+  - You throw predictive features of data to machine learning model
+  - Have an ~Expr a~ represents computations over the columns, ~Expr a~ is kind of a relational algebra.
+        - We interpret the ~Expr a~ to represent computations which aggregate features whatever
+        - In python we have tree models like XGBOOST, linear regression, ..., big JSON objects that are like Tagged ASTs
+            - In industry, you train the biggest tree, even if it has many dead leaves
+            - If you can represent it in Haskell you can remove lots of things
+            - Then, if you can run hegg you can make it even simpler
+        - Tree based models are generally less opaque and more precise
+            - Michael thinks it would make them less opaque these representations in HAskell
+        - We can also make machine learning models from these expressions (go the other way)
+        - Symbolic regression is synthesizing an expression ~Expr a~ that will derive good 
+        - As these exprs build up, need way to collapse them to make INFERENCE on them more efficient
+
+    - Fabricio is exploring more things that could potentially use hegg (upstream version!):
+      - Use unit types (like h/m...) to constrain the search space of symbolic regression/fitting
+      - Hegg would be constrained to these types, since the expression is typed
+
+
+  - https://github.com/DataHaskell/dataframe/issues/126#issuecomment-3786721018
+
+
