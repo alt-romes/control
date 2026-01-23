@@ -41,6 +41,7 @@ void Mesh_normalize( Mesh *myself )
 }
 
 Task: implement meshNormalise, which has an unrestricted API, by using linear mutable Arrays under the hood.
+Hint: It may be useful to define a (+=) auxiliary function.
 -}
 meshNormalise :: [V3 Int] -- ^ The Mesh face (3 indices form a face)
               -> [V3 Float] -- ^ The Mesh verts (each vertex has x,y,z)
