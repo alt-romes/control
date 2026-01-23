@@ -89,10 +89,100 @@
     return c4
   #+end_src
 
+  Or is it a cofree comonad?
+
+* Attempts
+
+** Getting somewhere
+
+   The big question is how to turn ~repExpr~ into ~repExprFinal~, with all the
+   sharing?
+
+   A second question is whether this is too limiting, in the sense it's harder
+   to ~extract~ from an arbitrary eclass in the egraph.
+
+  #+begin_src haskell
+
+  data Expr a
+    = K Float
+    | S Char
+    | M a a
+    | D a a
+    | SHL a a
+    deriving (Functor, Foldable, Traversable, Eq, Ord, Show)
+
+  data EgrT l v
+    = Pure v -- monad?
+    | Add (l v) (v -> EgrT l v) -- PHOAS?
+    | Merge v v (EgrT l v)
+
+  repExpr :: EgrT Expr v
+  repExpr =
+    -- (a*2)/2
+    add (S 'a')   $ \c1 ->
+    add (K 2)     $ \c2 ->
+    add (M c1 c2) $ \c3 ->
+    add (D c3 c2) $ \c4 ->
+ 
+    -- (a<<1)
+    add (K 1)       $ \c5 ->
+    add (SHL c1 c5) $ \c6 ->
+ 
+    -- (a*2) ~ (a<<1)
+    merge c3 c6     $
+ 
+    -- a*(2/2)
+    add (D c2 c2) $ \c8 -> 
+    add (M c1 c8) $ \c9 -> 
+ 
+    -- (a*2)/2 ~ a*(2/2)
+    merge c9 c4 $
+    -- (2/2) ~ 1
+    merge c8 c5 $
+    -- a*1 ~ a
+    merge c9 c5 $
+ 
+    Pure c4
+ 
+  newtype EClass l = EClass { enodes :: [l (EClass l)] }
+  deriving instance Show (l (EClass l)) => Show (EClass l)
+ 
+  -- Reduce to:
+  repExprFinal :: EClass Expr
+  repExprFinal = do
+    let c1 = EClass [S 'a']
+        c2 = EClass [K 2]
+        c3 = EClass [M c1 c2, SHL c1 c4]
+        c4 = EClass [D c3 c2, K 1, D c2 c2, M c1 c4]
+     in c4
+ 
+  extract :: EClass Expr -> Fix Expr
+  extract cl = case best cl of
+    K a -> Fix (K a)
+    S s -> Fix (S s)
+    M a b -> Fix $ M (extract a) (extract b)
+    D a b -> Fix $ D (extract a) (extract b)
+    SHL a b -> Fix $ M (extract a) (extract b)
+ 
+  best (EClass l) = head $ sortOn bestLazy l
+ 
+  -- todo: recursion schemes rather than this hack,
+  -- also, how to do this well?
+  bestLazy :: Expr (EClass Expr) -> [Int]
+  bestLazy x = case x of
+    K a -> [0]
+    S s -> [0]
+    M a b -> [1] ++ bestLazy (best a) ++ bestLazy (best b)
+    D a b -> [5] ++ bestLazy (best a) ++ bestLazy (best b)
+    SHL a b -> [2] ++ bestLazy (best a) ++ bestLazy (best b)
+ 
+  #+end_src
+
+
 * References
 
   1. Using Circular Programs for Higher-Order Syntax (Functional pearl)
+        - And Ed Kmett's post for doing it faster
   2. Parametric Higher-Order Abstract Syntax for Mechanized Semantics
         - subst : ∀v. term(term(v)) → term(v)
-            - Is this Comonad duplicate?
   3. [[https://coot.me/posts/free-monads.html][From free algebras to free monads]]
