@@ -1,0 +1,98 @@
+#+title: Fixing e-graphs and eq-sat
+#+date: [2026-01-23 Fri 17:40]
+
+* Exploration: Fixing e-graphs and eq-sat
+
+  Represent (a*2)/2, a << 1, a*(2/2), a*1, a in e-graph using low-level primitives
+  #+begin_src haskell
+
+  data Expr a
+    = K Float
+    | S Char
+    | M a a
+    | D a a
+    | SHL a a
+
+  -- simulate eq-sat on (a*2)/2:
+  -- construct an e-graph which represents
+  -- both and observes equivalence relation
+  repExpr = do
+    -- (a*2)/2
+    c1 <- add (S 'a')
+    c2 <- add (K 2)
+    c3 <- add (M c1 c2)
+    c4 <- add (D c3 c2)
+
+    -- (a<<1)
+    c5 <- add (K 1)
+    c6 <- add (SHL c1 c5)
+
+    -- (a*2) ~ (a<<1)
+    c7 <- merge c3 c6
+
+    -- a*(2/2)
+    c8 <- add (D c2 c2)
+    c9 <- add (M c1 c8)
+
+    -- (a*2)/2 ~ a*(2/2)
+    c10 <- merge c9 c4
+    -- (2/2) ~ 1
+    c11 <- merge c8 c5
+    -- a*1 ~ a
+    c12 <- merge c9 c5
+
+    return c4
+  #+end_src
+
+  Using ~Expr a~ is neat because it allows us to interpret ~a~ in at least two relevant ways:
+
+    1. ~a~ can be instantiated at a specific sub-expression (using ~Fix~)
+
+    2. or, ~a~ can be instantiated s.t. all equivalent sub-expressions are
+     represented by a particular ~a~
+        - Like ~a~ as the e-class representitive (trivially, using a ~ClassId~)
+
+    3. Later, it will also allow ~a~ to stand for a pattern variable, when
+     defining rewrite rules
+
+  Can we tie the knot in a way where the final assigned e-class is circularly
+  defined to be the final one at all points?
+  #+begin_src haskell
+  -- circularly defined, but requires something about how multiple things adds
+  -- return the same representative hmm...
+  repExpr = do
+    -- (a*2)/2
+    c1 <- add (S 'a')
+    c2 <- add (K 2)
+    c3 <- add (M c1 c2)
+    c4 <- add (D c3 c2)
+
+    -- (a<<1)
+    c4 <- add (K 1)
+    c3 <- add (SHL c1 c4)
+
+    -- a*(2/2)
+    c4 <- add (D c2 c2)
+    c4 <- add (M c1 c4)
+
+    return c4
+  #+end_src
+
+  If we interpreted a free-monad like definition of the above expression, could
+  we batch all adds of things which were merged? Would this work?
+  #+begin_src haskell
+  repExpr = do
+    c1 <- add [(S 'a')]
+    c2 <- add [(K 2)]
+    c3 <- add [(M c1 c2), (SHL c1 c4)]
+    c4 <- add [(D c3 c2), (K 1), (D c2 c2), (M c1 c4)]
+    return c4
+  #+end_src
+
+* References
+
+  1. Using Circular Programs for Higher-Order Syntax (Functional pearl)
+  2. Parametric Higher-Order Abstract Syntax for Mechanized Semantics
+        - subst : ∀v. term(term(v)) → term(v)
+            - Is this Comonad duplicate?
+  3. [[https://coot.me/posts/free-monads.html][From free algebras to free monads]]

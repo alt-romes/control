@@ -1,48 +1,50 @@
-#+title: Call notes Nick Wu
+#+title: Call notes with Nick Wu and Oisín
 #+date: [2026-01-23 Fri 09:04] [2026-01-23 Fri 14:40]
 
 * E-graphs
 
   E-graphs represents multiple expressions and maintain a congruence relationship ...
 
-   add :: Enode -> Egraph -> ClassId
+  add :: Enode -> Egraph -> ClassId
 
-   -- Merge two eq-classes
-   merge :: ClassId -> ClassId -> Egraph -> Egraph
+  -- Merge two eq-classes
+  merge :: ClassId -> ClassId -> Egraph -> Egraph
 
-   -- E-graph invariant: maintain congruence relation
+  -- E-graph invariant: maintain congruence relation
 
-   data Expr a
-    = K Int
-    | Plus a a
+  #+begin_src haskell
+  data Expr a
+   = K Int
+   | Plus a a
+  #+end_src
 
-   type NExpr = Fix Expr
+  type NExpr = Fix Expr
 
-   add :: Expr ClassId -> Egraph -> ClassId
-   merge :: ClassId -> ClassId -> Egraph -> Egraph
+  add :: Expr ClassId -> Egraph -> ClassId
+  merge :: ClassId -> ClassId -> Egraph -> Egraph
 
-   represent :: Fix Expr -> Egraph -> ClassId
-   represent (Plus (K 1) (K 2)) =
-     c1 <- add (K 1)
-     c2 <- add (K 2)
-     add (Plus c1 c2)
+  represent :: Fix Expr -> Egraph -> ClassId
+  represent (Plus (K 1) (K 2)) =
+  c1 <- add (K 1)
+  c2 <- add (K 2)
+  add (Plus c1 c2)
 
-   Nick: Good representation for free monads with theory
-       - Free Monad gives you the terms, theory gives you the equivalence relation
+  Nick: Good representation for free monads with theory
+  - Free Monad gives you the terms, theory gives you the equivalence relation
 
-   Trace:
-   plus(a, b)  and   plus(a, c)
-   merge b c --- only things which get "dirty" are parents of b and c
-   plus(a, b) ~ plus(a, c)
-   -- maintaining congruence relation  
-    -- ends up being finding the fixpoint e-graph with the invariants rebuild
+  Trace:
+  plus(a, b)  and   plus(a, c)
+  merge b c --- only things which get "dirty" are parents of b and c
+  plus(a, b) ~ plus(a, c)
+  -- maintaining congruence relation  
+  -- ends up being finding the fixpoint e-graph with the invariants rebuild
 
   Nick: sounds like a Comonad which gives rise to the loeb theorem
 
   Expr trick:
-   Expr Pattern <-- Rewrwite rules
-   Expr ClassId <-- egraphs
-   Fix Expr <-- in your program
+  Expr Pattern <-- Rewrwite rules
+  Expr ClassId <-- egraphs
+  Fix Expr <-- in your program
 
 
 ** Löb and Comonads
@@ -54,7 +56,7 @@
    extend :: w a -> (w a -> b) -> w b
 
    Nick: when I think of merge and congruence,
-       it feels like duplicate and extend
+   it feels like duplicate and extend
 
    something with Ids, extract :: E-graph -> ClassId
    duplicate is saying something like, if I have a graph of Ids, I can make a
@@ -62,10 +64,10 @@
 
    ~w~ is Egraph, ~a~ is the set of all ids in the graph presently
 
-   If we want to change an e-graph, ~a~ has to change! (depedent types...)
+   If we want to change an e-graph, ~a~ has to change!? (depedent types...)?
 
    ~emptyEGraph :: Egraph Void~
-   
+
    ~extract :: Egraph a -> a~ -> give me all ids of the e-graph
 
    ~duplicate :: Egraph a -> Egraph (Egraph a)~ -> id space has become the space of all the nodes
@@ -82,11 +84,11 @@
    {a -> classId1, b -> classId2 }
 
    matches <- for lhs := rhs in rw
-    subst, classid <- ematch eg lhs
+   subst, classid <- ematch eg lhs
 
    for (match, rhs) ..
-    c <- represent (subst rhs)
-    merge{construct a worklist} c match
+   c <- represent (subst rhs)
+   merge{construct a worklist} c match
 
    rebuild at end = dedup work list and repair invariants
 
@@ -95,7 +97,7 @@
 
 ** Rebuilding
 
-    "Delay maintaining the invariants"
+   "Delay maintaining the invariants"
 
    Maybe we can delay merges TOO, not just rebuilding invariants
    Maybe we can delay ematching too by batching cartesian query (see databases below)...
@@ -107,7 +109,7 @@
 
 *** Databases
     ICFP: "Relational Algebra by Way of Adjunctions" -- Same idea!
-        - Delay the cartesian product, wait until we can filter out things on each branch of the cartesian product
+    - Delay the cartesian product, wait until we can filter out things on each branch of the cartesian product
 
     The relation algebra lets us treat a database as if it was a bunch of
     relations, to which we can apply operations etc...
@@ -121,13 +123,13 @@
 
    Attach data from semilattice to every equiv. class
 
-    - make (node) = data
-    - join data1 data2 = ...
-    - modify eg data = ...
+   - make (node) = data
+   - join data1 data2 = ...
+   - modify eg data = ...
 
      modify(modify(c)) = c
 
-    Nick: E-graph is actually a free semilattice, that we want to extend with additional information?
+   Nick: E-graph is actually a free semilattice, that we want to extend with additional information?
 
 *** Free semilattice e-graphs
 
@@ -136,7 +138,7 @@
 
     Best semilattice in our structure, which distinguishes more points to begin with
     Free-ness
-        "Whenever we join two e-graphs together, we can also join the data together"
+    "Whenever we join two e-graphs together, we can also join the data together"
 
     Morphism from the egraph into datastructure with semilattice data
 
@@ -147,7 +149,7 @@
     Morphism from ids to the lattices
 
     What about enodes?
-        Each monomorphic e-node is given an eclass
+    Each monomorphic e-node is given an eclass
 
     1*1:
     K 1   -> a
@@ -159,8 +161,8 @@
     K 1 -> Just 1
     * a a -> Nothing
     merge K1 *aa
-        Just 1 ^ Nothing
-        => Just 1
+    Just 1 ^ Nothing
+    => Just 1
 
     Mapping from Id of K1 and *aa to Data point will preserve the fact that they all point to just one
     (Nice commutting condition here... doesn't matter if the data is in each node or in a separate tree + a mapping)
@@ -187,16 +189,16 @@
 ** Typed indexes
 
    data Expr a
-    = K Int
-    | Plus a a
+   = K Int
+   | Plus a a
 
    data Expr a where
-      Let :: Expr a -> (Expr a -> Expr b) -> Expr b
-      LitF :: Double -> Expr Double
-      LitI :: Int -> Expr Int
-      ToF :: Expr Int -> Expr Double
-      Floor :: Expr Double -> Expr Int
-      Add :: Expr a -> Expr a -> Expr a
+   Let :: Expr a -> (Expr a -> Expr b) -> Expr b
+   LitF :: Double -> Expr Double
+   LitI :: Int -> Expr Int
+   ToF :: Expr Int -> Expr Double
+   Floor :: Expr Double -> Expr Int
+   Add :: Expr a -> Expr a -> Expr a
 
    Can you use these in recursions-schemes?
    Nick: Yes, right Kan extension.
@@ -207,8 +209,8 @@
    rise to the Conjugate Hylomorphism for the cata...
 
    Do conjugate hylomorphisms in Haskell
-        Yes and no: you need to be able to encode categories properly, but that's not so easy to do in Haskell.
-        More so in theory than in practice.
+   Yes and no: you need to be able to encode categories properly, but that's not so easy to do in Haskell.
+   More so in theory than in practice.
 
    We could do the typed => untyped => typed version of this, but it'd be cooler to just have the more general version.
    We could attach the type as the data of the analysis...
@@ -216,9 +218,9 @@
    Egraph a ==> Double, Int, ...
 
    Egraph ____ ==>
-    { K 1 } a
-    { * a a } b
-    { S "Hello" } c
+   { K 1 } a
+   { * a a } b
+   { S "Hello" } c
 
 ** Variable id types and e-graphs for pattern match checking
 
@@ -230,14 +232,14 @@
 
 ** Free monad theory quotients
 
-    Free monad over a signature (e.g. gets + puts)
-        Theory/equations:
-            get(put(x)) = x
-    Free monad over gets and puts is a tree which distinguishes between puts and gets
-        In a tree get(put(x)) is distinguished from x, but in an interpretation flatten this
+   Free monad over a signature (e.g. gets + puts)
+   Theory/equations:
+   get(put(x)) = x
+   Free monad over gets and puts is a tree which distinguishes between puts and gets
+   In a tree get(put(x)) is distinguished from x, but in an interpretation flatten this
 
-    We can quotient the tree, which considers the equivalence relation given by the theory.
-    Quotient of tree means we can't see the syntactic difference
+   We can quotient the tree, which considers the equivalence relation given by the theory.
+   Quotient of tree means we can't see the syntactic difference
 
 
 ** Equivalence Relation
@@ -248,22 +250,22 @@
 
    Equivalence class: all things which are in equivalence relation to each other
    Can use the repr. element to represent everything else in the same eq-class
-    [x] to mean x and all things equiv relation
+   [x] to mean x and all things equiv relation
 
    Congruence relation ==> equivalence relation
-    (stronger, eq in all contx) vs (weaker, observationally equal)
+   (stronger, eq in all contx) vs (weaker, observationally equal)
 
 
 * Further ideas
 
-   - Coinductive structure of e-graphs?
-   - Algebraic egraphs? Merge as a data constructors
-   - ClassIds at all?
-        - PHOAS would allow us to use Haskell's variables instead of ClassIds
-        - "Fast Circular Substitution" http://comonad.com/reader/2014/fast-circular-substitution/
-    
+  - Coinductive structure of e-graphs?
+  - Algebraic egraphs? Merge as a data constructors
+  - ClassIds at all?
+    - PHOAS would allow us to use Haskell's variables instead of ClassIds
+    - "Fast Circular Substitution" http://comonad.com/reader/2014/fast-circular-substitution/
+
   If it's not union find, we could get away with the circular lazy fast things
-    Union find not having good pure implementation doesn't imply an e-graph doesn't
+  Union find not having good pure implementation doesn't imply an e-graph doesn't
 
   Upwards merging kind of requires ????
 
@@ -272,29 +274,29 @@
       guarantees of termination and efficiency just from the algebraic thing
 
 * ?
-   data Expr a
-    = ...
+  data Expr a
+  = ...
 
-   represent :: Fix Expr -> Egraph -> ClassId
+  represent :: Fix Expr -> Egraph -> ClassId
 
-   add :: Expr ClassId -> Egraph -> ClassId
-   merge :: ClassId -> ClassId -> Egraph -> Egraph
+  add :: Expr ClassId -> Egraph -> ClassId
+  merge :: ClassId -> ClassId -> Egraph -> Egraph
 
 
-   represent (K 1) -> 1
-   represent (K 1) -> 1
+  represent (K 1) -> 1
+  represent (K 1) -> 1
 
-   represent (K (1*1)) -> 2
+  represent (K (1*1)) -> 2
 
-   merge 2 1 -> 2
+  merge 2 1 -> 2
 
-   UnionFind
-    1 => 2
+  UnionFind
+  1 => 2
 
 * Observations
 
   E-graph is a graph, we're performing union algorithm over that
-    - What's the right implementation for this?
+  - What's the right implementation for this?
 
   Stop doing union find over structure after we hit the fixpoint
 
@@ -306,7 +308,7 @@
   E-graph similar to Union Find (needed complexity of union find)
 
   Need to add something to attribute grammars to make it more efficient
-  
+
   Weighted search
 
   BFS over link structure
@@ -324,26 +326,26 @@
 
   Take dynamic programming algorithm and then use rewrite rules whenever nodes are mentioned
   e.g. Edit distance problem
-    Deletion=>Insertion <=> Insertion=>Deletion
+  Deletion=>Insertion <=> Insertion=>Deletion
 
   Pure and functional may end up being less elegant than pure way where we rely
   on a lot of laziness weird things. Then again...!
 
   There must be a good algebraic theory to apply to this stuff to make it better
-    - Would still pull out of pure world
-    - Suspect we may need to do mutation
-        - Something that may come into this from the Phased mutations (Phased work)
-        - Interleave some mutation as we go through this
-        - Can't get away from the mutation with Ids
-            - Unless we can do PHOAS thing.
-            - Coinductive structure while doing mutation things. Looks like Phased work as well.
+  - Would still pull out of pure world
+  - Suspect we may need to do mutation
+    - Something that may come into this from the Phased mutations (Phased work)
+    - Interleave some mutation as we go through this
+    - Can't get away from the mutation with Ids
+      - Unless we can do PHOAS thing.
+      - Coinductive structure while doing mutation things. Looks like Phased work as well.
 
 ** List fusion
-  OTOH: if we implemented something like list fusion, we'd see much deeper paths.
+   OTOH: if we implemented something like list fusion, we'd see much deeper paths.
 
-  Haskell list fusion -> Use build/foldr
+   Haskell list fusion -> Use build/foldr
 
-*
+   *
    PHOAS with elimination for debruijn 
 
 * Benchmarks for EqSat / EqGraphs
