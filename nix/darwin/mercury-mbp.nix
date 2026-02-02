@@ -29,6 +29,7 @@ in
         "brandonchinn178/tap/hooky"
     ];
     casks = [
+        "blender"
         "steam"
         "claude"
         "zed"

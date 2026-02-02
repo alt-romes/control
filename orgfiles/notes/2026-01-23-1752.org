@@ -4,6 +4,7 @@
 * Exploration: Fixing e-graphs and eq-sat
 
   Represent (a*2)/2, a << 1, a*(2/2), a*1, a in e-graph using low-level primitives
+
   #+begin_src haskell
 
   data Expr a
@@ -42,6 +43,7 @@
     c12 <- merge c9 c5
 
     return c4
+
   #+end_src
 
   Using ~Expr a~ is neat because it allows us to interpret ~a~ in at least two relevant ways:
@@ -90,6 +92,25 @@
   #+end_src
 
   Or is it a cofree comonad?
+
+** The ways invariants are broken
+
+   On `add`, we just have to make sure that adding e-node A many times always
+   yields the same class id.
+
+   On `merge`, harder.
+
+** Magic from EgrT to Egr
+
+   EgrT to Egr, where Egr is the version in which all knots have been tied
+   Basically, how to go from ~repExpr~ to ~repExprFinal~?
+
+   It looks like this is essentially going to be the proper e-graph implementation.
+   We likely need to keep the Hashcons for ~add~ here, and the worklist with
+   rebuilding for ~merge~ as we traverse down?
+
+   We could potentially amortize the cost further by observing the merge/add
+   structure to avoid or reduce work. Just like the worklist.
 
 * Attempts
 
@@ -177,7 +198,6 @@
     SHL a b -> [2] ++ bestLazy (best a) ++ bestLazy (best b)
  
   #+end_src
-
 
 * References
 

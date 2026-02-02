@@ -1,6 +1,9 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 module X where
 import Data.List (sortOn)
+import qualified Data.IntMap as IM
+import UF
 
 data Expr a
   = K Float
@@ -10,28 +13,42 @@ data Expr a
   | SHL a a
   deriving (Functor, Foldable, Traversable, Eq, Ord, Show)
 
--- data EgrT l v
---   = Pure v -- monad?
---   | Add (l v) (v -> EgrT l v) -- PHOAS?
---   | Merge v v (EgrT l v)
+data EgrT l v
+  = Pure v -- monad? todo: pure :: [v]
+  | Add (l v) (v -> EgrT l v) -- PHOAS?
+  | Merge v v (EgrT l v) --- semilattice join, require vs to be semilattice ?
 
-data EgrT l
-  = Pure (EClass l)
-  | Add (l (EClass l)) (EgrT l) -- HOS?
-  | Merge (EClass l) (EClass l) (EgrT l)
+-- data EgrT l
+--   = Pure (EClass l)
+--   | Add (l (EClass l)) (EgrT l) -- HOS?
+--   | Merge (EClass l) (EClass l) (EgrT l)
+-- Fast circular substitution?
 
 add :: l (EClass l)
-    -> (EClass l -> EgrT l)
-    -> EgrT l
-add x f = Add x body
-  where
-    body = f _
-        -- oh, can't be PHOAS, then I wouldn't know what the Id is)
+    -> (EClass l -> EgrT l (EClass l))
+    -> EgrT l (EClass l)
+add = Add
 
-merge :: EClass l -> EClass l -> EgrT l -> EgrT l
+merge :: v -> v -> EgrT l v -> EgrT l v
 merge = Merge
 
-repExpr :: EgrT Expr
+-- for squashing an egraph, we could indeed have a mutable union find under the
+-- hood. we only use mutation to come up with the right circular definitions.
+run :: (v -> v -> v) -- semilattice join
+    -> EgrT l v
+    -> v
+run join egr = go
+  -- TODO: use UF
+  where
+    go :: EgrT l v -> IM.IntMap v -> IM.IntMap v
+    go (Pure _) acc = acc
+    go (Merge a b) acc = _
+      
+
+-- loeb :: Functor f => f (f a -> a) -> f a
+-- loeb :: EgrT l (EgrT l v -> v) -> EgrT l v
+
+repExpr :: EgrT Expr (EClass Expr)
 repExpr =
   -- (a*2)/2
   add (S 'a')   $ \c1 ->
@@ -68,6 +85,42 @@ repExpr =
 --   Merge (EClass v1) (EClass v2) v2EgrTlv ->
 --     magic $ v2EgrTlv (EClass (v1 ++ v2))
 
+--------------------------------------------------------------------------------
+
+data EgrT' l v
+  = Pure' v -- monad?
+  | Add' (l v) (EgrT' l v) -- PHOAS?
+  | Merge' v v (EgrT' l v)
+--
+-- repExprLoeb :: EgrT Expr (EgrT Expr v -> v)
+-- repExprLoeb =
+--   -- (a*2)/2
+--   add (S 'a')   $ \c1 ->
+--   add (K 2)     $ \c2 ->
+--   add (M c1 c2) $ \c3 ->
+--   add (D c3 c2) $ \c4 ->
+--
+--   -- (a<<1)
+--   add (K 1)       $ \c5 ->
+--   add (SHL c1 c5) $ \c6 ->
+--
+--   -- (a*2) ~ (a<<1)
+--   merge c3 c6     $
+--
+--   -- a*(2/2)
+--   add (D c2 c2) $ \c8 -> 
+--   add (M c1 c8) $ \c9 -> 
+--
+--   -- (a*2)/2 ~ a*(2/2)
+--   merge c9 c4 $
+--   -- (2/2) ~ 1
+--   merge c8 c5 $
+--   -- a*1 ~ a
+--   merge c9 c5 $
+--
+--   Pure c4
+
+--------------------------------------------------------------------------------
 
 -- type Eclass = Fix (Compose [] l)
 newtype EClass l = EClass { enodes :: [l (EClass l)] }
