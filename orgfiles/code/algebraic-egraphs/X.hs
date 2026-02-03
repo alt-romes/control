@@ -35,15 +35,15 @@ merge = Merge
 -- for squashing an egraph, we could indeed have a mutable union find under the
 -- hood. we only use mutation to come up with the right circular definitions.
 run :: (v -> v -> v) -- semilattice join
-    -> EgrT l v
-    -> v
-run join egr = go
+    -> EgrT l v -- EgrT l (EClass l) turn into a single (EClass l) with full knots tied
+    -> v -- (EClass l), assuming the e-graph computation returns at the end a
+        -- single class. But we could easily generalize @v@ to be a list of @v@s?
+run join egr = go egr emptyUF
   -- TODO: use UF
   where
-    go :: EgrT l v -> IM.IntMap v -> IM.IntMap v
+    go :: EgrT l v -> IM.IntMap v -> ReprUnionFind -> IM.IntMap v
     go (Pure _) acc = acc
     go (Merge a b) acc = _
-      
 
 -- loeb :: Functor f => f (f a -> a) -> f a
 -- loeb :: EgrT l (EgrT l v -> v) -> EgrT l v

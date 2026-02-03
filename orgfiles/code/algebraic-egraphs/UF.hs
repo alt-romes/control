@@ -1,4 +1,4 @@
-module Data.Equality.Graph.ReprUnionFind
+module UF
   ( ReprUnionFind
   , emptyUF
   , makeNewSet

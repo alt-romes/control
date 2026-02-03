@@ -26,7 +26,7 @@ in
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home.username = "romes";
-  home.homeDirectory = "/Users/romes";
+  home.homeDirectory = if pkgs.stdenv.isLinux then "/home/romes" else "/Users/romes";
 
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [

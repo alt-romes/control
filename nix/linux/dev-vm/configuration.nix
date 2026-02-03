@@ -1,7 +1,10 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, system, modulesPath, inputs, ... }:
 
 {
-  imports = [ <nixpkgs/nixos/modules/profiles/all-hardware.nix> ];
+
+  imports = [
+    (modulesPath + "/profiles/all-hardware.nix")
+  ];
 
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;

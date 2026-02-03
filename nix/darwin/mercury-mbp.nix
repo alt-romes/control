@@ -18,7 +18,7 @@ in
   process.macmini-builder.enable = false;
 
   # Background linux VM runner process is enabled per-machine as needed
-  process.linux-builder.enable = false;
+  process.linux-builder.enable = true;
 
   # --- Packages ---------------------------------------------------------------
 
@@ -26,7 +26,6 @@ in
     brews = [
         "qwen-code"
         "gemini-cli"
-        "brandonchinn178/tap/hooky"
     ];
     casks = [
         "blender"

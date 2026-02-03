@@ -79,6 +79,23 @@
       "red" = nixpkgs.lib.nixosSystem {
         modules = [ ./linux/red/configuration.nix ];
       };
+
+      # Run with `nix run .#dev-vm`
+      "dev-vm" = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        modules = [
+          ./linux/dev-vm/configuration.nix
+          ./linux/home.nix
+          inputs.home-manager.darwinModules.home-manager
+          {
+            virtualisation.vmVariant.virtualisation.graphics = false;
+            virtualisation.vmVariant.virtualisation.host.pkgs = inputs.nixpkgs.legacyPackages.aarch64-darwin;
+            home-manager.extraSpecialArgs = { inherit inputs; system = "aarch64-linux"; };
+          }
+        ];
+      };
     };
+
+    packages.aarch64-darwin.dev-vm = self.nixosConfigurations.dev-vm.config.system.build.vm;
   };
 }

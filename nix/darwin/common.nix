@@ -110,8 +110,8 @@
       g = "git";
       httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
       darwin-nix-switch = "sudo darwin-rebuild switch --flake '/Users/romes/control/nix/.?submodules=1'"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
-      # ghc-nix = "nix develop git+https://gitlab.haskell.org/ghc/ghc.nix";
-      ghc-nix = "nix-shell -p haskell.compiler.ghc910 haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib";
+
+      run-linux-vm = "nix run '/Users/romes/control/nix/.?submodules=1#dev-vm'";
     };
 
     # Write additional options for sshd_config
