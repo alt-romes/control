@@ -151,7 +151,7 @@
           nixd.enable = true;
 
           # Swift
-          sourcekit.enable = true;
+          sourcekit.enable = false;
         };
     };
 

@@ -85,7 +85,6 @@
         system = "aarch64-linux";
         modules = [
           ./linux/dev-vm/configuration.nix
-          ./linux/home.nix
           inputs.home-manager.darwinModules.home-manager
           {
             virtualisation.vmVariant.virtualisation.graphics = false;

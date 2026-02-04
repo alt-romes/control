@@ -6,6 +6,10 @@
     (modulesPath + "/profiles/all-hardware.nix")
   ];
 
+  home-manager.useGlobalPkgs = true;
+  home-manager.useUserPackages = true;
+  home-manager.users.romes = import ../../home/romes.nix;
+
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -42,6 +46,7 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.romes = {
     isNormalUser = true;
+    initialPassword = "romes"; # This is a development VM
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ romes@world"
     ];
@@ -49,8 +54,6 @@
     packages = [ ];
     uid = 1000;
   };
-
-  programs.firefox.enable = true;
 
   # $ nix search <package>
   environment.systemPackages = with pkgs; [
