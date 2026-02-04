@@ -86,7 +86,7 @@
         system = "aarch64-linux";
         modules = [
           ./linux/dev-vm/configuration.nix
-          inputs.home-manager.darwinModules.home-manager
+          inputs.home-manager.nixosModules.home-manager
           {
             virtualisation.vmVariant.virtualisation.host.pkgs = inputs.nixpkgs.legacyPackages.aarch64-darwin;
             virtualisation.vmVariant.virtualisation.diskImage = "/Users/romes/control/vms/dev-vm.qcow2";
