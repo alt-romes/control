@@ -112,6 +112,7 @@
       darwin-nix-switch = "sudo darwin-rebuild switch --flake '/Users/romes/control/nix/.?submodules=1'"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
 
       run-linux-vm = "nix run '/Users/romes/control/nix/.#dev-vm'";
+      ssh-linux-vm = "ssh -A 127.0.0.1 -p 2222";
     };
 
     # Write additional options for sshd_config
@@ -171,6 +172,7 @@
       ../private/ssh.nix
       ../private/kimai.nix
     ];
+  };
   home-manager.extraSpecialArgs = {
     inherit inputs system;
     # osConfig is inherited and points to the NixOS configuration

@@ -6,6 +6,13 @@
     (modulesPath + "/profiles/all-hardware.nix")
   ];
 
+  virtualisation.vmVariant.virtualisation = {
+    graphics = false;
+    forwardPorts = [
+      { from = "host"; host.port = 2222; guest.port = 22; }
+    ];
+  };
+
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.users.romes = import ../../home/romes.nix;
@@ -17,12 +24,10 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.hostName = "dev-vm";
+  networking.firewall.enable = false;
 
   # For remote nixos-rebuild
   nix.settings.trusted-users = [ "romes" ];
-
-  # Configure network connections interactively with nmcli or nmtui.
-  # networking.networkmanager.enable = true;
 
   # Set your time zone.
   time.timeZone = "Europe/Portugal";
@@ -46,7 +51,7 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.romes = {
     isNormalUser = true;
-    initialPassword = "romes"; # This is a development VM
+    # Login using ssh:
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ romes@world"
     ];

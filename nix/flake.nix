@@ -81,13 +81,13 @@
       };
 
       # Run with `nix run '.#dev-vm'` or `run-linux-vm`
+      # Login with `ssh -A 127.0.0.1 -p 2222` (port 2222 is mapped to VM's 22, -A forwards the SSH agent)
       "dev-vm" = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
         modules = [
           ./linux/dev-vm/configuration.nix
           inputs.home-manager.darwinModules.home-manager
           {
-            virtualisation.vmVariant.virtualisation.graphics = false;
             virtualisation.vmVariant.virtualisation.host.pkgs = inputs.nixpkgs.legacyPackages.aarch64-darwin;
             home-manager.extraSpecialArgs = { inherit inputs; system = "aarch64-linux"; };
           }
