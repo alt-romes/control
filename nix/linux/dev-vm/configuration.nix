@@ -20,7 +20,11 @@
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
-  home-manager.users.romes = import ../../home/romes.nix;
+  home-manager.users.romes = {
+    imports = [
+      ../../home/romes.nix
+    ];
+  };
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 

@@ -130,6 +130,18 @@ in
     ];
   };
 
+
+  programs.tmux = {
+    enable = true;
+    keyMode = "vi";
+    mouse = true;
+    plugins = [
+      pkgs.tmuxPlugins.cpu
+      pkgs.tmuxPlugins.vim-tmux-navigator
+    ];
+  };
+
+
   # Color management
   style.colors.ayu-light.enable = true;
   # style.colors.kanagawa.enable = true;
