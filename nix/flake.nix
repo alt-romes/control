@@ -89,6 +89,8 @@
           inputs.home-manager.darwinModules.home-manager
           {
             virtualisation.vmVariant.virtualisation.host.pkgs = inputs.nixpkgs.legacyPackages.aarch64-darwin;
+            virtualisation.vmVariant.virtualisation.diskImage = "/Users/romes/control/vms/dev-vm.qcow2";
+
             home-manager.extraSpecialArgs = { inherit inputs; system = "aarch64-linux"; };
           }
         ];

@@ -11,11 +11,18 @@
     forwardPorts = [
       { from = "host"; host.port = 2222; guest.port = 22; }
     ];
+    memorySize = 32000; # 32 GB
+    cores = 8;
+    diskSize = if config.virtualisation.vmVariant.virtualisation.diskSizeAutoSupported
+                  then "auto"
+                  else 50000;# 50 GB
   };
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.users.romes = import ../../home/romes.nix;
+
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
@@ -24,7 +31,6 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.hostName = "dev-vm";
-  networking.firewall.enable = false;
 
   # For remote nixos-rebuild
   nix.settings.trusted-users = [ "romes" ];
