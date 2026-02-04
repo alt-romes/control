@@ -30,7 +30,7 @@
       exrc=true; secure=true;                         # Read current directory .vimrc (with security-related limitations)
       spelllang="en_gb";                              # Spell languages to use when spell checking (:set spell)
       regexpengine=0;                                 # Automatically select regexp engine
-      undofile=true; undodir="/Users/romes/.undofiles.vim";  # Persistent undo (:h persistent-undo)
+      undofile=true; undodir="${config.home.homeDirectory}/.undofiles.vim";  # Persistent undo (:h persistent-undo)
       backspace="indent,eol,start";                   # Make backspace work as expected
       # set path+=** ??
       foldenable=false; foldmethod="marker";          # Fold with markers (e.g. set in a modeline to marker), open by default
