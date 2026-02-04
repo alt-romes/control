@@ -8,8 +8,6 @@ in
   imports = [
     ./git.nix
     ./vim.nix
-    ../private/ssh.nix
-    ../private/kimai.nix
 
     # Modules
     ./modules/colors.nix
@@ -102,7 +100,8 @@ in
 
   programs.ghostty = {
     enable = true;
-    package = null; # Broken on MacOS, so use the homebrew app. Configuration is still managed here.
+    # Broken on MacOS, so use the homebrew app. Configuration is still managed here.
+    package = if pkgs.stdenv.isLinux then pkgs.ghostty else null;
     enableZshIntegration = true;
     settings = {
         # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.

@@ -80,7 +80,7 @@
         modules = [ ./linux/red/configuration.nix ];
       };
 
-      # Run with `nix run .#dev-vm`
+      # Run with `nix run '.#dev-vm'` or `run-linux-vm`
       "dev-vm" = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
         modules = [
