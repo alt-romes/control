@@ -137,7 +137,6 @@ in
     mouse = true;
     plugins = [
       pkgs.tmuxPlugins.cpu
-      pkgs.tmuxPlugins.vim-tmux-navigator
     ];
   };
 

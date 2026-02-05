@@ -146,6 +146,28 @@
         "url": "file:///Users/romes/Developer/kimai-client"
       }
     },
+    "microvm": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "spectrum": "spectrum"
+      },
+      "locked": {
+        "lastModified": 1770074118,
+        "narHash": "sha256-OC3XStyV/HM/gsbE2FB+2dqYqeXc2AqUxY+Szyp87VE=",
+        "owner": "microvm-nix",
+        "repo": "microvm.nix",
+        "rev": "2015b82bbe8bd8ac390e06219077174ba521d16b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "microvm-nix",
+        "repo": "microvm.nix",
+        "rev": "2015b82bbe8bd8ac390e06219077174ba521d16b",
+        "type": "github"
+      }
+    },
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
@@ -321,12 +343,29 @@
         "agenix": "agenix",
         "home-manager": "home-manager_2",
         "kimai-client": "kimai-client",
+        "microvm": "microvm",
         "nix-darwin": "nix-darwin",
         "nix-rosetta-builder": "nix-rosetta-builder",
         "nix-vscode-extensions": "nix-vscode-extensions",
         "nixpkgs": "nixpkgs_2",
         "nixvim": "nixvim",
         "nur-charmbracelet": "nur-charmbracelet"
+      }
+    },
+    "spectrum": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1759482047,
+        "narHash": "sha256-H1wiXRQHxxPyMMlP39ce3ROKCwI5/tUn36P8x6dFiiQ=",
+        "ref": "refs/heads/main",
+        "rev": "c5d5786d3dc938af0b279c542d1e43bce381b4b9",
+        "revCount": 996,
+        "type": "git",
+        "url": "https://spectrum-os.org/git/spectrum"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://spectrum-os.org/git/spectrum"
       }
     },
     "systems": {

@@ -111,7 +111,7 @@
       httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
       darwin-nix-switch = "sudo darwin-rebuild switch --flake '/Users/romes/control/nix/.?submodules=1'"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
 
-      run-linux-vm = "nix run '/Users/romes/control/nix/.#dev-vm'";
+      run-linux-vm = "nix run '/Users/romes/control/nix/.#fukusuke-vm'";
       ssh-linux-vm = "ssh -A 127.0.0.1 -p 2222";
     };
 

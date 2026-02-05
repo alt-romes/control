@@ -32,6 +32,11 @@
     nur-charmbracelet.url = "github:charmbracelet/nur";
     nur-charmbracelet.inputs.nixpkgs.follows = "nixpkgs";
 
+    microvm = {
+      url = "github:microvm-nix/microvm.nix/2015b82bbe8bd8ac390e06219077174ba521d16b";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Vscode extensions
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
 
@@ -80,23 +85,28 @@
         modules = [ ./linux/red/configuration.nix ];
       };
 
-      # Run with `nix run '.#dev-vm'` or `run-linux-vm`
-      # Login with `ssh -A 127.0.0.1 -p 2222` (port 2222 is mapped to VM's 22, -A forwards the SSH agent)
-      "dev-vm" = nixpkgs.lib.nixosSystem {
+      # Linux machine named 福助
+      # microvm.nix using vfkit (with Rosetta support)
+      # Run VM using `nix run .#fukusuke` `run-linux-vm`
+      # Login with `ssh -A 127.0.0.1 -p 2222`
+      #   (port 2222 is mapped to VM's 22, -A forwards the SSH agent)
+      "fukusuke" = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
+        specialArgs = { inherit inputs; };
         modules = [
-          ./linux/dev-vm/configuration.nix
+          inputs.microvm.nixosModules.microvm
           inputs.home-manager.nixosModules.home-manager
+          ./linux/fukusuke/configuration.nix
           {
-            virtualisation.vmVariant.virtualisation.host.pkgs = inputs.nixpkgs.legacyPackages.aarch64-darwin;
-            virtualisation.vmVariant.virtualisation.diskImage = "/Users/romes/control/vms/dev-vm.qcow2";
-
+            microvm.vmHostPackages = nixpkgs.legacyPackages.aarch64-darwin;
             home-manager.extraSpecialArgs = { inherit inputs; system = "aarch64-linux"; };
           }
         ];
       };
     };
 
-    packages.aarch64-darwin.dev-vm = self.nixosConfigurations.dev-vm.config.system.build.vm;
+    packages.aarch64-darwin = {
+      fukusuke-vm = self.nixosConfigurations.fukusuke.config.microvm.declaredRunner;
+    };
   };
 }
