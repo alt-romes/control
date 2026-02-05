@@ -11,13 +11,29 @@
       enable = false;
       install = false; # install if not available
     };
-    # Share nix store
-    shares = [{
-      source = "/nix/store";
-      mountPoint = "/nix/.ro-store";
-      tag = "ro-store";
-      proto = "virtiofs";
-    }];
+    shares = [
+      # Share (read-only) Nix store
+      {
+        source = "/nix/store";
+        mountPoint = "/nix/.ro-store";
+        tag = "ro-store";
+        proto = "virtiofs";
+      }
+      # ghc-dev
+      {
+        source = "/Users/romes/ghc-dev";
+        mountPoint = "/home/romes/ghc-dev";
+        tag = "ghc-dev";
+        proto = "virtiofs";
+      }
+      # Developer
+      {
+        source = "/Users/romes/Developer";
+        mountPoint = "/home/romes/Developer";
+        tag = "Developer";
+        proto = "virtiofs";
+      }
+    ];
     interfaces = [{
       type = "user";
       id = "fukusukenet";
