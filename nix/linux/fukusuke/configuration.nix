@@ -95,8 +95,7 @@
   environment = {
     systemPackages = with pkgs; [
       btop
-      gdb
-      rr
+      rr # debugger
     ];
     variables = {
       HISTCONTROL = "ignoredups";
