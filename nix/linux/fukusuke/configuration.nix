@@ -33,6 +33,14 @@
         tag = "Developer";
         proto = "virtiofs";
       }
+
+      # VM control
+      {
+        source = "/Users/romes/control/vms/fukusuke";
+        mountPoint = "/fukusuke";
+        tag = "fukusuke-control";
+        proto = "virtiofs";
+      }
     ];
     interfaces = [{
       type = "user";
@@ -71,9 +79,24 @@
     firewall.enable = false;
   };
 
+  # Write VM ip in shared folder so host can connect via ssh
+  systemd.services.write-ip = {
+    description = "Write VM IP for host";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+
+    script = ''
+      IP=$(${pkgs.hostname-debian}/bin/hostname -I | ${pkgs.gawk}/bin/awk '{print $1}')
+      echo "$IP" > /fukusuke/ip
+    '';
+  };
+
   environment = {
     systemPackages = with pkgs; [
-      htop
+      btop
+      gdb
+      rr
     ];
     variables = {
       HISTCONTROL = "ignoredups";

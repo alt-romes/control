@@ -112,15 +112,32 @@
       darwin-nix-switch = "sudo darwin-rebuild switch --flake '/Users/romes/control/nix/.?submodules=1'"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
 
       run-linux-vm = ''
+        IP_FILE=/Users/romes/control/vms/fukusuke/ip
+        if [ -e "$IP_FILE" ]; then
+          PREV_MTIME=$(stat -f %m "$IP_FILE")
+        else
+          PREV_MTIME=0
+        fi
+
         ${pkgs.tmux}/bin/tmux new -s microvm -d
         ${pkgs.tmux}/bin/tmux new-window -t microvm: -n vm-console "exec nix run '/Users/romes/control/nix/.#fukusuke-vm'"
+
         echo "The VM is now running in a tmux session:"
         echo "  tmux attach -t microvm                "
-        echo "Fetching VM IP..."
-        tmux send-keys -t microvm.0 "hostname -I" Enter
-        IP=$(tmux capture-pane -t microvm.0 -p -S 10 | grep 192.168 | head -n1 | awk '{print $1;}')
+
+        echo "Waiting for VM to update IP at $IP_FILE..."
+        while true; do
+          if [ -e "$IP_FILE" ]; then
+            MTIME=$(stat -f %m "$IP_FILE")
+              if [ "$MTIME" -gt "$PREV_MTIME" ]; then
+                break
+              fi
+          fi
+          sleep 0.2
+        done
+
         echo "Connect to VM with agent forwarding (-A):"
-        echo "  ssh -A $IP"
+        echo "  ssh -A $(cat $IP_FILE)"
       '';
     };
 
