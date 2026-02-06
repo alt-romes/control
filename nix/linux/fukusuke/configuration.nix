@@ -36,11 +36,11 @@
     ];
     interfaces = [{
       type = "user";
-      id = "fukusukenet";
-      mac = "02:00:00:01:01:01";
+      id = "usernet";
+      mac = "02:00:00:01:01:08";
     }];
     socket = "fukusuke-vm.sock";
-    # Only supported with qemu
+    # Only supported with qemu hypervisor
     # forwardPorts = [
     #   { from = "host"; host.port = 2222; guest.port = 22; }
     # ];
@@ -64,10 +64,12 @@
 
   time.timeZone = "Europe/Portugal";
   
-  networking.hostName = "fukusuke";
-  # Disable firewall for faster boot and less hassle;
-  # we are behind a layer of NAT anyway.
-  networking.firewall.enable = false;
+  networking = {
+    hostName = "fukusuke";
+    # Disable firewall for faster boot and less hassle;
+    # we are behind a layer of NAT anyway.
+    firewall.enable = false;
+  };
 
   environment = {
     systemPackages = with pkgs; [
@@ -101,6 +103,8 @@
       ../../home/romes.nix
     ];
   };
+
+  services.openssh.enable = true;
 
   services.getty.autologinUser = "romes";
 

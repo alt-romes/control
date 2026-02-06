@@ -111,8 +111,17 @@
       httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
       darwin-nix-switch = "sudo darwin-rebuild switch --flake '/Users/romes/control/nix/.?submodules=1'"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
 
-      run-linux-vm = "nix run '/Users/romes/control/nix/.#fukusuke-vm'";
-      ssh-linux-vm = "ssh -A 127.0.0.1 -p 2222";
+      run-linux-vm = ''
+        ${pkgs.tmux}/bin/tmux new -s microvm -d
+        ${pkgs.tmux}/bin/tmux new-window -t microvm: -n vm-console "exec nix run '/Users/romes/control/nix/.#fukusuke-vm'"
+        echo "The VM is now running in a tmux session:"
+        echo "  tmux attach -t microvm                "
+        echo "Fetching VM IP..."
+        tmux send-keys -t microvm.0 "hostname -I" Enter
+        IP=$(tmux capture-pane -t microvm.0 -p -S 10 | grep 192.168 | head -n1 | awk '{print $1;}')
+        echo "Connect to VM with agent forwarding (-A):"
+        echo "  ssh -A $IP"
+      '';
     };
 
     # Write additional options for sshd_config
