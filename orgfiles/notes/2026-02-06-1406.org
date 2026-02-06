@@ -1,0 +1,12 @@
+#+title: Time travel debugging
+#+date: [2026-02-06 Fri 14:06]
+
+* Time travel debugging
+
+Let's do it for GHC / haskell-debugger.
+
+* References
+
+- A Debugger for Standard ML (1970), excellent
+- [[https://www.youtube.com/watch?v=NiGzdv84iDE][How do Time Travel Debuggers Work? (2025)]] - by Undo; modern, very good
+
