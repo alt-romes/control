@@ -53,6 +53,9 @@ in
 
     # Make this available by default
     pkgs.pkg-config
+
+    # Fonts
+    maple-mono.NF
   ];
 
   home.sessionVariables = {
@@ -109,6 +112,7 @@ in
         unfocused-split-opacity = 1; # don't dim unfocused panes
         # background-opacity = 0.85;
         # background-blur = true;
+        font-family = "Maple Mono NF";
     };
   };
 
