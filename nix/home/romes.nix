@@ -145,6 +145,15 @@ in
     ];
   };
 
+  programs.atuin = {
+    enable = true;
+    settings = {
+      auto_sync = false;
+      update_check = false;
+    };
+    forceOverwriteSettings = true;
+    enableZshIntegration = true;
+  };
 
   # Color management
   style.colors.ayu-light.enable = true;
