@@ -11,6 +11,7 @@ in
 
   # Not here!
   finances.enable = false;
+  home-manager.users.romes.programs.kimai.enable = false;
 
   # --- Remote Builders --------------------------------------------------------
 

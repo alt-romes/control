@@ -12,6 +12,8 @@
     };
   };
 
+  home-manager.users.romes.programs.kimai.enable = true;
+
   # --- Builders ---------------------------------------------------------------
 
   # Background linux VM runner process is enabled per-machine as needed

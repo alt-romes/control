@@ -1,4 +1,4 @@
-# Mac Mini M4
+# MBP M2
 { pkgs, config, ... }:
 let
   macminiWireguardIp = "10.0.0.1";
@@ -17,6 +17,8 @@ in
       gen-invoice.enable = false;
     };
   };
+
+  home-manager.users.romes.programs.kimai.enable = false;
 
   # --- Remote Builders --------------------------------------------------------
 
