@@ -1,0 +1,102 @@
+#+title: Haskell Runtime Internals
+#+date: [2026-02-09 Mon 15:54]
+
+* Stack frames, entry code, returning
+
+To understand the following Cmm stack-frame definition syntax,
+  see =Note [Syntax of .cmm files]= in =GHC/Cmm/Parser.y=
+
+#+begin_src Cmm
+INFO_TABLE_RET ( label, FRAME_TYPE, info_ptr, field1, ..., fieldN )
+               return ( arg1, ..., argM )
+#+end_src
+
+When the stack looks something like
+
+#+begin_src
+|----------------|
+| stg_enter_info |
+|----------------|
+|  some_closure  |
+|----------------|
+| stg_ap_n_info  |
+|----------------|
+| nonpointer arg |
+|----------------|
+|      ....      |
+|----------------|
+
+#+end_src
+
+An ~stg_enter_info~ frame will evaluate and return the given closure (first
+  field aka next word on the stack) to the continuation (second word on the
+  stack)
+
+An ~stg_ap_n_info~ frame applies the closure that was returned to it (which is
+in ~R1~) to its arg field (next word on stack), which should be a non-pointer argument.
+
+    - Similar frames exist for applying the function to pointer or void args (as in ~RealWorld#~),
+        like ~stg_ap_v_info~ (apply to void) or ~stg_ap_pp_info~ (apply to 2 pointer args)
+
+Note the Cmm entry code below for an ~stg_ap_n_info~ frame:
+- Check ~R1~ arg is tagged with arity (here ~=1~ since it should only be applied to a single pointer; partial applications go another route)
+- Loads the ~arg1~ field from ~Sp+1~ and writes it to ~R2~
+- Tail calls ~R1~ preserving ~R1~ and ~R2~:
+
+    #+begin_quote
+    Both high-level and low-level code can use a raw tail-call:
+
+        jump stg_fun [R1,R2]
+
+    NB. you *must* specify the list of GlobalRegs that are passed via a
+    jump, otherwise the register allocator will assume that all the
+    GlobalRegs are dead at the jump.
+    #+end_quote
+
+    The calling convention for Haskell functions specifies ~R1~ as "Current
+    closure, return value" and ~R2~ as the first argument (and ~R3~ the second,
+    ~R4~ the fourth, etc...)
+
+When the function closure is not properly tagged we look at the info table for
+  the arity to determine whether to call directly or whether to construct a partial application:
+#+begin_src C
+INFO_TABLE_RET(stg_ap_n, RET_SMALL, W_ info_ptr, W_ arg1, )
+{
+    W_ _unused, info, arity;
+    again:
+    if (GETTAG(R1)==1) {
+        R2 = W_[Sp+WDS(1)];
+        Sp_adj(2);
+        jump %GET_ENTRY(R1-1) [R1,R2] ;
+    }
+    R1 = UNTAG(R1);
+    info = %INFO_PTR(R1);
+    switch [INVALID_OBJECT .. N_CLOSURE_TYPES] (TO_W_(%INFO_TYPE(%STD_INFO(info)))) {
+        case BCO: ...
+        case FUN, ... CONTINUATION: {
+            arity = TO_W_(StgFunInfoExtra_arity(%FUN_INFO(info)));
+            ASSERT(arity > 0);
+            if (arity == 1) {
+                R2 = W_[Sp+WDS(1)];
+                Sp_adj(2);
+                R1 = R1 + 1;
+                jump %GET_ENTRY(UNTAG(R1)) [R1,R2] ;
+            } else {
+                if (arity < 8) {
+                  R1 = R1 + arity;
+                }
+                BUILD_PAP(1,1,stg_ap_n_info,FUN);
+            }
+        }
+        case IND, IND_STATIC: {
+            P_ p;
+            p = %acquire StgInd_indirectee(R1);
+            R1 = p;
+            goto again;
+        }
+        ...
+    }
+}
+#+end_src
+
+

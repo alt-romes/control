@@ -1,0 +1,74 @@
+#+title: Debugging SIGILL in external interpreter
+#+date: [2026-02-09 Mon 15:43]
+
+* Debugging SIGILL in external interpreter
+
+When compiling our own external interpreter, if the external interpreter has
+many dependencies, it will SIGILL when executing ~putStrLn "hello"~. In our case,
+we have a lot of dependencies because the same `hdb` binary serves as
+client and server, depending on the flags used.
+
+Bug is triggered/untriggered by adding more dynamically linked dependencies to
+  executable, regardless of whether they are used in the source code.
+
+** The assembly output for Good/Bad case are identical
+
+They only differ on the linked binary, something like:
+
+#+begin_src
+< NEEDED libHShegg
+> NEEDED               libHSaeson-2.2.3.0-88d851993cdd4453ee139388a021b9afd57f80aa7cdbfb8e705f3755ca870f84-ghc9.14.1.so
+> NEEDED               libHSwitherable-0.5-c99fbd121abb1a04d2bfb8944d0a38c53b4d3b85264f110c63c5cbaa4b42c121-ghc9.14.1.so
+> NEEDED               libHSuuid-types-1.0.6-4ebb99cc881146cc8574b1a0bc94fd933a9b05199d2e428ef11420b1898f7ce3-ghc9.14.1.so
+> NEEDED               libHStext-short-0.1.6.1-022563550f2c1b530e8c1fc7d379e871309bfe83b6d8214178aff1625586ac38-ghc9.14.1.so
+> NEEDED               libHStext-iso8601-0.1.1-18729efe511aa17da250c597c9258310ee84ec01b8916f7280a9f2f349886e1f-ghc9.14.1.so
+> NEEDED               libHStime-compat-1.9.8-d076c292d68a961343338b80ef85baa45eeafbe57cec3e87c745c22711fc6247-ghc9.14.1.so
+> NEEDED               libHSstrict-0.5.1-8ea7ea1d4873232fef152fd6aaf2f585c5b717d39d80b403883b35a3e0364256-ghc9.14.1.so
+> NEEDED               libHSsemialign-1.3.1-4dadf7badbbca42882f12cba17605555361e32818214bfa3d590189062c21e9c-ghc9.14.1.so
+> NEEDED               libHSthese-1.2.1-97a4daf000924fb4ecc73872f228e9cd7587fbb1b698439b2b33bd1803406940-ghc9.14.1.so
+> NEEDED               libHSsemigroupoids-6.0.2-5c5060bc56b4df78c27fac46b6692178a360e2643300bcea16aee2249108fb2b-ghc9.14.1.so
+> NEEDED               libHStransformers-compat-0.7.2-ca4f05347615a83eabbd3cb4049774e7772816c041a83537e23b1ea966549aca-ghc9.14.1.so
+> NEEDED               libHScontravariant-1.5.6-65f9a8b563d80dee7b20aad64cd7860b2d19cd38d4f8bb79a23fa1a53bc8df7d-ghc9.14.1.so
+> NEEDED               libHSStateVar-1.2.2-7fdad34d23d4cee6305a546eb2b2f043ebfe74e7ded418502c636ebb6d534f3a-ghc9.14.1.so
+> NEEDED               libHSbifunctors-5.6.3-107f47cb83b3b1ddc7a87063be215d3813cc7116fd11fb0861c55e739681f69d-ghc9.14.1.so
+> NEEDED               libHSth-abstraction-0.7.2.0-318f8b58574caa8d1a09fbef3bc2d35b9304804045e9f89e405140708db3000f-ghc9.14.1.so
+> NEEDED               libHScomonad-5.0.10-3be62b4a94fa33f03d3a3483ccb1f3472804809cc62cf3d1fd29443d8e4b90f2-ghc9.14.1.so
+> NEEDED               libHSdistributive-0.6.3-8f4fee111f0ff56b21cf36be92a04f3c36f50d9c69e52f86861d93becd5bb8a9-ghc9.14.1.so
+> NEEDED               libHSassoc-1.1.1-386722d681992d0ffc9aeb44e82208dd319af86f62a9719fe2c0c0f383fc1820-ghc9.14.1.so
+> NEEDED               libHSbase-orphans-0.9.4-4c35998f168abb42e80abb75dcce8f77fdecab7cfad1a7d486afab29cdfc5d79-ghc9.14.1.so
+> NEEDED               libHSindexed-traversable-instances-0.1.2-524163fdafd43dc94ef0a5525f9538b0796ba88c92bd2d8d70e53860234f4bb7-ghc9.14.1.so
+> NEEDED               libHSvector-0.13.2.0-084ed4e311cb48330e48def6bb502eabf3020fd44dc7845fd3dddba1596e7886-ghc9.14.1.so
+> NEEDED               libHSvector-stream-0.1.0.1-9d1610c61f7fa0df9b00eeb182b1051b4e140e66d8aee8e4f73aecff0b65eb8a-ghc9.14.1.so
+> NEEDED               libHSunordered-containers-0.2.21-3eb469e17dcbc8394dc6afd0d566f91801f5d4b222796ad66a6cbbb071c5e735-ghc9.14.1.so
+> NEEDED               libHStagged-0.8.10-13e60c3c3ea47341aebfc589e2193460685a4a13a3f8ff3e3c75704379e87c98-ghc9.14.1.so
+> NEEDED               libHSscientific-0.3.8.1-7caef06654f4c099204b02b2c16bd6dde9e56a2aa684902d7a7e0b5c08c457f3-ghc9.14.1.so
+> NEEDED               libHSnetwork-uri-2.6.4.2-40075eec9253f0752f4952372b4cb6c20cd4864c254e8355585c539b3c39ebfa-ghc9.14.1.so
+> NEEDED               libHSth-compat-0.1.7-be63da793aacf9965784e7bdafa0b7c7cd7b658e713917070514386b730c07fd-ghc9.14.1.so
+> NEEDED               libHSparsec-3.1.18.0-62e7-ghc9.14.1.so
+> NEEDED               libHSinteger-logarithms-1.0.5-5307c889272ff06c63ac66a65cd0ff22000719ac1956c576a234a60cdf0f28d5-ghc9.14.1.so
+> NEEDED               libHSinteger-conversion-0.1.1-b2f28c05cf3d8da32723c98ec8718d45e11fa364becf6e65219668cd91714d63-ghc9.14.1.so
+> NEEDED               libHSprimitive-0.9.1.0-0976a19f5f16ff28f646ccb1ea2468e522a5231c03a6b008a4758d260623d845-ghc9.14.1.so
+> NEEDED               libHSindexed-traversable-0.1.4-9b394c029d0e0bf5984e73825b9426a7a8054341f011e3708ece1dbdc7442218-ghc9.14.1.so
+> NEEDED               libHSgenerically-0.1.1-2bf9ceb04a05ba3bd37fa6fd51749d9369eda030eaa2087b66e9df16363ed0c8-ghc9.14.1.so
+> NEEDED               libHSdlist-1.0-9ebb933ae4ed7a7f914c27c6d96bc18c63f5dde69bf4adf90b65cb396cb79ec5-ghc9.14.1.so
+> NEEDED               libHSdata-fix-0.3.4-4b79a4f30eaaa48629d72eb53256409a4bf0b0577f444f93cf114b50128295c8-ghc9.14.1.so
+> NEEDED               libHShashable-1.5.1.0-06beb84dea469fa20e99f3ee5105887e502f27ef1c483c1401c351437ae8268f-ghc9.14.1.so
+> NEEDED               libHStext-2.1.3-d590-ghc9.14.1.so
+> NEEDED               libHScharacter-ps-0.1-c48170f42b198a190101248c19213a546e7e5a1ed2c9b1c4da44f55d9f783538-ghc9.14.1.so
+> NEEDED               libHSQuickCheck-2.16.0.0-a2403eaa3b7df6a7d47b65ccaa88359973e3e5a5a6bdc1b6c0a4d240574e7c53-ghc9.14.1.so
+> NEEDED               libHSrandom-1.3.1-3a9ee333539e22f86e7328f5666f60c484083aad00c296e2be0e35ed525530b0-ghc9.14.1.so
+> NEEDED               libHSsplitmix-0.1.3.2-104f39802bb17bad2f1e82f60f37687a1992a98371e3026064d83e1e04bd540d-ghc9.14.1.so
+> NEEDED               libHSOneTuple-0.4.2.1-aa694c688770c4b1a3a229ba88944015b4d9acc93b7904e4efdce3f1f7c455c5-ghc9.14.1.so
+#+end_src
+
+
+** Debugging with GDB
+
+See [[file:notes/2026-02-09-1554.org]] for information about the runtime
+   internals
+
+The SIGILL does not occur in the RTS/interpreter. It's an issue to do with the
+   compiled code running (somewhere deep in the ~StgRun()~ call from
+   ~rts/Scheduler.c~)
+
+
