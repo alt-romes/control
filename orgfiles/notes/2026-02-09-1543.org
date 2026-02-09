@@ -11,6 +11,8 @@ client and server, depending on the flags used.
 Bug is triggered/untriggered by adding more dynamically linked dependencies to
   executable, regardless of whether they are used in the source code.
 
+And it doesn't happen in macOS ever.
+
 ** The assembly output for Good/Bad case are identical
 
 They only differ on the linked binary, something like:
@@ -71,4 +73,49 @@ The SIGILL does not occur in the RTS/interpreter. It's an issue to do with the
    compiled code running (somewhere deep in the ~StgRun()~ call from
    ~rts/Scheduler.c~)
 
+To capture this in the debugger, run `hdb` in one pane and attach gdb to the
+   external interpreter process
 
+1. hdb: break --name main; run until breakpoint
+2. ~sudo gdb -p $(ps -ef | grep external | awk '/interp/ { print $2 }')~
+3. gdb: layout split; disassemble; break StgRun; continue until no longer stopped
+4. hdb: continue
+5. gdb: continue exactly 6 times. the next run crashes with SIGILL.
+6. gdb: From here on, use ~si~
+
+Path to crash:
+1. StgRun called with f = stg_returnToStackTop
+2. returnToStackTop jumps to first stack word (stg_enter_info). At this point, the stack looks like:
+    #+begin_src
+    0x420055cea8:   0xffff8f037ec0 <stg_enter_info> 0xffff76a8c030
+    0x420055ceb8:   0xffff8f041508 <stg_ap_n_info>  0xc5d6840
+    0x420055cec8:   0xffff8f040400 <stg_upd_frame_info>     0x4200349000
+    0x420055ced8:   0xffff7da4a490  0x800
+    0x420055cee8:   0x420038f3e3    0xffff7da52049
+    0x420055cef8:   0x4200605010    0x420060a559
+    0x420055cf08:   0xffff7601922a  0xffff7ebcc280
+    0x420055cf18:   0x420060b7b8    0xffff8f037158 <stg_maskAsyncExceptionszh_ret_info>
+    #+end_src
+   And R1 is 0
+3. stg_enter_info is entered, which is defined roughly as:
+    #+begin_src
+    INFO_TABLE_RET ( stg_enter, RET_SMALL, W_ info_ptr, P_ closure )
+          return (/* no return values */)
+      {
+        again:
+          info = %acquire StgHeader_info(closure);
+          switch [INVALID_OBJECT .. N_CLOSURE_TYPES]
+                 (TO_W_( %INFO_TYPE(%STD_INFO(info)) )) {
+          case IND, IND_STATIC:
+           {
+              closure = %acquire StgInd_indirectee(closure);
+              goto again;
+           }
+          case FUN, FUN_1_0, FUN_0_1, FUN_2_0, FUN_1_1, FUN_0_2, FUN_STATIC, BCO, PAP, CONTINUATION:
+           { return(closure); }
+          default:
+           { jump %ENTRY_CODE(info) (closure); }
+      }
+    #+end_src
+4. P_ closure should be stg_ap_n_info, of type RET_SMALL
+5. Looking in GDB: ~p ((StgClosure*)($x20+8))->header.info->type~
