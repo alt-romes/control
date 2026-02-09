@@ -95,6 +95,7 @@
   environment = {
     systemPackages = with pkgs; [
       btop
+      gdb
       rr # debugger
     ];
     variables = {
