@@ -1,0 +1,28 @@
+#+title: Killing backpack in Ghengin
+#+date: [2026-02-10 Tue 22:08]
+
+I think I’m going to kill backpack from my engine
+
+I barely benefit from it except for some separation of concerns. And I won't
+implement a different backend anytime soon (really, never; and we can probably
+do Vulkan -> Web if we’re clever in the future).
+
+In exchange, get back simplicity, LSP, more direct abstractions.
+
+Perhaps I should still make it so that the core never has to import Vulkan
+(just imports ghengin-core:vulkan).
+
+But that hardly matters since the main abstractions already live in a separate
+package… (we could even make it usable e.g. for FIR, without all the Core
+stuff!)
+
+My goal is to do graphics and games, not deal with backpack bugs and out of
+date signatures for a forever single backend.
+
+Message sent: I barely benefit from it except for some separation of concerns.
+Realistically I won't have two renderer backends (not my goal to write those!).
+Regaining LSP and not having to keep the sig files up to date (which are too
+buggy to write)... And I will still have a separate library for the backend,
+it's just that the "core engine" depends on that rather than on abstract
+interface
+
