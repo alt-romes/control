@@ -222,7 +222,7 @@
     };
 
     plugins.copilot-vim = {
-      enable = false; # experimenting...
+      enable = true; # experimenting...
       # ^ super annoying when you run out of tokens.
       # much prefer the local llama.cpp version.
       # will have more by 09-01-2026
