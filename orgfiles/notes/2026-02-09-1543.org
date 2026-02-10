@@ -119,3 +119,27 @@ Path to crash:
     #+end_src
 4. P_ closure should be stg_ap_n_info, of type RET_SMALL
 5. Looking in GDB: ~p ((StgClosure*)($x20+8))->header.info->type~
+      TODO: Is this RET_SMALL?
+
+* The bug discovered
+
+In the meantime, Matthew looked with some fresh eyes and identified that we
+  were loading a statically linked debuggee (a .a archive) into the dynamically
+  linked external interpreter. This was the cause of the SIGILL in the external
+  interpreter.
+
+  The problem being that the dynamically linked external interpreter wants
+  PIC code, but the static archive is not PIC.
+
+The bug doesn't manifest on macOS because on macOS we ALWAYS link with -fPIC,
+  even static archives.
+
+The bug doesn't manifest when statically linking the debugger because if the
+  debugger is not PIC it could load the non-PIC static debuggee without issues.
+
+The bug is somewhere in the GHC runtime linker which relocates/links static
+  binaries, or perhaps it just isn't supposed to work linking a static non-PIC
+  archive into a dynamically linked exe process.
+
+The solution for the debugger is not to not mix static debuggees with dynamic
+  debuggers. (I'm not going to investigate the runtime object linker).
