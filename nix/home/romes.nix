@@ -28,7 +28,7 @@ in
 
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [
-    fzf ripgrep
+    ripgrep
 
     # Haskell
     hs-comp
@@ -135,6 +135,10 @@ in
     ];
   };
 
+  programs.fzf = {
+    enable = true;
+    enableZshIntegration = true;
+  };
 
   programs.tmux = {
     enable = true;
@@ -143,16 +147,6 @@ in
     plugins = [
       pkgs.tmuxPlugins.cpu
     ];
-  };
-
-  programs.atuin = {
-    enable = true;
-    settings = {
-      auto_sync = false;
-      update_check = false;
-    };
-    forceOverwriteSettings = true;
-    enableZshIntegration = true;
   };
 
   # Color management
