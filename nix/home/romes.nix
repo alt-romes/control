@@ -39,7 +39,7 @@ in
     # Lean
     elan
 
-    opencode
+    nix-output-monitor
 
     # nixos-rebuild # to deploy to remote nixos machines directly
     nixos-rebuild-ng # better version?
