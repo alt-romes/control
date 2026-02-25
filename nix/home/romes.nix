@@ -32,8 +32,8 @@ in
 
     # Haskell
     hs-comp
-    haskellPackages.cabal-install
-    hs-pkgs.haskell-language-server
+    cabal-install
+    haskell-language-server
     haskellPackages.fast-tags
 
     # Lean
