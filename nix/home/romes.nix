@@ -49,7 +49,7 @@ in
     # imhex
 
     # For (building) GHC
-    hs-pkgs.alex hs-pkgs.happy autoconf automake python3
+    alex happy autoconf automake python3
 
     # Make this available by default
     pkgs.pkg-config
