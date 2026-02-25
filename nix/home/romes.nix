@@ -1,8 +1,8 @@
 # romes home configuration
 { config, lib, pkgs, inputs, ... }:
 let
-  hs-comp = pkgs.haskell.compiler.ghc912;
-  hs-pkgs = pkgs.haskell.packages.ghc912;
+  hs-comp = pkgs.haskell.compiler.ghc914;
+  hs-pkgs = pkgs.haskell.packages.ghc914;
 in
 {
   imports = [
@@ -32,9 +32,9 @@ in
 
     # Haskell
     hs-comp
-    hs-pkgs.cabal-install
+    haskellPackages.cabal-install
     hs-pkgs.haskell-language-server
-    hs-pkgs.fast-tags
+    haskellPackages.fast-tags
 
     # Lean
     elan
