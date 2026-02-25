@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, config, ... }:
 let
   libffiStaticOnly = pkgs.libffi.overrideAttrs (oldAttrs: rec {
     configureFlags = (oldAttrs.configureFlags or []) ++ [ "--enable-static" "--disable-shared" ];
@@ -43,10 +43,11 @@ in
 {
   options = {
     haskell.env.STATIC_HASKELL_CABAL_OPTS = pkgs.lib.mkEnableOption "STATIC_HASKELL_CABAL_OPTS";
+
   };
 
   config = {
-    home.sessionVariables = {
+    home.sessionVariables = pkgs.lib.mkIf config.haskell.env.STATIC_HASKELL_CABAL_OPTS {
       # THIS IS GETTING EXPORTED WITH QUOTES
       # TO USE; TRY $(echo $STATIC_HASKELL_CABAL_OPTS) to force expansion
       STATIC_HASKELL_CABAL_OPTS =

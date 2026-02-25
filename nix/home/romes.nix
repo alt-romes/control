@@ -68,7 +68,7 @@ in
   };
 
   # export STATIC_HASKELL_CABAL_OPTS with cabal options for producing a static binary
-  haskell.env.STATIC_HASKELL_CABAL_OPTS = true;
+  haskell.env.STATIC_HASKELL_CABAL_OPTS = false;
 
   home.shell.enableZshIntegration = true;
   programs.zsh = {
