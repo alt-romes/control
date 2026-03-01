@@ -56,9 +56,6 @@ in
 
     # Fonts
     maple-mono.NF
-
-    # Micasa
-    inputs.micasa
   ];
 
   home.sessionVariables = {

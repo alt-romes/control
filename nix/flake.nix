@@ -32,10 +32,6 @@
     nur-charmbracelet.url = "github:charmbracelet/nur";
     nur-charmbracelet.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Micasa
-    micasa.url = "github:cpcloud/micasa";
-    micasa.inputs.nixpkgs.follows = "nixpkgs";
-
     microvm = {
       url = "github:microvm-nix/microvm.nix/2015b82bbe8bd8ac390e06219077174ba521d16b";
       inputs.nixpkgs.follows = "nixpkgs";
