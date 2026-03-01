@@ -24,13 +24,17 @@
 
     # Kimai client
     # Can't use directly because it relies on 1Password agent which it seemingly can't access?
-    kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
+    # kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
     kimai-client.inputs.nixpkgs.follows = "nixpkgs";
-    # kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
+    kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
 
     # Charmbracelet NUR
     nur-charmbracelet.url = "github:charmbracelet/nur";
     nur-charmbracelet.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Micasa
+    micasa.url = "github:cpcloud/micasa";
+    micasa.inputs.nixpkgs.follows = "nixpkgs";
 
     microvm = {
       url = "github:microvm-nix/microvm.nix/2015b82bbe8bd8ac390e06219077174ba521d16b";
