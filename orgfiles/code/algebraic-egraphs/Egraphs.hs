@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
-module X where
+module Egraphs where
 import Data.List (sortOn)
 import qualified Data.IntMap as IM
 import UF
@@ -38,12 +38,12 @@ run :: (v -> v -> v) -- semilattice join
     -> EgrT l v -- EgrT l (EClass l) turn into a single (EClass l) with full knots tied
     -> v -- (EClass l), assuming the e-graph computation returns at the end a
         -- single class. But we could easily generalize @v@ to be a list of @v@s?
-run join egr = go egr emptyUF
+run join egr = undefined egr emptyUF
   -- TODO: use UF
   where
-    go :: EgrT l v -> IM.IntMap v -> ReprUnionFind -> IM.IntMap v
-    go (Pure _) acc = acc
-    go (Merge a b) acc = _
+    -- go :: EgrT l v -> IM.IntMap v -> ReprUnionFind -> IM.IntMap v
+    -- go (Pure _) acc = acc
+    -- go (Merge a b) acc = _
 
 -- loeb :: Functor f => f (f a -> a) -> f a
 -- loeb :: EgrT l (EgrT l v -> v) -> EgrT l v
@@ -72,9 +72,18 @@ repExpr =
   -- (2/2) ~ 1
   merge c8 c5 $
   -- a*1 ~ a
-  merge c9 c5 $
+  merge c9 c1 $
 
   Pure c4
+
+repExprFinal :: EClass Expr
+repExprFinal =
+  let
+    c2 = EClass [K 2]
+    c3 = EClass [M c4 c2, SHL c4 c5]
+    c4 = EClass [D c3 c2, M c4 c5, S 'a']
+    c5 = EClass [K 1, D c2 c2]
+   in c4
 
 -- -- how to turn repExpr into repExprFinal?
 -- magic :: EgrT Expr (EClass Expr) -> EClass Expr
@@ -126,15 +135,18 @@ data EgrT' l v
 newtype EClass l = EClass { enodes :: [l (EClass l)] }
 deriving instance Show (l (EClass l)) => Show (EClass l)
 
--- Reduce to:
-repExprFinal :: EClass Expr
-repExprFinal = do
-  let c1 = EClass [S 'a']
-      c2 = EClass [K 2]
-      c3 = EClass [M c1 c2, SHL c1 c4]
-      c4 = EClass [D c3 c2, K 1, D c2 c2, M c1 c4]
-   in c4
+newtype EGraph l = EGraph { eclasses :: [EClass l] }
 
+-- Reduce to:
+-- repExprFinal :: EGraph Expr
+-- repExprFinal = do
+--   let c1 = EClass [S 'a']
+--       c2 = EClass [K 2]
+--       c3 = EClass [M c1 c2, SHL c1 c4]
+--       c4 = EClass [D c3 c2, K 1, D c2 c2, M c1 c4]
+--    in [c1, c2, c3, c4]
+
+-- todo: re-read how the paper does it
 extract :: EClass Expr -> Fix Expr
 extract cl = case best cl of
   K a -> Fix (K a)
@@ -166,3 +178,6 @@ fix f = let y = f y in y
 newtype Fix f = Fix (f (Fix f))
 
 deriving instance Show (f (Fix f)) => Show (Fix f)
+
+main :: IO ()
+main = putStrLn "hello"
