@@ -108,12 +108,18 @@
       };
     };
 
+    # Use <leader>oa for agenda actions (like oam to match tags)
+    # Use <leader>oc for capture actions
     plugins.orgmode =
-    let orgdir = "~/control/orgfiles"; in
+    let orgdir = "~/control/orgfiles";
+        # Note: the iCloud folder should be configured to "Keep Downloaded" (right click to set)
+        # OTOH, referenced files should go in orgfiles_docs, which shouldn't be kept downloaded.
+        orgdir_icloud = "~/Library/Mobile\\ Documents/com\\~apple\\~CloudDocs/orgfiles";
+    in
     {
       enable = true;
       settings = {
-        org_agenda_files = "${orgdir}/**/*";
+        org_agenda_files = [ "${orgdir}/**/*" "${orgdir_icloud}/**/*" ];
         org_default_notes_file = "${orgdir}/refile.org";
         org_capture_templates = {
           t = {
@@ -131,6 +137,17 @@
             description = "Journal";
             template = "* %?\nEntered on %U\n  %a";
             target = "${orgdir}/journal.org";
+            datetree = true;
+          };
+          ii = {
+            description = "New note (iCloud)";
+            template = "#+title: %^{Title}\n#+date: %U\n\n%?";
+            target = "${orgdir_icloud}/notes/%<%Y-%m-%d-%H%M>.org";
+          };
+          ij = {
+            description = "Journal (iCloud)";
+            template = "* %?\nEntered on %U\n  %a";
+            target = "${orgdir_icloud}/journal.org";
             datetree = true;
           };
         };
