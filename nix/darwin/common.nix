@@ -159,6 +159,8 @@
 
   fonts.packages = [
     pkgs.noto-fonts
+    pkgs.noto-fonts-cjk-sans
+    pkgs.noto-fonts-cjk-serif
   ];
 
   users.users."romes" = {

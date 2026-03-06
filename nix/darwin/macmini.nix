@@ -46,6 +46,7 @@
     brews = [
         "qwen-code"
         "gemini-cli"
+        "yt-dlp"
     ];
     casks = [
         # Creative
@@ -57,7 +58,7 @@
         "8bitdo-ultimate-software"
         "steam"
         "minecraft"
-        "ultrastardeluxe"
+        # "ultrastardeluxe"
 
         # Utilities
         "qbittorrent"

@@ -1,0 +1,25 @@
+#+bibliography: ../references.bib
+#+title: Tony's Thesis
+#+date: [2026-03-04 Wed 23:45]
+
+* Propagation of reachable sets
+
+  Reachable sets: space that a drone/system can reach in a single step
+
+  If the drone system was a linear system, it'd be easy to propagate the
+  reachable set using zonotopes.
+
+  With non-linear systems, it's much harder to propagate reachable sets (to next steps).
+  The work [cite:@harapanahalli2025parametricreachablesetscontrolled] attempts to
+  do reachable set propagation for non-linear systems using so-called parametopes.
+
+  What is a reachable set?
+  A reachable set is represented by an inequality between two functions
+
+    g(x) <= h(x)
+
+  The left hand side is called the generator function (g), the right hand side
+  can be considered the radius
+
+  Parametopes propagates the generator function as a set of vectors
+
