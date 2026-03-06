@@ -10,6 +10,11 @@
 
 ** Turno 2
 
+   Motivação para aprender Haskell:
+    Tornar-se mais simples, claro, e elegante pensar, programar, resolver
+   problemas e escrever algoritmos entre várias outras coisas como tornar mais
+   claro várias ideias de computer science.
+
    Um PROGRAMA de Haskell é apenas um conjunto de DECLARAÇÕES
    Uma declaração é um nome/função e uma EXPRESSÃO
 
@@ -31,7 +36,7 @@ The most important thing to take away:
 ** Ideias
 
    - Repetir no turno 1 a ideia importante de todas as expressões
-     terem tipos
+     terem tipos. Repetir também Motivação (ver acima)
 
    - Identificar as Core features do Haskell que eles aprenderam
      até agora, especialmente pq vai ser interessante depois
