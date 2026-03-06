@@ -1,7 +1,10 @@
 #+title: Aulas FCUL
 #+date: [2026-03-06 Fri 18:38]
 
-Aulas na FCUL
+* Aulas FCUL :lectures:
+
+  Lecture notes e outros apontamentos sobre as aulas de Functional Programming
+  in Haskell na FCUL que estou a dar como Prof. Auxiliar Convidado.
 
 * Semana 1
 
