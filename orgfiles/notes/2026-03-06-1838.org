@@ -1,0 +1,35 @@
+#+title: Aulas FCUL
+#+date: [2026-03-06 Fri 18:38]
+
+Aulas na FCUL
+
+* Semana 1
+
+** Turno 2
+
+   Um PROGRAMA de Haskell é apenas um conjunto de DECLARAÇÕES
+   Uma declaração é um nome/função e uma EXPRESSÃO
+
+   Em Haskell, programar é apenas escrever expressões compostas de subexpressões.
+   O programa final é uma expressão gigante.
+
+The most important thing to take away:
+   _Todas as expressões têm tipos._
+
+   Quando tiverem alguma dúvida em relação ao programa que
+   estiverem a escrever, identifiquem todas as sub-expressões e
+   dêm um TIPO a cada uma. Facilmente vão perceber onde pode estar
+   algo errado.
+
+   Variáveis e aplicação de funções.
+
+* Semana 2
+
+** Ideias
+
+   - Repetir no turno 1 a ideia importante de todas as expressões
+     terem tipos
+
+   - Identificar as Core features do Haskell que eles aprenderam
+     até agora, especialmente pq vai ser interessante depois
+     introduzir Cases como uma coisa "fundamental" acho eu.

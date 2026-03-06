@@ -23,3 +23,15 @@
 
   Parametopes propagates the generator function as a set of vectors
 
+* Further reading
+
+  [[https://coogan.ece.gatech.edu/papers/pdf/harapanahalli2024immrax.pdf][Computing interval analysis and mixed monotone reachability]]
+
+  Mixed monotone reachability:
+    [[https://coogan.ece.gatech.edu/papers/pdf/jafarpour2023interactiontac.pdf][Efficient Interaction-Aware Interval Analysis of Neural Network Feedback Loops]]
+
+  Interval analysis on dynamic systems using differential equations:
+    [[https://www.sciencedirect.com/science/article/abs/pii/S0098135417302934][Rapid and accurate reachability analysis for nonlinear dynamic systems by exploiting model redundancy]]
+    - A method is presented for accurately bounding the reachable sets of ODEs.
+
+    
