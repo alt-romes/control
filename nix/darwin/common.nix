@@ -22,6 +22,9 @@
     # Linux Builder (custom)
     ./modules/linux-builder.nix
 
+    # Local DNS (custom)
+    ./modules/local-proxy.nix
+
     # Finances (custom)
     ../../finances/finances.nix
   ];
@@ -194,6 +197,7 @@
 
   # ------------------------------------------------------------------------
   # Home Manager
+
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.users.romes = {
@@ -245,4 +249,10 @@
     # Currently, this is macmini = ON, mbp = OFF
   };
 
+  # ------------------------------------------------------------------------
+  # Networking
+
+  # Allow local DNS + reverse proxy resolution for custom domains (see local-dns.nix)
+  # The specific mappings are defined where necessary (e.g. in finances.nix)
+  services.local-proxy.enable = true;
 }
