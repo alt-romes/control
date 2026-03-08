@@ -60,15 +60,6 @@
         # --------------------------------------------
         mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
       # Use fzf-lua for finding and grepping. Much faster.
-      # { # Telescope find files
-      #   mode = "n"; key = "<leader>f"; action = "<cmd>Telescope find_files<cr>"; }
-      # { # Telescope live grep
-      #   mode = "n"; key = "<leader>g"; action = "<cmd>Telescope live_grep<cr>"; }
-      # Use Telescope for its plugins like Hoogle and Manix
-      { # Telescope Hoogle
-        mode = "n"; key = "<leader>h"; action = "<cmd>Telescope hoogle<cr>"; }
-      { # Telescope Manix
-        mode = "n"; key = "<leader>m"; action = "<cmd>Telescope manix<cr>"; }
       { # Nvim-tree open
         mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
       { # Nvim-lsp code action
@@ -176,11 +167,8 @@
     plugins.treesitter.enable = true;
 
     # Telescope is too slow to find files, so we use fzf-lua there.
-    # However, telescope has the manix and hoogle plugins.
-    # We use it for those searches only
     plugins.telescope.enable = true;
     plugins.telescope.extensions.fzf-native.enable = true;
-    plugins.telescope.extensions.manix.enable = true; dependencies.manix.enable = true;
     plugins.fzf-lua.enable = true;
     plugins.fzf-lua.keymaps = {
       "<leader>f" = "files";
@@ -199,6 +187,15 @@
       enable = true;
       settings = { disable_netrw = true; };
       openOnSetup = true;
+    };
+
+    # For .journal files (hledger)
+    plugins.ledger = {
+      enable = true;
+      settings = {
+        bin = "${pkgs.hledger}/bin/hledger";
+        is_hledger = true;
+      };
     };
 
     /* DAP */
@@ -280,8 +277,6 @@
       };
     };
 
-    plugins.opencode.enable = true;
-
     /* Extra Plugins */
     extraPlugins = [
       (pkgs.vimUtils.buildVimPlugin {
@@ -294,22 +289,17 @@
         };
       })
 
-      pkgs.vimPlugins.telescope_hoogle
       pkgs.vimPlugins.llama-vim
     ];
 
-        # show_info = 0,
-        # endpoint = "http://192.168.68.130:8022/infill"
+    # Enable with :LlamaEnable
+    # show_info = 0,
+    # endpoint = "http://192.168.68.130:8022/infill"
     extraConfigLua = ''
       vim.g.llama_config = {
         enable_at_startup = false
       }
     '';
-
-    # Custom extra telescope extensions
-    plugins.telescope.enabledExtensions = [ "hoogle" ];
-
-    extraPackages = [ pkgs.haskellPackages.hoogle ]; # for telescope hoogle
   };
 
 }
