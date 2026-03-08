@@ -22,8 +22,8 @@
     # Linux Builder (custom)
     ./modules/linux-builder.nix
 
-    # Local DNS (custom)
-    ./modules/local-proxy.nix
+    # Localhost reverse proxy (custom)
+    ./modules/caddy.nix
 
     # Finances (custom)
     ../../finances/finances.nix
@@ -252,7 +252,7 @@
   # ------------------------------------------------------------------------
   # Networking
 
-  # Allow local DNS + reverse proxy resolution for custom domains (see local-dns.nix)
-  # The specific mappings are defined where necessary (e.g. in finances.nix)
-  services.local-proxy.enable = true;
+  # Allow localhost reverse proxy resolution for custom domains
+  # The specific virtualHosts are defined where necessary (e.g. in "ledger.localhost" in finances.nix)
+  services.caddy.enable = true;
 }
