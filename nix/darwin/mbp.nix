@@ -15,6 +15,10 @@ in
     daemons = {
       fetchers.enable = false;
       gen-invoice.enable = false;
+
+      # we don't want to generate invoices nor fetch prices in mbp, but we do
+      # want the fava server displaying the ledger file!
+      fava-server.enable = true;
     };
   };
 

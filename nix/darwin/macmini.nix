@@ -9,6 +9,7 @@
     daemons = {
       fetchers.enable = true;
       gen-invoice.enable = true;
+      fava-server.enable = true;
     };
   };
 
