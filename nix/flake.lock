@@ -112,11 +112,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1771851181,
-        "narHash": "sha256-gFgE6mGUftwseV3DUENMb0k0EiHd739lZexPo5O/sdQ=",
+        "lastModified": 1772985285,
+        "narHash": "sha256-wEEmvfqJcl9J0wyMgMrj1TixOgInBW/6tLPhWGoZE3s=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "9a4b494b1aa1b93d8edf167f46dc8e0c0011280c",
+        "rev": "5be5d8245cbc7bc0c09fbb5f38f23f223c543f85",
         "type": "github"
       },
       "original": {
@@ -133,11 +133,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1761913129,
-        "narHash": "sha256-Jj6yOLVH7tyPkGethEIwXt/Q8K0cBNBJIzI0gG31Jyo=",
+        "lastModified": 1771489705,
+        "narHash": "sha256-6GDNZxoEMIW9EHgkXvbb6V3be5kb7vZt+U/tf/K27Fw=",
         "ref": "refs/heads/main",
-        "rev": "517c529d086a7b4552f93ea430a889deee8a6bf5",
-        "revCount": 134,
+        "rev": "f9299613715bc71537be9f44156ff06bba2cd30f",
+        "revCount": 138,
         "type": "git",
         "url": "file:///Users/romes/Developer/kimai-client"
       },
@@ -175,11 +175,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1771992996,
-        "narHash": "sha256-Y/ijH/unOPxzUicbla6yT/14RJgubUWnY2I2A6Ast2Q=",
+        "lastModified": 1772379624,
+        "narHash": "sha256-NG9LLTWlz4YiaTAiRGChbrzbVxBfX+Auq4Ab/SWmk4A=",
         "owner": "LnL7",
         "repo": "nix-darwin",
-        "rev": "3bfa436c1975674ca465ce34586467be301ff509",
+        "rev": "52d061516108769656a8bd9c6e811c677ec5b462",
         "type": "github"
       },
       "original": {
@@ -213,11 +213,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1771987561,
-        "narHash": "sha256-yuxNWLYBNfRIvRPhYMr3gAbi6WcoUilNyL5XyhGVPTA=",
+        "lastModified": 1772938020,
+        "narHash": "sha256-tZqOHkMRl0jBd50IyMbD6XFsEOknKlXs0BUU6W0uXZE=",
         "owner": "nix-community",
         "repo": "nix-vscode-extensions",
-        "rev": "7c957808d97e3a738f420935ec4bc48ae766392d",
+        "rev": "f2197003cf9672b8de781112957d9e388768af2e",
         "type": "github"
       },
       "original": {
@@ -259,11 +259,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1771923393,
-        "narHash": "sha256-Fy0+UXELv9hOE8WjYhJt8fMDLYTU2Dqn3cX4BwoGBos=",
+        "lastModified": 1772771118,
+        "narHash": "sha256-xWzaTvmmACR/SRWtABgI/Z97lcqwJAeoSd5QW1KdK1s=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "ea7f1f06811ce7fcc81d6c6fd4213150c23edcf2",
+        "rev": "e38213b91d3786389a446dfce4ff5a8aaf6012f2",
         "type": "github"
       },
       "original": {
@@ -282,11 +282,11 @@
         "systems": "systems_2"
       },
       "locked": {
-        "lastModified": 1771135771,
-        "narHash": "sha256-wyvBIhDuyCRyjB3yPg77qoyxrlgQtBR1rVW3c9knV3E=",
+        "lastModified": 1772402258,
+        "narHash": "sha256-3DmCFOdmbkFML1/G9gj8Wb+rCCZFPOQtNoMCpqOF8SA=",
         "owner": "nix-community",
         "repo": "nixvim",
-        "rev": "ed0424f0b08d303a7348f52f7850ad1b2704f9ba",
+        "rev": "21ae25e13b01d3b4cdc750b5f9e7bad68b150c10",
         "type": "github"
       },
       "original": {
@@ -302,11 +302,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1771967194,
-        "narHash": "sha256-4Sl/sUShHPVl3i7Wer60E8jSshN9u2D9qF+J3jBHKn8=",
+        "lastModified": 1772761230,
+        "narHash": "sha256-vp8eVqV7ecgGxSTiuetIHYwevFmXxWwXl6IrOqIgtAQ=",
         "owner": "charmbracelet",
         "repo": "nur",
-        "rev": "e7b3dbaeb2b711984ee13ec9ccabca701311901f",
+        "rev": "bce9768e73692d94c0c1de410c5875bf0189e279",
         "type": "github"
       },
       "original": {
