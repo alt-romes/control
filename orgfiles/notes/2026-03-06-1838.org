@@ -6,6 +6,12 @@
   Lecture notes e outros apontamentos sobre as aulas de Functional Programming
   in Haskell na FCUL que estou a dar como Prof. Auxiliar Convidado.
 
+  Objectivo cadeira:
+
+    Adquirir conceitos básicos da programação com especial foco na programação
+    funcional e experiência prática na escrita de programas funcionais usando a
+    linguagem Haskell.
+
 * Semana 1
 
 ** Turno 2
@@ -28,6 +34,16 @@ The most important thing to take away:
    estiverem a escrever, identifiquem todas as sub-expressões e
    dêm um TIPO a cada uma. Facilmente vão perceber onde pode estar
    algo errado.
+
+   O exemplo do programa errado que trabalhamos:
+
+   #+begin_src haskell
+   -- Concatena 2 numeros (-123 e 4 ==> -1234)
+   f :: Int -> Int -> Int
+   f x y = read (x ++ y)
+   #+end_src
+
+   Aplicar ideia de dar um tipo a cada nome e a cada (sub)expressão.
 
    Variáveis e aplicação de funções.
 

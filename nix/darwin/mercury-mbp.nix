@@ -29,6 +29,7 @@ in
         "gemini-cli"
     ];
     casks = [
+        "antigravity"
         "blender"
         "steam"
         "claude"
