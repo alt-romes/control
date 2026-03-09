@@ -1,0 +1,22 @@
+#+title: Call notes Nick Oisin
+#+date: [2026-03-06 Fri 10:04]
+
+radix sorting linear time sorting, discrimination is a haskell library which
+does the same thing which uses algebraic data types to build radix trees for
+arbitrary datatypes
+
+Algebraic description that can be put on the analysis which is a bit cleaner
+Linear time grouping => this gives us the equality classes
+
+Union find annotation using algebraic description =>> that seems to be the original idea behind Analysis
+Union find with Annotations: https://www.philipzucker.com/weighted_uf/
+Redundant for Analysis
+
+Union find using improving values represented via a random access lazy list (eg fibonacci lists?)
+
+Maybe give up Add and Merge too!
+
+Nexus construction for knot tying e-graphs
+https://www.cs.ox.ac.uk/ralf.hinze/publications/HW03.pdf
+
+
