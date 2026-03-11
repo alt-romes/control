@@ -23,6 +23,90 @@
 
   Parametopes propagates the generator function as a set of vectors
 
+* Finding factors of symbols in CAS
+
+  (not yet correct, but you get the idea)
+
+  #+begin_src haskell
+    module Main where
+
+    main = print x
+
+    z1 = Var "z1"
+    z2 = Var "z2"
+    q1 = Var "q1"
+    q2 = Var "q2"
+
+    x :: Expr
+    x = (2*q2*(2*q1 + 2*z1 + 2*q2*z1*z2 - 4)) * (Pow ((q2^2 + 1)^2) (-2))
+          - (2*z1*z2) * Pow (q2^2 + 1) (-1)
+
+    data Expr
+      = Sum Expr Expr
+      | Negate Expr
+      | Mul Expr Expr
+      | Pow Expr Expr
+      | Var String
+      | Num Int
+
+    instance Show Expr where
+      show (Sum a b) = "(" ++ show a ++ " + " ++ show b ++ ")"
+      show (Mul a b) = "(" ++ show a ++ " * " ++ show b ++ ")"
+      show (Negate a) = "-" ++ show a
+      show (Num a)   = show a
+      show (Pow a b) = show a ++ "**" ++ show b
+      show (Var a)   = a
+
+    -- Para 2a + (3b + 4c) = [2a, 3b]
+    -- Para 2       = [] 
+
+    factors :: Expr -> [Expr]
+    factors e = case e of
+      Sum a b -> case factors a of
+        [] -> case factors b of
+          [] -> []
+          v_b -> v_b
+        v_a -> case factors b of
+          [] -> v_a
+          v_b -> v_a ++ v_b
+      Mul a b -> case (factors a, factors b) of
+        ([], [])   -> []
+        (v_a, [])  -> map (\x -> Mul x b) v_a
+        ([], v_b)  -> map (Mul a) v_b
+        (v_a, v_b) -> [Mul (to_sum v_a) (to_sum v_b)]
+      Pow a b -> case (factors a, factors b) of
+        ([], [])   -> []
+        (v_a, [])  -> [Pow (to_sum v_a) b]
+        ([], v_b)  -> [Pow a (to_sum v_b)]
+        (v_a, v_b) -> [Pow (to_sum v_a) (to_sum v_b)]
+      Negate a -> case factors a of
+        []   -> []
+        v_a -> map Negate v_a
+      Var n -> [Var n]
+      Num n -> []
+
+    to_sum = foldr1 Sum
+
+    eval :: Expr -> Int
+    eval (Sum a b) = eval a + eval b
+    eval (Mul a b) = eval a * eval b
+    eval (Num x)   = x
+    eval (Var x)   = error "tried to eval an expr with a var"
+
+
+    --------------------------------------------------------------------------------
+
+    instance Num Expr where
+      fromInteger n = Num (fromInteger n)
+      (+) = Sum
+      (*) = Mul
+      abs = undefined
+      signum = undefined
+      negate = Negate
+
+
+  #+end_src
+
 * Further reading
 
   [[https://coogan.ece.gatech.edu/papers/pdf/harapanahalli2024immrax.pdf][Computing interval analysis and mixed monotone reachability]]
