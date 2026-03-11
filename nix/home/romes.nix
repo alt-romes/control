@@ -117,23 +117,97 @@ in
     };
   };
 
-  #  programs.emacs = {
-  #    enable = true;
-  #    extraPackages = epkgs: [
-  #      epkgs.nix-mode
-  #      epkgs.magit
-  #    ];
-  #  };
+   programs.emacs = {
+     enable = true;
+     extraPackages = epkgs: with epkgs; [
+       # Git
+       magit
 
-  # MPV plugins which also work for IINA
-  # (just make sure Advanced Configuration is enabled in IINA and it points to .config/mpv)
-  programs.mpv = {
-    enable = false;
-    scripts = [
-      # pkgs.mpvScripts.autosubsync-mpv # doesn't seem to work for IINA
-      # TODO: japanese things...
-    ];
-  };
+       # Orgmode
+       org
+
+       # Vi
+       # evil
+
+       # LSP
+       lsp-mode
+       flycheck
+       company
+       lsp-ui
+
+       # DAP
+       dap-mode
+
+       # Haskell
+       haskell-mode
+       lsp-haskell
+     ];
+     extraConfig = ''
+      ;; Org mode
+      (global-set-key (kbd "C-c l") #'org-store-link)
+      (global-set-key (kbd "C-c a") #'org-agenda)
+      (global-set-key (kbd "C-c c") #'org-capture)
+
+      ;; Evil mode (vim keybindings)
+      ;; (require 'evil)
+      ;; (evil-mode 1)
+
+      ;; Company mode (autocomplete)
+      (require 'company)
+      (add-hook 'after-init-hook 'global-company-mode)
+
+      ;; Flycheck (syntax checking)
+      (require 'flycheck)
+      (add-hook 'after-init-hook 'global-flycheck-mode)
+
+      ;; LSP mode
+      (require 'lsp-mode)
+      (setq lsp-keymap-prefix "C-c l")
+
+      ;; LSP UI (sideline errors, docs on hover, etc.)
+      (require 'lsp-ui)
+      (setq lsp-ui-doc-enable t)
+      (setq lsp-ui-sideline-enable t)
+
+      ;; Haskell mode + LSP
+      (require 'lsp-haskell)
+      (add-hook 'haskell-mode-hook #'lsp)
+      (add-hook 'haskell-mode-hook #'flycheck-mode)
+      (add-hook 'haskell-literate-mode-hook #'lsp)
+
+      ;; DAP mode (debugging)
+;;       (require 'dap-mode)
+;;       (dap-auto-configure-mode 1)
+;; 
+;;       ;; Register haskell-debugger (hdb) as a DAP server adapter
+;;       (with-eval-after-load 'dap-mode
+;;        (dap-register-debug-provider
+;;         "haskell"
+;;         (lambda (conf)
+;;          (let ((port (dap--find-available-port)))
+;;           (-> conf
+;;            (plist-put :debugPort port)
+;;            (plist-put :host "localhost")
+;;            (plist-put :wait-for-port t)
+;;            (plist-put :program-to-start
+;;             (format "hdb server --port %d" port))))))
+;; 
+;;         (dap-register-debug-template
+;;          "Haskell: Run current file (hdb)"
+;;          (list :type "haskell-debugger"
+;;                :request "launch"
+;;                :name "hdb:file:main"
+;;                :entryFile nil          ;; auto-filled with current buffer file
+;;                :entryPoint "main"
+;;                :projectRoot nil        ;; auto-filled with project root
+;;                :entryArgs []
+;;                :extraGhcArgs [])))
+;; 
+      ;; Hook into Haskell mode
+      (add-hook 'haskell-mode-hook #'dap-mode)
+      (add-hook 'haskell-mode-hook #'dap-ui-mode)
+     '';
+   };
 
   programs.fzf = {
     enable = true;
