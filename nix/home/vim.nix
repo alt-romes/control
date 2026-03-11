@@ -54,26 +54,42 @@
     };
 
     keymaps = [
-      { # Tag jumping
-        mode = "n"; key = "<C-j>"; action = "<C-]>"; }
-      { # Insert 80 `-` characters to make a line like:
-        # --------------------------------------------
-        mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
-      # Use fzf-lua for finding and grepping. Much faster.
-      { # Nvim-tree open
-        mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
-      { # Nvim-lsp code action
-        mode = "n"; key = "<leader>a"; action = "<cmd>lua vim.lsp.buf.code_action()<cr>"; }
-      { # Nvim-lsp jump to definition
-        mode = "n"; key = "gd"; action = "<cmd>lua vim.lsp.buf.definition()<cr>"; }
-      { # Open file selector in the directory of the current file
-        mode = "n"; key = "<leader>o"; action = "<cmd>lua require(\"nvim-tree.api\").tree.open({ path = vim.fn.expand('%:p:h'), find_file = true })<cr>"; }
+      # Tag jumping
+      { mode = "n"; key = "<C-j>"; action = "<C-]>"; }
+
+      # Insert 80 `-` characters to make a line like:
+      # --------------------------------------------
+      { mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
+
+      # Tree keymaps
+      { mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
+      { mode = "n"; key = "<leader>o";
+        # Open file selector in the directory of the current file
+        action.__raw = "function() require(\"nvim-tree.api\").tree.open({ path = vim.fn.expand('%:p:h'), find_file = true }) end"; }
+
+      # LSP Keymaps
+      { mode = "n"; key = "<leader>a"; action = "<cmd>lua vim.lsp.buf.code_action()<cr>"; }
+      { mode = "n"; key = "gd"; action = "<cmd>lua vim.lsp.buf.definition()<cr>"; }
 
       { # Remove all trailing whitespace
         mode = "n"; key = "<leader>w";
         action = ":let _s=@/ | %s/\\s\\+$//e | let @/=_s<CR>";
         options = { noremap = true; silent = true; };
       }
+
+      # DAP keymaps
+      { mode = "n"; key = "<leader>dN"; action = "<cmd>DapNew<cr>"; }
+      { mode = "n"; key = "<leader>dc"; action.__raw = "function() require('dap').continue() end"; }
+      { mode = "n"; key = "<leader>dn"; action.__raw = "function() require('dap').step_over() end"; }
+      { mode = "n"; key = "<leader>di"; action.__raw = "function() require('dap').step_into() end"; }
+      { mode = "n"; key = "<leader>do"; action.__raw = "function() require('dap').step_out() end"; }
+      { mode = "n"; key = "<leader>db"; action.__raw = "function() require('dap').toggle_breakpoint() end"; }
+      { mode = "n"; key = "<leader>dB"; action.__raw = "function() require('dap').set_breakpoint() end"; }
+      { mode = "n"; key = "<leader>lp"; action.__raw = "function() require('dap').set_breakpoint(nil, nil, vim.fn.input('Log point message: ')) end"; }
+      { mode = "n"; key = "<leader>de"; action = "<cmd>DapEval<cr>"; }
+      { mode = "n"; key = "<leader>dr"; action.__raw = "function() require('dap').repl.open() end"; }
+      { mode = "n"; key = "<leader>dR"; action.__raw = "function() require('dap').restart() end"; }
+      { mode = "n"; key = "<leader>dq"; action.__raw = "function() require('dap').terminate() end"; }
     ];
 
     digraphs = {
@@ -203,8 +219,7 @@
       enable = true;
 
       adapters.servers = {
-        haskell = {
-          id = "haskell-debugger";
+        haskell-debugger = {
           port = "\${port}";
 
           # Launch this server automatically for each launch
@@ -220,19 +235,22 @@
           {
             type = "haskell-debugger";
             request = "launch";
-            name = "hdb:launch";
-            # projectRoot = "\${workspaceFolder}";
-            # entryFile = "\${file}";
-            # entryPoint = "main";
-            # entryArgs = [
-            #   "" # without this entryArgs is gone?
-            # ];
-            # extraGhcArgs = [
-            # ];
+            name = "hdb:file:main";
+            entryFile = "\${file}";
+            entryPoint = "main";
+            projectRoot = "\${workspaceFolder}";
+            entryArgs = [];
+            extraGhcArgs = [];
           }
         ];
       };
-
+    };
+    /* Better debugger UI on top of nvim-dap which is insufficient */
+    plugins.dap-view = {
+      enable = true;
+      settings = {
+        auto_toggle = true; # toggle on session start and close
+      };
     };
 
     plugins.copilot-vim = {

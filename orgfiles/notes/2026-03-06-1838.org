@@ -57,3 +57,32 @@ The most important thing to take away:
    - Identificar as Core features do Haskell que eles aprenderam
      até agora, especialmente pq vai ser interessante depois
      introduzir Cases como uma coisa "fundamental" acho eu.
+
+** Turno 1
+
+   Voltar a analizar expressões e tipos;
+   Case expressions; wheres vs lets;
+   Mostrar os 6 tipos de expressões que o Haskell usa under the hood, a forma mais simples:
+
+    Literals + Var + FunApp + LamAbs + Cases + Lets
+
+   Expressões no fim são só isso. As outras formas sintáticas ajudam a escrever
+   programas mais elegantes e diretos, mas se quisessemos ter tudo por extenso
+   bastavam estas 6 coisas para representar todas as expressões em Haskell (sem
+   contar com cast/coercions, type, and ticks)
+
+   Exercício espontâneo para um aluno (Miguel) que está a repetir a cadeira e
+   tem facilidade com matemática mas não com programação. Ele está mais
+   avançado mas este foi ótimo para o seu nível e interessante:
+
+   #+begin_src haskell
+    data Nat = Zero
+             | Succ Nat
+    -- Exercise is to define in this order
+
+    toInt :: Nat -> Int
+    instance Show Nat where show = _
+    inc :: Nat -> Nat
+    add :: Nat -> Nat
+    mul :: Nat -> Nat
+   #+end_src
