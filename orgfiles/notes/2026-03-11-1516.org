@@ -1,0 +1,118 @@
+#+title: Call Notes with Daniel Trowbridge from Imperial on debugger keyword
+#+date: [2026-03-11 Wed 15:16]
+
+* Call Notes on custom `debugger` keyword
+
+  See also ticket https://github.com/well-typed/haskell-debugger/issues/187
+
+#+begin_src txt
+Break on exception
+
+whenever you call `raise#`, Block the thread which raised, Yield to debugger with metadata about exception raised
+
+--------------------------------------------------------------------------------
+
+GOAL: when library user calls effThrow, BREAK; IF "BREAK ON EFFTHROW" is enabled
+
+Why not just set breakpoint on `effThrow`?
+
+- `effThrow` is not necessarily bytecode which you've loaded into your session
+    - transitive dependency and it's all compiled code, JUST LIKE raise#
+    - yet, you'll always want to stop there.
+
+Design for the "keyword"
+
+    debugger :: a -> a
+    debugger x = ...
+
+Interpretation of `debugger`:
+    - ALWAYS BREAK
+
+-- Except effect
+effThrow :: Member Except sig => Exception e -> Prog sig a
+#ifdef EXCEPTION_BREAKPOINTS
+effThrow e = debugger $ do
+#else
+effThrow = do
+#endif
+    ...
+    throwTo?
+
+It becomes a responsibility of the library to determine whether to
+- Break at runtime based on some flags
+- depending on compile time options
+- depending on the exception value itself (some metadata like ExceptionContext)
+
+==> MORE FLEXIBILITY, EASIER SPEC
+
+flag with-exception-brekapoints
+    ccp-options: -DEXCEPTION_BREAKPOINTS
+
+--------------------------------------------------------------------------------
+
+Design:
+
+    debugger :: HasCallStack => a -> a
+    debugger x =
+        let srcLoc = f ?callStack
+        ???
+
+Meaning: ALWAYS BREAK
+
+how does it currently break?
+A: Compiled bytecode contains BRK_FUN instructions, which do something*
+
+*Essentially what we want to do for debugger
+
+If the custom primitive operation calls `breakpointIOAction`, it needs to use arguments which the function understands.
+Two programs which *set* `breakpointIOAction`:
+    - GHCi             <--- change GHC
+    - haskell-debugger <---
+
+If we introduce `debugger` keyword, which calls `breakpointIOAction` with YYY,
+better make sure that GHCi and haskell-debugger both will survive that YYY
+
+Option #1:
+- You want something better than `Bool` for definition
+
+Option #2:
+- Piggy back off of Exceptions `True` call.
+- Make sure that GHCi doesn't barf on it
+- But that the haskell-debugger can interpret it more "fully"
+
+Consequences:
+#1 -> GHC 9.14 will never support `debugger` keyword, but GHC 9.16 can cleanly do so
+#2 -> both will
+#3 -> use "hacky version for 9.14", from 9.16 onwards can use "better thing"
+
+Pragmatic option is: #2. Keep scope small-ish. No need to introduce changes to GHC yet more.
+
+debugger <-- HALT THE DEBUGGER SAYING "EXCEPTION "debugger""
+
+--------------------------------------------------------------------------------
+
+First steps:
+
+1. Create a new Haskell library (cabal)
+2. Define a module GHC.Debugger.Breakpoint.Custom
+3. Define `debugger :: a -> a`, where the body of the function will do:
+    - something plus
+    - call a C foreign import
+        - C file which #include "RTS.h"
+        - implements a function which manipulates the stack directly to
+          construct a call to rts_breakpoint_io_action
+        - pretends to be an exception and, for now, fills in the exception argument with a dummy value.
+
+Tips:
+
+1. Grep for "foreign import" in GHC testsuite (testsuite/tests/)
+2. Run GDB/LLDB on C sources in Haskell program:
+    https://gist.github.com/alt-romes/7d0eddbf3dc842b01c7bb17db72d97bc
+3. If you need to use GDB on the source of GHC RTS, email me
+    - ./boot && ./configure
+    - ./hadrian/build -j --flavour=perf+debug_info+debug_ghc+no_profiled_libs
+    - Compile your code with cabal build -w <path/to/custom/ghc>
+    - gdb ./Main
+        - Step through your custom sources AND
+        - Step into GHC's RUNTIME SYSTEM
+#+end_src
