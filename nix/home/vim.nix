@@ -90,6 +90,9 @@
       { mode = "n"; key = "<leader>dr"; action.__raw = "function() require('dap').repl.open() end"; }
       { mode = "n"; key = "<leader>dR"; action.__raw = "function() require('dap').restart() end"; }
       { mode = "n"; key = "<leader>dq"; action.__raw = "function() require('dap').terminate() end"; }
+      { mode = "n"; key = "<leader>dw"; action.__raw = "function() require('dapui').elements.watches.add() end"; }
+      { mode = ["n" "v"]; key = "<leader>dh"; action.__raw = "function() require('dap.ui.widgets').hover() end"; }
+      { mode = ["n" "v"]; key = "<leader>dp"; action.__raw = "function() require('dap.ui.widgets').preview() end"; }
     ];
 
     digraphs = {
@@ -246,10 +249,24 @@
       };
     };
     /* Better debugger UI on top of nvim-dap which is insufficient */
+    /* 
+    Bugs:
+      - the terminal doesn't appear the first time the window is shown for some reason
+      - expanding an IO value which doesn't return anything results in duplication...
+    Is this mine or nvim-dap's bug? Investigate what's being returned when an
+    IO action is forced.
+    */
     plugins.dap-view = {
       enable = true;
       settings = {
         auto_toggle = true; # toggle on session start and close
+        winbar = {
+          default_section = "watches";
+        };
+        windows = {
+          position = "bottom";
+          terminal.position = "left";
+        };
       };
     };
 
