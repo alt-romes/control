@@ -78,6 +78,7 @@
       }
 
       # DAP keymaps
+      { mode = "n"; key = "<leader>dd"; action = "<cmd>DapNew<cr>"; }
       { mode = "n"; key = "<leader>dN"; action = "<cmd>DapNew<cr>"; }
       { mode = "n"; key = "<leader>dc"; action.__raw = "function() require('dap').continue() end"; }
       { mode = "n"; key = "<leader>dn"; action.__raw = "function() require('dap').step_over() end"; }
@@ -259,13 +260,17 @@
     plugins.dap-view = {
       enable = true;
       settings = {
-        auto_toggle = true; # toggle on session start and close
+        auto_toggle = true;
         winbar = {
-          default_section = "watches";
+          sections = [ "console" "repl" "threads" "scopes" "watches" "exceptions" "breakpoints" "sessions" ];
+          default_section = "repl";
+          base_sections = {
+            scopes = { label = "Variables"; keymap = "V"; };
+          };
         };
         windows = {
-          position = "bottom";
-          terminal.position = "left";
+          size = 0.3;
+          position = "below";
         };
       };
     };
@@ -274,15 +279,9 @@
       enable = true; # experimenting...
       # ^ super annoying when you run out of tokens.
       # much prefer the local llama.cpp version.
-      # will have more by 09-01-2026
 
-      settings = {
-        enabled = false; # disabled by default. Use :Copilot enable
-        filetypes = {
-          # "*" = false;
-          # python = true;
-        };
-      };
+      # disabled by default. Use :Copilot enable
+      settings.enabled = false;
     };
 
     # Lean

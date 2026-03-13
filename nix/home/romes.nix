@@ -58,13 +58,18 @@ in
     maple-mono.NF
   ];
 
-  home.sessionVariables = {
-    # Commonly needed in the env for building haskell pkgs
-    # ncurses, gmp, zlib
-    PKG_CONFIG_PATH = "${pkgs.zlib.dev}/lib/pkgconfig:${pkgs.gmp.dev}/lib/pkgconfig:${pkgs.ncurses.dev}/lib/pkgconfig";
-    C_INCLUDE_PATH = "${pkgs.zlib.dev}/include:${pkgs.gmp.dev}/include:${pkgs.ncurses.dev}/include";
-    LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
-    LD_LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
+  home = {
+    sessionVariables = {
+      # Commonly needed in the env for building haskell pkgs
+      # ncurses, gmp, zlib
+      PKG_CONFIG_PATH = "${pkgs.zlib.dev}/lib/pkgconfig:${pkgs.gmp.dev}/lib/pkgconfig:${pkgs.ncurses.dev}/lib/pkgconfig";
+      C_INCLUDE_PATH = "${pkgs.zlib.dev}/include:${pkgs.gmp.dev}/include:${pkgs.ncurses.dev}/include";
+      LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
+      LD_LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
+    };
+    sessionPath = [
+      "$HOME/.local/bin"
+    ];
   };
 
   # export STATIC_HASKELL_CABAL_OPTS with cabal options for producing a static binary

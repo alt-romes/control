@@ -86,3 +86,11 @@ The most important thing to take away:
     add :: Nat -> Nat
     mul :: Nat -> Nat
    #+end_src
+
+** Turno 2
+
+    Wheres vs Lets
+    Function types
+    Math sets vs list comprehensions
+    A few more things
+
