@@ -1,0 +1,85 @@
+#+title: Multi-threaded debugging Call Notes with Hannes
+#+date: [2026-03-13 Fri 13:35]
+
+* Call Notes with Hannes on Multi-threaded debugging
+
+- [ ] Display all debuggee threads
+    - [ ] What is Thread #4?
+    - [-] Debugger blocks waiting for result of EVAL, but maybe it should just
+      create a thread and return the result as a DAP Event asynchronously
+        - Eval is supposed to by sync
+        - Therefore, we only return from Eval after external interpreter thread for that Eval has finished
+        - Therefore, we will never see it on the list of threads because it will
+          always finish before we get to refresh the UI
+        - You do want to see the forkIO (...) in the UI, because the evaluation of
+          an expression in the external interpreter launched a new thread there.
+        - What you don't want to see is the thread that was launched to evaluate
+          the `forkIO (...)` itself in the first place.
+    - [ ] Should we filter out "IOManager on cap", "TimerManager"? YES.
+        - There's precedence for `ghc-stack-profiler`:
+          https://github.com/well-typed/ghc-stack-profiler/blob/main/ghc-stack-profiler/src/GHC/Stack/Profiler.hs#L181
+    - [ ] We should re-label at the start the main thread (the entry-point one) to something
+        - If the user updates it later that's fine
+        - But we can't modify the user program,
+        - And if we launch a different message setting the thread label that
+          will be launched in a new thread so we won't change the thread label
+          of the actual main thread.
+        - OK, nothing to do. If User Cares, he should set label himself.
+        - We can likely have the ForeignRef to `main`, and just wrap it in a
+          custom `labelThread >>= ...` action
+
+    - [ ] Other threads which have been launched will always say RUNNING for
+      now, but that's not necessarily true at all (if they stop at a breakpoint).
+        - How should we keep the thread status up to date? Perhaps by polling?
+
+- [ ] Should we stop all threads when we hit a breakpoint?
+    - that would solve the problem of needing to poll the status of other threads
+
+- [ ] Global stepping vs single thread stepping
+    - [ ] Top-level controls are global
+    - [ ] Per-thread controls are also available
+    - [ ] We will need to control the MVar locking mechanism much more closely,
+    because even with step-next PER-thread, if a global breakpoint is Ready to
+    unblock the MVar as soon as it is empty again, we will just stop there
+    rather than at the original thread's next breakpoint location
+    - [ ] TSO flag called `STEP_NEXT`, we want to be able to trigger STEP NEXT on that particular thread
+        - On external interp: "STOP AT `TSO_XXX`".
+        - INVARIANT: TSO flags can only be changed by TSO they pertain to. NOT BY OTHER TSOs
+        - Similar to CloneThreadStack. Message box which TSO reads off of.
+        - Can we use HeapLimit or throwTo?
+        - We can define some "enable my TSO flag" primitive in Cmm, and if we can call that at the right time
+        - `catch (<user program>) (\(e::TSOMessage) -> foreign primop call setTSOLocalStepNext)`
+        - That isn't sufficient, we need to resume the thread from where the user program was right after setting the flag. Here we're just losing the entire execution.
+        - What we almost surely need is Delimited Continuations, they'll allow
+          us to handle the async exception and resume right after from where we
+          already were.
+        - Not clear that this will work
+        - Use the mechanism used by `sendCloneThreadStackMsg` to deliver message to TSO.
+
+- [ ] Pause
+    - Stop at the next breakpoint location
+    - Which is basically the same as triggering step next, except that we don't start from a paused state.
+    - Same problem as above, "how to set `STEP_NEXT` in TSO flags from ANOTHER TSO.
+
+- [ ] NOT STOPPING AFTER STEPPING IMMEDIATE NEXT??????
+
+* Delimited Continuations and Async Exceptions for toggling local TSO flags like step next
+
+```haskell
+
+userProg = _
+
+whatsExecuted = do
+    prompt $
+        -- where to put control0?
+        catch
+            userProg
+            (\(e::TSOMessage) -> foreign primop call setTSOLocalStepNext)
+```
+
+While I think this would be possible conceptually, it doesn't seem a good
+solution because (1.) it is quite a convoluted way to set the TSO flags and
+(2.) it won't work in exotic setups where the stack captured contains
+unsafePerformIO, STM, and others. See
+[[https://ghc-proposals.readthedocs.io/en/latest/proposals/0313-delimited-continuation-primops.html#restrictions-and-error-handling]["Restrictions"]] in the GHC proposal.
+
