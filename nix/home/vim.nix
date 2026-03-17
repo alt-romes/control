@@ -94,6 +94,40 @@
       { mode = "n"; key = "<leader>dw"; action.__raw = "function() require('dapui').elements.watches.add() end"; }
       { mode = ["n" "v"]; key = "<leader>dh"; action.__raw = "function() require('dap.ui.widgets').hover() end"; }
       { mode = ["n" "v"]; key = "<leader>dp"; action.__raw = "function() require('dap.ui.widgets').preview() end"; }
+
+      # Hoogle
+      {
+        mode = "n";
+        key = "<leader>h";
+        action.__raw = ''
+          function()
+            local fzf = require("fzf-lua")
+            fzf.fzf_live(function(args)
+              local query = args[1]
+              if not query or query == "" then
+                return {}
+              end
+              return vim.fn.systemlist(
+                "hoogle search --count=50 --link " .. vim.fn.shellescape(query)
+              )
+            end, {
+              prompt = "Hoogle> ",
+              exec_empty_query = false,
+              actions = {
+                ["default"] = function(selected)
+                  if not selected or not selected[1] then return end
+                  local url = selected[1]:match("%-%- (https?://%S+)$")
+                  if url then
+                    _G.open_url(url)
+                  else
+                    vim.notify(selected[1], vim.log.levels.INFO)
+                  end
+                end,
+              },
+            })
+          end
+        '';
+      }
     ];
 
     digraphs = {
@@ -326,6 +360,10 @@
       pkgs.vimPlugins.llama-vim
     ];
 
+    extraPackages = [
+      pkgs.haskellPackages.hoogle
+    ];
+
     # Enable with :LlamaEnable
     # show_info = 0,
     # endpoint = "http://192.168.68.130:8022/infill"
@@ -333,6 +371,26 @@
       vim.g.llama_config = {
         enable_at_startup = false
       }
+
+      function _G.open_url(url)
+        if vim.ui.open then
+          local _, err = vim.ui.open(url)
+          if not err then
+            return
+          end
+        end
+
+        local opener = vim.fn.has("mac") == 1 and "open"
+          or vim.fn.executable("xdg-open") == 1 and "xdg-open"
+          or nil
+
+        if not opener then
+          vim.notify("No URL opener found", vim.log.levels.ERROR)
+          return
+        end
+
+        vim.fn.jobstart({ opener, url }, { detach = true })
+      end
     '';
   };
 

@@ -35,6 +35,7 @@ in
     cabal-install
     haskell-language-server
     haskellPackages.fast-tags
+    haskellPackages.hoogle
 
     # Lean
     elan
