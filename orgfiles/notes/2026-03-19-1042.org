@@ -1,0 +1,36 @@
+#+title: Call notes Persistent Debug Server
+#+date: [2026-03-19 Thu 10:42]
+
+* Persistent debug server
+
+- VSCode allows `debugServer` launch option to specify a host:port location at
+    which the DAP server is running.
+    Instead of always launching the server from scratch, it will just connect
+    to the running server.
+
+- DAP server at the moment is launched from scratch for every debugger run.
+    In the persistent worker case, it would have to be continously running,
+    because specifying the host:port means just "connect", never "launch
+    there".
+
+- Launch command currently starts a new GHC session from scratch.
+    In persistent worker case, the session is already set up? We just want to
+    re-use it or perhaps clone an existing one.
+
+- We currently set up the external interpreter to the "thisProg" for the 
+
+** Sharing (rather, not sharing) the targets, external interpreter
+
+- To ensure that every user debuggee runs in a separate process, we need a new
+     external interpreter MVar instance per user
+
+- To ensure the targets the user sets don't override other user's ones, we need
+     them per user too
+
+- Essentially, we should have a new `HscEnv` per user. The HUG and EPT can
+     still be shared amongst all of those.
+
+    - Currently, interpreter is initialized based on "top-level dynflags" (BAD BAD!)
+    - This is set in `setTopSessionDynFlags`, which update the HscEnv.
+    - In principle, we could call `initInterpreter` and put it in the per user HscEnv.
+
