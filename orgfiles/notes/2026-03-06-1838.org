@@ -94,3 +94,8 @@ The most important thing to take away:
     Math sets vs list comprehensions
     A few more things
 
+* Semana 3
+
+** Turno 1
+
+   how lets are evaluated
