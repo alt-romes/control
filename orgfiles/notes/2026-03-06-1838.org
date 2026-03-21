@@ -91,11 +91,44 @@ The most important thing to take away:
 
     Wheres vs Lets
     Function types
-    Math sets vs list comprehensions
+    Math set notation vs list comprehensions (not that different!)
+    Functions as first-class values (f :: a -> b, f = g well defined for some g :: a -> b)
     A few more things
+
+** Observações
+
+   Alunos tiveram bastantes dúvidas sobre a diferença entre os lets e os wheres.
+   Para além disso, achavam que eram precisos usar de alguma forma, qnd na
+   verdade é só uma forma de introduzir local bindings.
+
+   Parece-me desnecessário introduzir `where`s de todo. No fim do dia são
+   desugared para `where`s e tudo. IMO só confunde introduzir esta forma
+   sintática a mais. Mais opções não é necessáriamente bom, especialmente nesta
+   fase. Gastámos muito tempo a esclarecer as diferenças na aula (que no fim
+   são só a syntax e as lexical scopes serem ligeiramente diferentes)
+
+   Seria interessante se a aula usasse apenas as 6 formas Core do Haskell
+    - Literal
+    - Var
+    - Lambda
+    - App
+    - Let
+    - Case
+
+   As outras (Type, Cast, Coercion, Tick) não são necessárias para o primeiro ano (e na verdade não se escrevem facilmente em Source Haskell).
+   Claro que há muito a dizer para além destas 6 formas primitivas de construir
+   /expressões/, e.g. sobre types, datatypes, typeclass, e um milhão de outras
+   coisas que source Haskell tem que permitem exprimir ideias importantes sem
+   ter de estar a usar coercions manualmente.
 
 * Semana 3
 
+** Ideias
+
+   - Maquina de Turing e o Lambda Calculus?
+   - Programa simples gráfico com Brillo/Gloss?
+
 ** Turno 1
 
-   how lets are evaluated
+   How lets are evaluated
+
