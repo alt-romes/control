@@ -3,6 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+    codex-cli-nix.url = "github:sadjow/codex-cli-nix";
+    codex-cli-nix.inputs.nixpkgs.follows = "nixpkgs";
+
     nix-darwin.url = "github:LnL7/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
 

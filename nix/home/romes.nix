@@ -6,6 +6,7 @@ let
 in
 {
   imports = [
+    ./codex.nix
     ./git.nix
     ./vim.nix
 
@@ -28,6 +29,7 @@ in
 
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [
+    inputs.codex-cli-nix.packages.${pkgs.system}.default
     ripgrep
 
     # Haskell
@@ -233,4 +235,5 @@ in
   style.colors.ayu-light.enable = true;
   # style.colors.kanagawa.enable = true;
   # style.colors.gruvbox-light.enable = true;
+
 }
