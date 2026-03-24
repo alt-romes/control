@@ -353,3 +353,109 @@
   - Knuth-Bendix algorithm could be an interesting benchmark as well
     (substring matching). **Really relevant**
 
+
+
+* 23 March (Making data structures persistent)
+
+
+  #+begin_src haskell
+  type PersArray s i a
+    = STRef s (DiffArray s i a)
+    
+  data DiffArray s i a
+    = Flat (STArray s i a)
+    | Replace i a (PersArray s i a)
+
+
+  -- seems similar to Knuth's dancing link algorithm?
+  main = do
+    let
+      a = empty         -- a = Ref (Flat {0,0})
+
+      b = insert 0 1 a  -- a = Ref (Replace 0 0 b)
+                        -- b = Ref (Flat {1,0})
+
+      c = insert 1 2 b  -- a = Ref (Replace 0 0 b)
+                        -- b = Ref (Replace 1 0 c)
+                        -- c = Ref (Flat {1,2})
+
+      d = insert 1 3 b  -- a = Ref (Replace 0 0 b)
+                        -- b = Ref (Replace 1 0 d)
+                        -- c = Ref (Replace 1 2 d)
+                        -- d = Ref (Flat {1,3})
+
+     in c -- 1 -> 2
+  #+end_src
+
+  "We can solve sudoku using this" - see Knuth's dancing link similarity
+
+  Zippers, group actions, ...
+  We can talk about a thing that the group acts on rather than just groups
+
+  "Making data structures persistent" - Tarjan, but his work doesn't include
+  this idea about the backwards style diff with inverses
+
+  We could write a paper on doing this generally for any data structure with
+  group actions (the incremental sequel to Tarjan's paper). The sudoku game
+  would be a great example.
+
+  Could we apply this to training/learning where we can undo the weights updating?
+
+  Time travel debugging similarity
+    - Store checkpoints along the way
+    - To step backwards, go to last known checkpoint and re-execute forwards.
+    - For checkpointing in TTD we just want to clone the stack and the
+    references are preserved so they aren't GCd
+
+    But for preserving all of the mutable state (all foreign calls, arrays,
+    refs, in the program), this could be Really Really useful.
+
+  We could additionally have ~Checkpoint~ in some sense:
+  #+begin_src haskell
+  data DiffArray s i a
+    = Flat (STArray s i a)
+    | Replace i a (PersArray s i a)
+
+    | Checkpoint ? ? ?
+  #+end_src
+  which would enable some faster way of going back/forth
+
+  Another idea is having replace being a tree rather than a unary thing
+  Maybe that's the same thing as Checkpoint
+  Group gives you associativity you need to do that
+
+  Fingertrees give optimized operations on monoidal sequence.
+  Typically over natural numbers, but we can do over any monoidal structure?
+
+  Log n to index, to get log and tail, to concat, to split at index
+  Reversal is O(log n)
+
+  Ultimately, set of optimizations that arise when you want to bracket your
+  data or lay it out in a tree (for monoidal thing).
+
+  We would want to put fingertree on top of "flat" replacement list to
+  efficiently access older versions. Also it's Zipper like.
+
+  We'll have more general group actions we can do.
+
+  If we find nice examples for this; the algebra falls out so cleanly and immediately;
+  We can do 3 pages to explain. Nick thinks more to do it nicely.
+
+  Refer Tarjan's 3 list of ideas:
+    - Store list of updates as you go
+    - Tree list where updates are cheap
+    - Combination of both
+
+  The new idea:
+    - Store the list of undos by updating the back references rather than ourselves?
+    - Not just trees, whole spectre?
+
+  Is this a Co-model way of doing things?
+  In the zipper sense? (All Zippers are Comonads)
+
+  We should also explain these comonads in this paper
+
+  On e-graphs: look into connection with propagators again
+
+  Next time we should also talk about reference-counting
+

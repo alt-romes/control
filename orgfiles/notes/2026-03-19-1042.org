@@ -1,7 +1,7 @@
 #+title: Call notes Persistent Debug Server
 #+date: [2026-03-19 Thu 10:42]
 
-* Persistent debug server
+* Persistent debug remote builder server
 
 - VSCode allows `debugServer` launch option to specify a host:port location at
     which the DAP server is running.
@@ -33,4 +33,66 @@
     - Currently, interpreter is initialized based on "top-level dynflags" (BAD BAD!)
     - This is set in `setTopSessionDynFlags`, which update the HscEnv.
     - In principle, we could call `initInterpreter` and put it in the per user HscEnv.
+
+** 23 March
+
+- Is the debugger persistent worker what we want?
+- Setup what things Andrea should look into
+
+*** What we agree is the goal/subgoals
+
+Ultimate goal:
+
+    Start debug session in VSCode instantly by connecting to
+    persistent worker server which has already cached compilation of all
+    modules into bytecode artifacts.
+
+*** Specific tasks
+
+- Move DAP part of the haskell-debugger into sublibrary rather than executable
+- Use the DAP part of the haskell-debugger to serve as debugger server from the persistent worker
+- Connect to the DAP server running on the persistent worker by specifying adress and port to persistent worker
+
+- Caching bytecode libraries is a secondary step.
+
+*** Questions
+
+- Is the DAP server shared every time you start a new debug session?
+    With haskell-debugger, we launch a new DAP server everytime from scratch.
+    Here, we'll want just one long running server.
+- How do you start a new debug session everytime you receive a "Launch"
+      command, considering that the same process has to manage multiple
+      sessions at the same time.
+    - Namely, how do you run different "GhcMonad"s sessions within the same process?
+    - Because, "LaunchCmd" runs a GhcMonad by setting up a new session from scratch
+
+- How do you share the hie-bios results (that takes a long while)
+      - Or do you use hie-bios at all?
+      - We don't, because in theory we already have the session already.
+
+- If we have the session already, what units does it contain?
+- I thought the persistent worker is meant to compile N projects, with N sessions.
+- How do we pick the right one to start the debugger?
+    - We get a target (module path), so we can match to find the right unit and their dependencies.
+    - We already have this logic to match file target to unit in debugger
+
+
+- IN haskell-debugger; when the DAP server receives a Launch command, we call
+      'initDebugger' which will `registerNewDebugSession` (the `dap` library
+      supposedly can handle multiple sessions in a single server)
+- This new `debugsession` will be associated to threads which are launched here.
+- Separate question: when do we kill these threads?
+- One of the threads is going to call `debuggerThread` which calls
+      `runDebugger` which runs a `Debugger` in `IO`.
+- Question: can we call `runDebugger` in multiple threads with different
+      sessions? I don't see why not.
+
+- How do we handle the caching s.t. every file's bytecode is re-used?
+
+It seems like having one HscEnv per debugger session, where the HscEnv is
+  constructed by picking up the right units (which are matched against the
+  entry file); and making sure that the EPS and HUG are shared amongst all those HscEnvs,
+  would guarantee we re-use existing artifacts (b.c. the EPS and HUG are
+  shared) and would allow different sessions to be isolated because we
+  wouldn't share the InteractiveContext. (We definitely Can't share the InteractiveContext).
 
