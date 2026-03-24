@@ -1,0 +1,63 @@
+#+title: Call notes E-graphs Sync
+#+date: [2026-03-23 Mon 15:44]
+
+* Call notes
+
+Attendees: Michael Chavinda, Oisín, Saul Shanabrook, Fabrício Olivetti, Rodrigo
+
+#+begin_src haskell
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveTraversable #-}
+module SimpleSym where
+
+import Data.Equality.Utils
+import Data.Equality.Matching
+import Data.Equality.Saturation
+import Data.Equality.Analysis
+import Data.Equality.Saturation.Scheduler
+
+data SymExpr a = Const Double
+               | Symbol String
+               | MultiSum [a]
+               deriving (Functor, Foldable, Traversable, Eq, Ord, Show)
+
+e1 :: Fix SymExpr
+e1 = Fix (MultiSum $ map Fix [Const 2, Symbol "a", Symbol "a", Symbol "b", Const 5])
+
+instance Analysis (Maybe Double) SymExpr where
+  makeA = \case
+    Const x -> Just x
+    Symbol _ -> Nothing
+    MultiSum x -> sum <$> sequence x
+
+  joinA Nothing (Just x) = Just x
+  joinA (Just x) Nothing = Just x
+  joinA Nothing Nothing  = Nothing
+  joinA (Just x) (Just y) = if x == y then Just x else error "ouch, that shouldn't have happened"
+
+cost :: CostFunction SymExpr Int
+cost = \case
+  Const  _ -> 1
+  Symbol _ -> 1
+  MultiSum cs -> sum cs + 2
+
+rewrites :: [Rewrite (Maybe Double) SymExpr]
+rewrites = [
+  pat (MultiSum ("a":"b":"c"
+      {-you'd want to write something like c (you can't, it's not an @a@ so
+        can't be a pattern), except you don't even want to write this. MultiSet
+          semantically gives you by definition the all multisets are unordered -}))
+    := pat (MultiSum ("b":"a":"c"))
+  ]
+
+rewrite :: Fix SymExpr -> Fix SymExpr
+rewrite e = fst (equalitySaturation' defaultBackoffScheduler e rewrites cost)
+
+#+end_src
+
+"Containers in egglog" -- allow the language of rewrites to define semantically something like MultiSet
+"Containers" can be added without adding new things to the e-graphs
