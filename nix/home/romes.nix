@@ -7,6 +7,7 @@ in
 {
   imports = [
     ./codex.nix
+    ./ghc.nix
     ./git.nix
     ./vim.nix
 
