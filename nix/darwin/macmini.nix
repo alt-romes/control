@@ -47,8 +47,6 @@
     brews = [
         "qwen-code"
         "gemini-cli"
-        "yt-dlp"
-        "opencode"
     ];
     casks = [
         # Creative
