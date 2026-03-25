@@ -125,10 +125,30 @@ The most important thing to take away:
 
 ** Ideias
 
-   - Maquina de Turing e o Lambda Calculus?
-   - Programa simples gráfico com Brillo/Gloss?
+   - ~~Maquina de Turing e o Lambda Calculus?~~
+   - ~~Programa simples gráfico com Brillo/Gloss?~~
+
+     Nope.
 
 ** Turno 1
 
    How lets are evaluated
+
+** Turno 2
+
+   Recursion via proofs by induction (bad) assembly loops (good) (label+jump; why does a
+   loop with a jump terminate? because there's an exit condition; same for
+   Haskell recursion) and referential transparency algebraic reasoning style
+   (good) (ie reduce sum [1,2,3] with equations)
+
+* Semana 4
+
+** Turno 1
+
+   Trabalhar lambdas, currying, higher order functions, eta reducion
+   Exercício: what's the type of (.) f g x = f (g x)
+   Tail call recursion
+
+** Turno 2
+
 
