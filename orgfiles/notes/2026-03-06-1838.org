@@ -149,6 +149,12 @@ The most important thing to take away:
    Exercício: what's the type of (.) f g x = f (g x)
    Tail call recursion
 
+** Turno substituição
+
+   Lambdas, partial application, currying
+   Desafios: Type of (.); Implement `curry`, implement `uncurry`.
+   Bom feedback da aula
+
 ** Turno 2
 
 
