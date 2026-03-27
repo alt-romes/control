@@ -21,6 +21,7 @@ in
         - When a dependency is not available, use `nix` to temporarily make it available (like
           nodejs). Don't use nix for things which are already available, like the Haskell toolchain.
           (Example: nix-shell -p python3 python3Packages.matplotlib --run 'python3 script.py')
+        - Use unqualified imports in Haskell by default. Use qualified imports only when that's the convention or necessary.
       '';
 
     skills = {
