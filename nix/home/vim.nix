@@ -243,6 +243,8 @@
       openOnSetup = true;
     };
 
+    plugins.oil.enable = true;
+
     # For .journal files (hledger)
     plugins.ledger = {
       enable = true;
