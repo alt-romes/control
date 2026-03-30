@@ -157,4 +157,6 @@ The most important thing to take away:
 
 ** Turno 2
 
-
+   Again: Lambdas, partial application, currying
+   Exercícios: Partir em sub-problemas função para computar numeros perfeitos
+   Desafios: Implement `curry`, implement `uncurry`.
