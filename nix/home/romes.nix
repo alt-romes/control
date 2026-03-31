@@ -10,6 +10,7 @@ in
     ./ghc.nix
     ./git.nix
     ./vim.nix
+    ./email.nix
 
     # Modules
     ./modules/colors.nix
