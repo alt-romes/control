@@ -16,6 +16,9 @@ in
     ./modules/colors.nix
     ./modules/static_haskell.nix
     ./modules/crush.nix
+
+    # External modules
+    inputs.nix-doom-emacs-unstraightened.homeModule
   ];
 
   # You can update Home Manager without changing this value.
@@ -127,97 +130,34 @@ in
     };
   };
 
-   programs.emacs = {
-     enable = true;
-     extraPackages = epkgs: with epkgs; [
-       # Git
-       magit
+  programs.emacs = {
+    enable = true;
+    extraPackages = epkgs: with epkgs; [
+      # Git
+      magit
 
-       # Orgmode
-       org
+      # Orgmode
+      org
 
-       # Vi
-       # evil
+      # Vi
+      evil
+    ];
+    extraConfig = ''
+     ;; Org mode
+     (global-set-key (kbd "C-c l") #'org-store-link)
+     (global-set-key (kbd "C-c a") #'org-agenda)
+     (global-set-key (kbd "C-c c") #'org-capture)
 
-       # LSP
-       lsp-mode
-       flycheck
-       company
-       lsp-ui
+     ;; Evil mode (vim keybindings)
+     (require 'evil)
+     (evil-mode 1)
+    '';
+  };
 
-       # DAP
-       dap-mode
-
-       # Haskell
-       haskell-mode
-       lsp-haskell
-     ];
-     extraConfig = ''
-      ;; Org mode
-      (global-set-key (kbd "C-c l") #'org-store-link)
-      (global-set-key (kbd "C-c a") #'org-agenda)
-      (global-set-key (kbd "C-c c") #'org-capture)
-
-      ;; Evil mode (vim keybindings)
-      ;; (require 'evil)
-      ;; (evil-mode 1)
-
-      ;; Company mode (autocomplete)
-      (require 'company)
-      (add-hook 'after-init-hook 'global-company-mode)
-
-      ;; Flycheck (syntax checking)
-      (require 'flycheck)
-      (add-hook 'after-init-hook 'global-flycheck-mode)
-
-      ;; LSP mode
-      (require 'lsp-mode)
-      (setq lsp-keymap-prefix "C-c l")
-
-      ;; LSP UI (sideline errors, docs on hover, etc.)
-      (require 'lsp-ui)
-      (setq lsp-ui-doc-enable t)
-      (setq lsp-ui-sideline-enable t)
-
-      ;; Haskell mode + LSP
-      (require 'lsp-haskell)
-      (add-hook 'haskell-mode-hook #'lsp)
-      (add-hook 'haskell-mode-hook #'flycheck-mode)
-      (add-hook 'haskell-literate-mode-hook #'lsp)
-
-      ;; DAP mode (debugging)
-;;       (require 'dap-mode)
-;;       (dap-auto-configure-mode 1)
-;; 
-;;       ;; Register haskell-debugger (hdb) as a DAP server adapter
-;;       (with-eval-after-load 'dap-mode
-;;        (dap-register-debug-provider
-;;         "haskell"
-;;         (lambda (conf)
-;;          (let ((port (dap--find-available-port)))
-;;           (-> conf
-;;            (plist-put :debugPort port)
-;;            (plist-put :host "localhost")
-;;            (plist-put :wait-for-port t)
-;;            (plist-put :program-to-start
-;;             (format "hdb server --port %d" port))))))
-;; 
-;;         (dap-register-debug-template
-;;          "Haskell: Run current file (hdb)"
-;;          (list :type "haskell-debugger"
-;;                :request "launch"
-;;                :name "hdb:file:main"
-;;                :entryFile nil          ;; auto-filled with current buffer file
-;;                :entryPoint "main"
-;;                :projectRoot nil        ;; auto-filled with project root
-;;                :entryArgs []
-;;                :extraGhcArgs [])))
-;; 
-      ;; Hook into Haskell mode
-      (add-hook 'haskell-mode-hook #'dap-mode)
-      (add-hook 'haskell-mode-hook #'dap-ui-mode)
-     '';
-   };
+  programs.doom-emacs = {
+    enable = true;
+    doomDir = ./modules/doom.d;
+  };
 
   programs.fzf = {
     enable = true;

@@ -36,6 +36,10 @@
     nur-charmbracelet.url = "github:charmbracelet/nur";
     nur-charmbracelet.inputs.nixpkgs.follows = "nixpkgs";
 
+    nix-doom-emacs-unstraightened.url = "github:marienz/nix-doom-emacs-unstraightened";
+    # Optional, to download less. Neither the module nor the overlay uses this input.
+    nix-doom-emacs-unstraightened.inputs.nixpkgs.follows = "";
+
     microvm = {
       url = "github:microvm-nix/microvm.nix/2015b82bbe8bd8ac390e06219077174ba521d16b";
       inputs.nixpkgs.follows = "nixpkgs";
