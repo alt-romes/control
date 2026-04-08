@@ -57,7 +57,10 @@ in
     # imhex
 
     # For (building) GHC
-    alex happy autoconf automake python3
+    alex happy autoconf automake
+
+    (python3.withPackages(ps: [ps.jupyter]))
+      # required by GHC and org +jupyter
 
     # Make this available by default
     pkgs.pkg-config
