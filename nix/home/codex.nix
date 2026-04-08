@@ -91,20 +91,6 @@ in
         "/Users/romes/ghc-dev/ghc".trust_level = "trusted";
         "/Users/romes/control".trust_level = "trusted";
       };
-
-      mcp_servers.haskell = {
-        # HLS speaks LSP, so use an LSP-to-MCP bridge for Codex.
-        command = "${pkgs.nodejs}/bin/npx";
-        startup_timeout_sec = 60;
-        args = [
-          "--quiet"
-          "-y"
-          "tritlo/lsp-mcp"
-          "haskell"
-          "${pkgs.haskell-language-server}/bin/haskell-language-server-wrapper"
-          "--lsp"
-        ];
-      };
     };
   };
 }

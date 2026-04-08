@@ -368,10 +368,10 @@
 
     # Enable with :LlamaEnable
     # show_info = 0,
-    # endpoint = "http://192.168.68.130:8022/infill"
     extraConfigLua = ''
       vim.g.llama_config = {
-        enable_at_startup = false
+        enable_at_startup = false,
+        endpoint = "http://127.0.0.1:8012/v1/completions"
       }
 
       function _G.open_url(url)

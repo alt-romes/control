@@ -401,11 +401,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1772761230,
-        "narHash": "sha256-vp8eVqV7ecgGxSTiuetIHYwevFmXxWwXl6IrOqIgtAQ=",
+        "lastModified": 1775506628,
+        "narHash": "sha256-74ZHkdLbi2HqqRo5wWcylehj5fdhBCWqAV5qaWdusLU=",
         "owner": "charmbracelet",
         "repo": "nur",
-        "rev": "bce9768e73692d94c0c1de410c5875bf0189e279",
+        "rev": "28a88b2c895dd5b5d11690d77b5e734144149e86",
         "type": "github"
       },
       "original": {
