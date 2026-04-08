@@ -46,7 +46,7 @@
 (after! org-modern
   (setq
       org-modern-star '("⁖" "◉" "○" "✸" "✿")
-      org-modern-symbol "Iosveka"
       org-modern-todo nil
+      ; org-modern-symbol "Iosveka"
       )
   )

@@ -68,7 +68,6 @@ in
     # Fonts
     maple-mono.NF
     nerd-fonts.symbols-only # emacs uses it
-    iosevka
   ];
 
   fonts.fontconfig.enable = true;
