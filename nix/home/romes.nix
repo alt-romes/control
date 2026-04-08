@@ -64,7 +64,10 @@ in
 
     # Fonts
     maple-mono.NF
+    nerd-fonts.symbols-only
   ];
+
+  fonts.fontconfig.enable = true;
 
   home = {
     sessionVariables = {
@@ -157,6 +160,9 @@ in
   programs.doom-emacs = {
     enable = true;
     doomDir = ./modules/doom.d;
+    extraPackages = epkgs: [
+      epkgs.treesit-grammars.with-all-grammars
+    ];
   };
 
   programs.fzf = {
