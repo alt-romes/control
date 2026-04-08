@@ -77,6 +77,14 @@
         options = { noremap = true; silent = true; };
       }
 
+      # Quickfix and location list navigation
+      { mode = "n"; key = "<leader>qo"; action = "<cmd>copen<cr>"; }
+      { mode = "n"; key = "<leader>qn"; action = "<cmd>cnext<cr>"; }
+      { mode = "n"; key = "<leader>qp"; action = "<cmd>cprev<cr>"; }
+      { mode = "n"; key = "<leader>lo"; action = "<cmd>lopen<cr>"; }
+      { mode = "n"; key = "<leader>ln"; action = "<cmd>lnext<cr>"; }
+      { mode = "n"; key = "<leader>lp"; action = "<cmd>lprev<cr>"; }
+
       # DAP keymaps
       { mode = "n"; key = "<leader>dd"; action = "<cmd>DapNew<cr>"; }
       { mode = "n"; key = "<leader>dN"; action = "<cmd>DapNew<cr>"; }
@@ -86,7 +94,7 @@
       { mode = "n"; key = "<leader>do"; action.__raw = "function() require('dap').step_out() end"; }
       { mode = "n"; key = "<leader>db"; action.__raw = "function() require('dap').toggle_breakpoint() end"; }
       { mode = "n"; key = "<leader>dB"; action.__raw = "function() require('dap').set_breakpoint() end"; }
-      { mode = "n"; key = "<leader>lp"; action.__raw = "function() require('dap').set_breakpoint(nil, nil, vim.fn.input('Log point message: ')) end"; }
+      { mode = "n"; key = "<leader>dl"; action.__raw = "function() require('dap').set_breakpoint(nil, nil, vim.fn.input('Log point message: ')) end"; }
       { mode = "n"; key = "<leader>de"; action = "<cmd>DapEval<cr>"; }
       { mode = "n"; key = "<leader>dr"; action.__raw = "function() require('dap').repl.open() end"; }
       { mode = "n"; key = "<leader>dR"; action.__raw = "function() require('dap').restart() end"; }
