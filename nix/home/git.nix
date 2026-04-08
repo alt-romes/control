@@ -27,6 +27,16 @@
       url."git@github.com:".insteadOf = "https://github.com";
       url."git@gitlab.com:".insteadOf = "https://gitlab.com";
 
+      # Frequent workflow shortcuts
+      alias.ap = "add -p";
+      alias.ca = "commit --amend";
+      alias.cm = "commit -m";
+      alias.d = "diff";
+      alias.ds = "diff --staged";
+      alias.pf = "push --force-with-lease";
+      alias.rp = "restore -p";
+      alias.rsp = "restore --staged -p";
+
       alias.fixup = "!git log -n 50 --pretty=format:'%h %s' --no-merges | fzf | cut -c -7 | xargs -o git commit --fixup";
 
       # Repository inspection commands adapted from:
