@@ -28,6 +28,19 @@
       url."git@gitlab.com:".insteadOf = "https://gitlab.com";
 
       alias.fixup = "!git log -n 50 --pretty=format:'%h %s' --no-merges | fzf | cut -c -7 | xargs -o git commit --fixup";
+
+      # Repository inspection commands adapted from:
+      # https://piechowski.io/post/git-commands-before-reading-code/
+      # What Changes the Most
+      alias.churn = "!git log --format=format: --name-only --since=\"1 year ago\" | sort | uniq -c | sort -nr | head -20";
+      # Who Built This
+      alias.authors = "!git shortlog -sn --no-merges";
+      # Where Do Bugs Cluster
+      alias.bughotspots = "!git log -i -E --grep=\"fix|bug|broken\" --name-only --format='' | sort | uniq -c | sort -nr | head -20";
+      # Is This Project Accelerating or Dying
+      alias.velocity = "!git log --format='%ad' --date=format:'%Y-%m' | sort | uniq -c";
+      # How Often Is the Team Firefighting
+      alias.firefighting = "!git log --oneline --since=\"1 year ago\" | grep -iE 'revert|hotfix|emergency|rollback'";
     } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
       "gpg \"ssh\"".program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign";
     };
