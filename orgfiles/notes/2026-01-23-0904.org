@@ -5,10 +5,10 @@
 
   E-graphs represents multiple expressions and maintain a congruence relationship ...
 
-  add :: Enode -> Egraph -> ClassId
+  ~add :: Enode -> Egraph -> ClassId~
 
   -- Merge two eq-classes
-  merge :: ClassId -> ClassId -> Egraph -> Egraph
+  ~merge :: ClassId -> ClassId -> Egraph -> Egraph~
 
   -- E-graph invariant: maintain congruence relation
 
@@ -16,7 +16,6 @@
   data Expr a
    = K Int
    | Plus a a
-  #+end_src
 
   type NExpr = Fix Expr
 
@@ -28,6 +27,7 @@
   c1 <- add (K 1)
   c2 <- add (K 2)
   add (Plus c1 c2)
+  #+end_src
 
   Nick: Good representation for free monads with theory
   - Free Monad gives you the terms, theory gives you the equivalence relation
@@ -52,7 +52,7 @@
    loeb :: Comonad w => w (w a -> a) -> a
 
    extract :: w a -> a
-   duplicate :: w a -> w (w a)
+   duplicate :: w a ->   w (w a)
    extend :: w a -> (w a -> b) -> w b
 
    Nick: when I think of merge and congruence,
@@ -72,7 +72,7 @@
 
    ~duplicate :: Egraph a -> Egraph (Egraph a)~ -> id space has become the space of all the nodes
 
-** Equality Saturation(Fixpoint)
+** Equality Saturation (Fixpoint)
 
    Given a list of rewrite rules, and a starting e-graph representing some expressions,
    apply rewrite rules to the e-graph until a fixpoint is reached
@@ -241,7 +241,6 @@
    We can quotient the tree, which considers the equivalence relation given by the theory.
    Quotient of tree means we can't see the syntactic difference
 
-
 ** Equivalence Relation
 
    Relation which behaves like equality (refl, trns, ...)
@@ -254,7 +253,6 @@
 
    Congruence relation ==> equivalence relation
    (stronger, eq in all contx) vs (weaker, observationally equal)
-
 
 * Further ideas
 
@@ -352,8 +350,6 @@
 
   - Knuth-Bendix algorithm could be an interesting benchmark as well
     (substring matching). **Really relevant**
-
-
 
 * 23 March (Making data structures persistent)
 

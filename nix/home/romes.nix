@@ -67,7 +67,8 @@ in
 
     # Fonts
     maple-mono.NF
-    nerd-fonts.symbols-only
+    nerd-fonts.symbols-only # emacs uses it
+    iosevka
   ];
 
   fonts.fontconfig.enable = true;
@@ -140,14 +141,9 @@ in
   programs.emacs = {
     enable = false; # doom-emacs instead
     extraPackages = epkgs: with epkgs; [
-      # Git
-      magit
-
-      # Orgmode
-      org
-
-      # Vi
-      evil
+      magit # Git
+      org   # Orgmode
+      evil  # Vi
     ];
     extraConfig = ''
      ;; Org mode
