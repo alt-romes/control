@@ -4,6 +4,7 @@
 
   programs.mbsync.enable = true; # Email downloader
   programs.msmtp.enable = true;  # Email sender
+  programs.mu.enable = true;     # Maildir indexer for mu4e/mu
   programs.notmuch = {           # Email indexer (for searching)
     enable = true;
     hooks = {
@@ -22,6 +23,7 @@
         enable = true;
         create = "maildir";
       };
+      mu.enable = true;
       neomutt.enable = true;
       msmtp.enable = true;
       notmuch.enable = true;
@@ -35,4 +37,3 @@
     };
   };
 }
-
