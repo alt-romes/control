@@ -131,7 +131,7 @@ in
   };
 
   programs.emacs = {
-    enable = true;
+    enable = false;
     extraPackages = epkgs: with epkgs; [
       # Git
       magit
