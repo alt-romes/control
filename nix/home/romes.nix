@@ -138,7 +138,7 @@ in
   };
 
   programs.emacs = {
-    enable = false;
+    enable = false; # doom-emacs instead
     extraPackages = epkgs: with epkgs; [
       # Git
       magit
