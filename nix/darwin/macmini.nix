@@ -67,7 +67,6 @@
         # Xperiments
         "antigravity"
         "codex-app"
-        "wispr-flow"
     ];
   };
 

@@ -94,16 +94,16 @@ in
     syntaxHighlighting.enable = true;
     autosuggestion.enable = true;
     shellAliases = {
+      # prefer nix-output-monitor
       nix = "nom";
+      nix-shell = "nom-shell";
+      nix-build = "nom-build";
     };
     initContent = ''
       # Delete words like bash (up to slash)
       # Very important to usefully do Alt+backspace and friends.
       autoload -U select-word-style
       select-word-style bash
-
-      # GHCUP
-      # [ -f ~/.ghcup/env ] && . ~/.ghcup/env
     '';
     localVariables = {
         TYPEWRITTEN_PROMPT_LAYOUT="pure";

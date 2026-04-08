@@ -112,7 +112,9 @@
 
       g = "git";
       httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
-      darwin-nix-switch = "set -o pipefail; sudo darwin-rebuild switch --flake '/Users/romes/control/nix/.?submodules=1' --log-format internal-json 2>&1 | nom --json"; # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
+
+      # submodules=1 is needed because some modules of the system are in git submodules (such as finances.nix)
+      darwin-nix-switch = "sudo darwin-rebuild switch --flake '/Users/romes/control/nix/.?submodules=1'";
 
       ghc-shell = "nix-shell -p haskell.compiler.ghc914 haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
 
