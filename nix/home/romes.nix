@@ -90,7 +90,7 @@ in
   home.shell.enableZshIntegration = true;
   programs.zsh = {
     enable = true; # will use the same zsh as the one in nixpkgs shared with nix-darwin
-    enableCompletion = false; # disable because of https://github.com/nix-community/home-manager/issues/8392. Maybe fine to re-enable later.
+    enableCompletion = true;
     syntaxHighlighting.enable = true;
     autosuggestion.enable = true;
     shellAliases = {
