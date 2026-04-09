@@ -95,7 +95,6 @@ in
     autosuggestion.enable = true;
     shellAliases = {
       # prefer nix-output-monitor
-      nix = "nom";
       nix-shell = "nom-shell";
       nix-build = "nom-build";
     };
