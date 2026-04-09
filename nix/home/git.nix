@@ -33,7 +33,7 @@
       alias.cm = "commit -m";
       alias.d = "diff";
       alias.ds = "diff --staged";
-      alias.pf = "push --force-with-lease";
+      alias.pfwl = "push --force-with-lease";
       alias.s = "status";
       alias.rp = "restore -p";
       alias.rsp = "restore --staged -p";
