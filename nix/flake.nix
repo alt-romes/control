@@ -32,6 +32,11 @@
     kimai-client.inputs.nixpkgs.follows = "nixpkgs";
     kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
 
+    hadrian-util = {
+      url = "git+https://gitlab.haskell.org/bgamari/hadrian-util";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Charmbracelet NUR
     nur-charmbracelet.url = "github:charmbracelet/nur";
     nur-charmbracelet.inputs.nixpkgs.follows = "nixpkgs";
