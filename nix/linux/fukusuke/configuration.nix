@@ -1,6 +1,6 @@
 { config, lib, pkgs, ... }:
 {
-  # VM configuration using microvm.nix
+  # Configuration for when run as a VM using microvm.nix
   microvm = {
     hypervisor = "vfkit";
     vcpu = 8;

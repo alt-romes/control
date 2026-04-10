@@ -49,7 +49,7 @@
     nix-doom-emacs-unstraightened.inputs.nixpkgs.follows = "";
 
     microvm = {
-      url = "github:microvm-nix/microvm.nix/2015b82bbe8bd8ac390e06219077174ba521d16b";
+      url = "github:microvm-nix/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -103,7 +103,7 @@
 
       # Linux machine named 福助
       # microvm.nix using vfkit (with Rosetta support)
-      # Run VM using `nix run .#fukusuke` `run-linux-vm`
+      # Run VM using `nix run .#fukusuke-vm` `run-linux-vm`
       # Login with `ssh -A 127.0.0.1 -p 2222`
       #   (port 2222 is mapped to VM's 22, -A forwards the SSH agent)
       "fukusuke" = nixpkgs.lib.nixosSystem {

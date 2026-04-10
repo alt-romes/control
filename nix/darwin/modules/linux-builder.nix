@@ -3,6 +3,8 @@
 # See https://github.com/NixOS/nixpkgs/blob/master/doc/packages/darwin-builder.section.md for bootstrapping
 # i.e. on the first run you may need to run this first:
 #  nix run nixpkgs#darwin.linux-builder
+#
+# Another recent write up (2026): https://abhinavsarkar.net/notes/2026-microvm-nix/#cb2-10
 { pkgs, lib, config, inputs, ... }: {
 
   options.process.linux-builder.enable
@@ -12,19 +14,27 @@
       # An existing Linux builder is needed to initially bootstrap `nix-rosetta-builder`.
       # If one isn't already available: comment out the `nix-rosetta-builder` module below,
       # uncomment this `linux-builder` module, and run `darwin-rebuild switch`:
-      # { nix.linux-builder.enable = true; }
+      # { nix.linux-builder.enable = true; nix.linux-builder.package = pkgs.darwin.linux-builder; }
+
       # Then: uncomment `nix-rosetta-builder`, remove `linux-builder`, and `darwin-rebuild switch`
       # a second time. Subsequently, `nix-rosetta-builder` can rebuild itself.
-      inputs.nix-rosetta-builder.darwinModules.default
+      # inputs.nix-rosetta-builder.darwinModules.default
   ];
 
   config = {
-    # See more available options in module.nix's `options.nix-rosetta-builder`
-    nix-rosetta-builder.enable = config.process.linux-builder.enable;
 
-    # Shutdown automatically and only run it on demand
-    nix-rosetta-builder.onDemand = true;
-    nix-rosetta-builder.memory = "12GiB";
+    nix.linux-builder = {
+      enable = config.process.linux-builder.enable;
+      package = pkgs.darwin.linux-builder;
+      systems = [ "aarch64-linux" ];
+    };
+
+    # # See more available options in module.nix's `options.nix-rosetta-builder`
+    # nix-rosetta-builder.enable = config.process.linux-builder.enable;
+    #
+    # # Shutdown automatically and only run it on demand
+    # nix-rosetta-builder.onDemand = true;
+    # nix-rosetta-builder.memory = "12GiB";
   };
 
 }
