@@ -16,6 +16,7 @@ in
     ./modules/colors.nix
     ./modules/static_haskell.nix
     ./modules/crush.nix
+    ./modules/emacs.nix
 
     # External modules
     inputs.nix-doom-emacs-unstraightened.homeModule
@@ -134,33 +135,6 @@ in
         # background-blur = true;
         font-family = "Maple Mono NF";
     };
-  };
-
-  programs.emacs = {
-    enable = false; # doom-emacs instead
-    extraPackages = epkgs: with epkgs; [
-      magit # Git
-      org   # Orgmode
-      evil  # Vi
-    ];
-    extraConfig = ''
-     ;; Org mode
-     (global-set-key (kbd "C-c l") #'org-store-link)
-     (global-set-key (kbd "C-c a") #'org-agenda)
-     (global-set-key (kbd "C-c c") #'org-capture)
-
-     ;; Evil mode (vim keybindings)
-     (require 'evil)
-     (evil-mode 1)
-    '';
-  };
-
-  programs.doom-emacs = {
-    enable = true;
-    doomDir = ./modules/doom.d;
-    extraPackages = epkgs: [
-      epkgs.treesit-grammars.with-all-grammars
-    ];
   };
 
   programs.fzf = {

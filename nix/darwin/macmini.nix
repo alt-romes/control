@@ -14,6 +14,7 @@
   };
 
   home-manager.users.romes.programs.kimai.enable = true;
+  home-manager.users.romes.programs.custom.doom-emacs = true;
 
   # --- Builders ---------------------------------------------------------------
 
