@@ -242,11 +242,11 @@
         "rev": "f9299613715bc71537be9f44156ff06bba2cd30f",
         "revCount": 138,
         "type": "git",
-        "url": "file:///Users/romes/Developer/kimai-client"
+        "url": "ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git"
       },
       "original": {
         "type": "git",
-        "url": "file:///Users/romes/Developer/kimai-client"
+        "url": "ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git"
       }
     },
     "microvm": {
