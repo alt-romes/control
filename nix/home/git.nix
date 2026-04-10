@@ -29,7 +29,7 @@
 
       # Frequent workflow shortcuts
       alias.ap = "add -p";
-      alias.ca = "commit --amend";
+      alias.cma = "commit --amend";
       alias.cm = "commit -m";
       alias.d = "diff";
       alias.ds = "diff --staged";
