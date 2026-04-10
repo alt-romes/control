@@ -2,6 +2,7 @@
 
   programs.git = {
     enable = true;
+    signing.format = null; # use the builtin default
     signing.key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ";
     signing.signByDefault = true;
 
