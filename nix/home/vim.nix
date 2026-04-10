@@ -328,10 +328,7 @@
       settings.enabled = false;
     };
 
-    # Lean
-    plugins.lean = {
-      enable = true;
-    };
+    plugins.lean.enable = false;
 
     # Formatters
     plugins.conform-nvim = {

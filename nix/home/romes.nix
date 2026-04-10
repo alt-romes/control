@@ -45,9 +45,6 @@ in
     haskellPackages.fast-tags
     haskellPackages.hoogle
 
-    # Lean
-    elan
-
     nix-output-monitor
 
     # nixos-rebuild # to deploy to remote nixos machines directly
