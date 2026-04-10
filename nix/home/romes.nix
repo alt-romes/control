@@ -35,7 +35,7 @@ in
 
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [
-    inputs.codex-cli-nix.packages.${pkgs.system}.default
+    inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
     ripgrep
 
     # Haskell

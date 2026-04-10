@@ -1,7 +1,7 @@
 # Utilities for working on GHC.
 { pkgs, inputs, ... }:
 let
-  hadrianUtil = inputs.hadrian-util.packages.${pkgs.system}.default;
+  hadrianUtil = inputs.hadrian-util.packages.${pkgs.stdenv.hostPlatform.system}.default;
   hadrianUtilZshCompletion = pkgs.runCommandLocal "hadrian-util-zsh-completion" {
     nativeBuildInputs = [ hadrianUtil ];
   } ''
