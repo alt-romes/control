@@ -59,7 +59,7 @@
       {
         image = "/Users/romes/control/vms/nix-store-overlay.img";
         mountPoint = config.microvm.writableStoreOverlay;
-        size = 16384; # 16GB
+        size = 32768; # 32GB
       }
     ];
   };
@@ -67,6 +67,7 @@
   nix.settings = {
     trusted-users = [ "romes" ];
     experimental-features = [ "nix-command" "flakes" ];
+    sandbox = false; # see https://abhinavsarkar.net/notes/2026-microvm-nix/#cb2-10
   };
   nixpkgs.config.allowUnfree = true;
 

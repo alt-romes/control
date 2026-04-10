@@ -27,6 +27,10 @@
       enable = config.process.linux-builder.enable;
       package = pkgs.darwin.linux-builder;
       systems = [ "aarch64-linux" ];
+      config = {
+        virtualisation.cores = 6;        # Number of CPU cores
+        virtualisation.memorySize = lib.mkForce 16384; # RAM in MB (16 GB)
+      };
     };
 
     # # See more available options in module.nix's `options.nix-rosetta-builder`
