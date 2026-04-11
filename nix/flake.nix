@@ -29,7 +29,8 @@
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
     # Kimai client
-    # Can't use directly because it relies on 1Password agent which it seemingly can't access?
+    # When this doesn't work directly and asks for password,
+    # `nix flake update kimai-client` manually fixes it
     kimai-client.url = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
     kimai-client.inputs.nixpkgs.follows = "nixpkgs";
     # kimai-client.url = "git+file:///Users/romes/Developer/kimai-client";
