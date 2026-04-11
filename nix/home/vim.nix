@@ -138,10 +138,6 @@
       }
     ];
 
-    digraphs = {
-      ll = "8888";
-    };
-
     userCommands = {
       Format = {
         command.__raw = ''
@@ -398,6 +394,10 @@
 
         vim.fn.jobstart({ opener, url }, { detach = true })
       end
+    '';
+
+    extraConfigVim = ''
+      digraph -o 8888
     '';
   };
 
