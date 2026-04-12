@@ -1,59 +1,21 @@
-{-# LANGUAGE GADTs, UnicodeSyntax, PatternSynonyms, DerivingStrategies, BlockArguments #-}
+{-# LANGUAGE GADTs, UnicodeSyntax, PatternSynonyms, DerivingStrategies, BlockArguments, TypeFamilies, UndecidableInstances #-}
 
 -- | Simple essence of automatic differentiation distilled
 --
 -- @
--- import Prelude hiding (Num(..), Floating(..), id, (.))
+-- import Prelude hiding (id, (.))
 -- import SEAD
---
--- squared = (*) . dup
 -- @
---
--- Could the definition of :-> functions be simpler if we used Arrows?
 module SEAD
- ( L((|>))
- , (:->), (#)
- , linear
-
- , negate
- , (+), (-), (*)
-
- , Monoidal((×))
+ ( D
 
  -- Re-exports
  , Category(..)
- , Num(fromInteger)
- , Fractional(fromRational)
- , Floating(pi)
  ) where
 
-import Prelude hiding (id, (.), Num(..))
-import Prelude (Num(fromInteger), Fractional(fromRational), Floating(pi))
-import qualified Prelude as P
+import Data.Kind
+import Prelude hiding (id, (.))
 import Control.Category
-
--- | A linear map (not necessarily linear in the linear logic sense IIUC)
--- INVARIANT: only constructed with linear mappings from a -> b
---
--- > A function f is said to be linear when it distributes over (preserves the
--- structure of) vector addition and scalar multiplication, i.e.:
---
--- > f (a + a′) = f a + f a′
--- > f (s·a)    = s·f a
---
--- The SEAD theory works for linear map generically, or even categorical
--- generalizations of linear maps. Generalizing the use of L to other things
--- gets us
-newtype L a b = UnsL { (|>) :: (a -> b) }
-  deriving newtype (Category, Monoidal, Cartesian)
-
-instance Cocartesian L where
-  inl = UnsL \a -> (a, 0)
-  inr = UnsL \a -> (0, a)
-  jam = UnsL \(a,b) -> a P.+ b
-
-instance Num a => Scalable L a where
-  scale a = UnsL \da -> a P.* da
 
 -- The operator (D+) is a Functor FROM the category of differentiable
 -- functions (e.g. @f@) TO the category of functions which return both the
@@ -62,13 +24,14 @@ instance Num a => Scalable L a where
 -- D+ :: (a -> b) -> (a -> (b, a ⊸ b))
 -- D+ f = \a -> (f a, D f a)
 --
--- We call the latter Category (combination of function and its derivative):
+-- We call the latter Category (combination of function and its derivative) @D@.
+--
+-- The @k@ type argument generalizes the linear map representing the derivative.
+-- We can e.g. instance it to (->) for traditional scalar derivatives.
 newtype D k a b = UnsD { (#) :: a -> (b, a `k` b) }
 
--- | Any linear function is differentiable, so it can be lifted to (:->).
---
+-- | Any linear function is differentiable, so it can be lifted to @D@
 -- The derivative of every linear function is itself, everywhere.
--- Theorem 3 (linear rule) For all linear functions f, D f a= f.
 linear :: (a -> b) -> (a `k` b) -> D k a b
 linear f f' = UnsD (\a -> (f a, f'))
 
@@ -80,6 +43,7 @@ instance Category k => Category (D k) where
      in (c, (g' . f'))
 
 instance Monoidal k => Monoidal (D k) where
+  type Obj (D k) x = (Num x, Obj k x)
   f × g = UnsD \(a,b) ->
     let (c, f') = f # a
         (d, g') = g # b
@@ -90,62 +54,110 @@ instance Cartesian k => Cartesian (D k) where
   exr = linear exr exr
   dup = linear dup dup
 
+instance Cocartesian k => Cocartesian (D k) where
+  inl = linear (unAddFun inl) inl
+  inr = linear (unAddFun inr) inr
+  jam = linear (unAddFun jam) jam
+
 --------------------------------------------------------------------------------
 
--- Num
-negate :: Num a => D k a a
-negate = linear P.negate
+newtype a →⁺ b = AddFun { unAddFun :: a -> b }
+  deriving newtype (Category, Cartesian)
 
-(+), (-), (*) :: Num a => D k (a,a) a
-(+) = linear (UnsL (P.uncurry (P.+)))
-(-) = linear (UnsL (P.uncurry (P.-)))
-(*) = UnsD \(a,b) -> (a P.* b, scale b ▽ scale a)
+instance Monoidal (→⁺) where
+  type Obj (→⁺) x = Num x
+  AddFun f × AddFun g = AddFun \(a, b) -> (f a, g b)
 
--- Fractional
-(/) :: Fractional a => D k (a,a) a
-(/) = UnsD \(a,b) ->
-  (a P./ b, scale (-1 P./ b^2) . (scale b ▽ scale (-a)))
+instance Cocartesian (→⁺) where
+  inl = AddFun (\x -> (x, 0))
+  inr = AddFun (\x -> (0, x))
+  jam = AddFun (\(a,b) -> a + b)
 
--- Floating
-exp, log, sin, cos :: Floating a => D k a a
-exp = UnsD \a -> let e = P.exp a in (e, scale e)
-log = UnsD \a -> let l = P.log a in (l, scale (-1 P./ l))
-sin = UnsD \a -> (P.sin a, scale (P.cos a))
-cos = UnsD \a -> (P.cos a, scale (- (P.sin a)))
+instance Num a => Scalable (→⁺) a where
+  scale a = AddFun \da -> a * da
+
+--------------------------------------------------------------------------------
+
+newtype Cont k r a b = Cont { unCont :: (b `k` r) -> (a `k` r) }
+
+cont :: Category k => (a `k` b) -> Cont k r a b
+cont f = Cont (. f)
+
+instance Category k => Category (Cont k r) where
+  id = cont id
+  Cont g . Cont f = Cont (f . g)
+
+instance (Cocartesian k, Obj k r) => Monoidal (Cont k r) where
+  type Obj (Cont k r) x = Obj k x
+  Cont f × Cont g = Cont (join . (f × g) . (\h -> (h . inl, h . inr)))
+
+instance (Cocartesian k, Obj k r) => Cartesian (Cont k r) where
+  exl = Cont (_)
+  -- exr = Cont (_)
+  -- dup = Cont (jam . unjoin)
+
+--------------------------------------------------------------------------------
+
+class NumCat k a where
+  negC :: a `k` a
+  addC, subC, mulC :: (a,a) `k` a
+
+class NumCat k a => FloatingCat k a where
+  divC :: (a,a) `k` a
+  expC, logC, sinC, cosC :: a `k` a
+
+instance (Num a, Obj k a, NumCat k a, Scalable k a, Cocartesian k) => NumCat (D k) a where
+  negC = linear negate negC
+  addC = linear (uncurry (+)) addC
+  subC = linear (uncurry (-)) subC
+  mulC = UnsD \(a,b) -> (a * b, scale b ▽ scale a)
+
+instance (Floating a, NumCat k a, Scalable k a, Obj k a, Cocartesian k) => FloatingCat (D k) a where
+  divC = UnsD \(a,b) ->
+    (a / b, scale (-1 / b^2) . (scale b ▽ scale (-a)))
+
+  expC = UnsD \a -> let e = exp a in (e, scale e)
+  logC = UnsD \a -> let l = log a in (l, scale (-1 / l))
+  sinC = UnsD \a -> (sin a, scale (cos a))
+  cosC = UnsD \a -> (cos a, scale (- (sin a)))
 
 --------------------------------------------------------------------------------
 
 class Category k => Monoidal k where
-  (×) :: (a `k` c) -> (b `k` d) -> ((a,b) `k` (c,d))
+  type Obj k x :: Constraint
+  (×) :: (Obj k a, Obj k b, Obj k c, Obj k d) => (a `k` c) -> (b `k` d) -> ((a,b) `k` (c,d))
 
 instance Monoidal (->) where
+  type Obj (->) x = ()
   f × g = \(a,b) -> (f a, g b)
 
 class Monoidal k => Cartesian k where
-  exl :: (a,b) `k` a
-  exr :: (a,b) `k` b
-  dup :: a `k` (a,a)
+  exl :: (Obj k a, Obj k b) => (a,b) `k` a
+  exr :: (Obj k a, Obj k b) => (a,b) `k` b
+  dup :: (Obj k a) => a `k` (a,a)
 
 instance Cartesian (->) where
   exl = \(a,_) -> a
   exr = \(_,b) -> b
   dup = \a -> (a,a)
 
--- in principle the Num constraints should be an associated constraint and the
--- co-product coinciding with product should be given in associated type
--- family, but this is simpler
 class Monoidal k => Cocartesian k where
-  inl :: Num b => a `k` (a,b)
-  inr :: Num b => a `k` (b,a)
-  jam :: Num a => (a,a) `k` a
+  inl :: (Obj k a, Obj k b) => a `k` (a,b)
+  inr :: (Obj k a, Obj k b) => a `k` (b,a)
+  jam :: Obj k a => (a,a) `k` a
 
-(△) :: Cartesian k => (a `k` c) -> (a `k` d) -> (a `k` (c,d))
+(△) :: (Obj k a, Obj k c, Obj k d, Cartesian k) => (a `k` c) -> (a `k` d) -> (a `k` (c,d))
 f △ g = (f × g) . dup
 
-(▽) :: (Cocartesian k, Num a) => (c `k` a) -> (d `k` a) -> ((c,d) `k` a)
+(▽) :: (Obj k a, Obj k c, Obj k d, Cocartesian k) => (c `k` a) -> (d `k` a) -> ((c,d) `k` a)
 f ▽ g = jam . (f × g)
 
--- generalize scalar multiplication
+-- join and unjoin iso witnesses invertability of ▽
+join :: (Obj k a, Obj k c, Obj k d, Cocartesian k) => (c `k` a, d `k` a) -> ((c, d) `k` a)
+join (f, g) = f ▽ g
+unjoin :: (Obj k a, Obj k c, Obj k d, Cocartesian k) => ((c, d) `k` a) -> (c `k` a, d `k` a)
+unjoin h = (h . inl, h . inr)
+
 class Scalable k a where
   scale :: a -> (a `k` a)
 
