@@ -1,7 +1,30 @@
 {-# LANGUAGE GADTs, UnicodeSyntax, PatternSynonyms, DerivingStrategies, BlockArguments #-}
-module SEAD where
+-- | Simple essence of automatic differentiation distilled
+--
+-- @
+-- import Prelude hiding (Num(..), Floating(..), id, (.))
+-- import SEAD
+-- @
+module SEAD
+ ( L((|>))
+ , (:->), (#)
+ , linear
 
-import Prelude hiding (id, (.))
+ , negate
+ , (+), (-), (*)
+
+ , Monoidal((×))
+
+ -- Re-exports
+ , Category(..)
+ , Num(fromInteger)
+ , Fractional(fromRational)
+ , Floating(pi)
+ ) where
+
+import Prelude hiding (id, (.), Num(..))
+import Prelude (Num(fromInteger), Fractional(fromRational), Floating(pi))
+import qualified Prelude as P
 import Control.Category
 
 -- | A Linear map (not necessarily linear in the linear logic sense IIUC)
@@ -12,47 +35,108 @@ import Control.Category
 --
 -- > f (a + a′) = f a + f a′
 -- > f (s·a)    = s·f a
-newtype L a b = L { (|>) :: (a -> b) }
-  deriving newtype Category
+newtype L a b = UnsL { (|>) :: (a -> b) }
+  deriving newtype (Category, Monoidal, Cartesian)
 
--- | Differentiable functions, compositionally.
+instance Cocartesian L where
+  inl = UnsL \a -> (a, 0)
+  inr = UnsL \a -> (0, a)
+  jam = UnsL \(a,b) -> a P.+ b
+
+instance Num a => Scalable L a where
+  scale a = UnsL \da -> a P.* da
+
+-- The operator (D+) is a Functor FROM the category of differentiable
+-- functions (e.g. @f@) TO the category of functions which return both the
+-- image at point @a@ (@f a@) AND the derivative at point @a@ as a linear map.
 --
--- > Although diﬀerentiation is not computable when given just an arbitrary
---    computable function, we can instead build up diﬀerentiable functions
---    compositionally, using exactly the forms introduced above, (namely (◦),
---    (×) and linear functions), together with various non-linear primitives
---    having known derivatives. Computations expressed in this vocabulary are
---    differentiable by construction thanks to Corollaries 1.1 through 3.1.
-data a :-> b where
-  -- | A non-linear primitive differentiable function, defined by its
-  -- image and derivative at a point a
-  Prim  :: (a -> (b, L a b)) -> (a :-> b)
-  -- | Any linear function is differentiable.
-  --
-  -- The derivative of every linear function is itself, everywhere.
-  -- Theorem 3 (linear rule) For all linear functions f, D f a= f.
-  Lin   :: L a b -> (a :-> b)
-  -- | Sequencial composition
-  Comp  :: (b :-> c) -> (a :-> b) -> (a :-> c)
-  -- | Parallel composition
-  Cross :: (a :-> c) -> (b :-> d) -> ((a, b) :-> (c, d))
+-- D+ :: (a -> b) -> (a -> (b, a ⊸ b))
+-- D+ f = \a -> (f a, D f a)
+--
+-- We call the latter Category by (:->)
+newtype a :-> b = UnsD { (#) :: a -> (b, L a b) }
 
-(∘) = Comp
-(×) = Cross
+-- | Any linear function is differentiable, so it can be lifted to (:->).
+--
+-- The derivative of every linear function is itself, everywhere.
+-- Theorem 3 (linear rule) For all linear functions f, D f a= f.
+linear :: L a b -> (a :-> b)
+linear f = UnsD (\a -> (f |> a, f))
 
--- Given a differentiable function, give derivative and value at point a
--- D⁺ from paper
-diff :: a :-> b -> (a -> (b, L a b))
-diff (Prim d)    a = d a
-diff (Lin f) a = (f |> a, f)
-diff (Comp g f)  a =
-  let (b, f') = diff f a
-      (c, g') = diff g b
-   in (c, (g' . f'))
-diff (Cross f g) (a, b) =
-  let (c, f') = diff f a
-      (d, g') = diff g b
-   in ((c,d), L \(a', b') -> (f' |> a', g' |> b'))
+instance Category (:->) where
+  id = linear id
+  g . f = UnsD \a -> -- chain rule
+    let (b, f') = f # a
+        (c, g') = g # b
+     in (c, (g' . f'))
 
+instance Monoidal (:->) where
+  f × g = UnsD \(a,b) ->
+    let (c, f') = f # a
+        (d, g') = g # b
+     in ((c,d), UnsL \(a', b') -> (f' |> a', g' |> b'))
 
+instance Cartesian (:->) where
+  exl = linear (UnsL exl)
+  exr = linear (UnsL exr)
+  dup = linear (UnsL dup) -- see, not linear as in linear logic
+
+--------------------------------------------------------------------------------
+
+-- Num
+negate :: Num a => a :-> a
+negate = linear (UnsL P.negate)
+
+(+), (-), (*) :: Num a => (a,a) :-> a
+(+) = linear (UnsL (P.uncurry (P.+)))
+(-) = linear (UnsL (P.uncurry (P.-)))
+(*) = UnsD \(a,b) -> (a P.* b, scale b ▽ scale a)
+
+-- Fractional
+(/) :: Fractional a => (a,a) :-> a
+(/) = UnsD \(a,b) ->
+  (a P./ b, scale (-1 P./ b^2) . (scale b ▽ scale (-a)))
+
+-- Floating
+exp, log, sin, cos :: Floating a => a :-> a
+exp = UnsD \a -> let e = P.exp a in (e, scale e)
+log = UnsD \a -> let l = P.log a in (l, scale (-1 P./ l))
+sin = UnsD \a -> (P.sin a, scale (P.cos a))
+cos = UnsD \a -> (P.cos a, scale (- (P.sin a)))
+
+--------------------------------------------------------------------------------
+
+class Category k => Monoidal k where
+  (×) :: (a `k` c) -> (b `k` d) -> ((a,b) `k` (c,d))
+
+instance Monoidal (->) where
+  f × g = \(a,b) -> (f a, g b)
+
+class Monoidal k => Cartesian k where
+  exl :: (a,b) `k` a
+  exr :: (a,b) `k` b
+  dup :: a `k` (a,a)
+
+instance Cartesian (->) where
+  exl = \(a,_) -> a
+  exr = \(_,b) -> b
+  dup = \a -> (a,a)
+
+-- in principle the Num constraints should be an associated constraint and the
+-- co-product coinciding with product should be given in associated type
+-- family, but this is simpler
+class Monoidal k => Cocartesian k where
+  inl :: Num b => a `k` (a,b)
+  inr :: Num b => a `k` (b,a)
+  jam :: Num a => (a,a) `k` a
+
+(△) :: Cartesian k => (a `k` c) -> (a `k` d) -> (a `k` (c,d))
+f △ g = (f × g) . dup
+
+(▽) :: (Cocartesian k, Num a) => (c `k` a) -> (d `k` a) -> ((c,d) `k` a)
+f ▽ g = jam . (f × g)
+
+-- generalize scalar multiplication
+class Scalable k a where
+  scale :: a -> (a `k` a)
 
