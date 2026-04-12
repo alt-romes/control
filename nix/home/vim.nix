@@ -398,6 +398,7 @@
 
     extraConfigVim = ''
       digraph -o 8888
+      digraph cp 215
     '';
   };
 
