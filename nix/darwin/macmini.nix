@@ -59,6 +59,7 @@
         "8bitdo-ultimate-software"
         "steam"
         "minecraft"
+        "curseforge"
         # "ultrastardeluxe"
 
         # Utilities
