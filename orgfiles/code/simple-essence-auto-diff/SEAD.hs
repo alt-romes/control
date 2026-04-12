@@ -1,10 +1,15 @@
 {-# LANGUAGE GADTs, UnicodeSyntax, PatternSynonyms, DerivingStrategies, BlockArguments #-}
+
 -- | Simple essence of automatic differentiation distilled
 --
 -- @
 -- import Prelude hiding (Num(..), Floating(..), id, (.))
 -- import SEAD
+--
+-- squared = (*) . dup
 -- @
+--
+-- Could the definition of :-> functions be simpler if we used Arrows?
 module SEAD
  ( L((|>))
  , (:->), (#)
@@ -27,7 +32,7 @@ import Prelude (Num(fromInteger), Fractional(fromRational), Floating(pi))
 import qualified Prelude as P
 import Control.Category
 
--- | A Linear map (not necessarily linear in the linear logic sense IIUC)
+-- | A linear map (not necessarily linear in the linear logic sense IIUC)
 -- INVARIANT: only constructed with linear mappings from a -> b
 --
 -- > A function f is said to be linear when it distributes over (preserves the
@@ -35,6 +40,10 @@ import Control.Category
 --
 -- > f (a + a′) = f a + f a′
 -- > f (s·a)    = s·f a
+--
+-- The SEAD theory works for linear map generically, or even categorical
+-- generalizations of linear maps. Generalizing the use of L to other things
+-- gets us
 newtype L a b = UnsL { (|>) :: (a -> b) }
   deriving newtype (Category, Monoidal, Cartesian)
 
@@ -53,52 +62,52 @@ instance Num a => Scalable L a where
 -- D+ :: (a -> b) -> (a -> (b, a ⊸ b))
 -- D+ f = \a -> (f a, D f a)
 --
--- We call the latter Category by (:->)
-newtype a :-> b = UnsD { (#) :: a -> (b, L a b) }
+-- We call the latter Category (combination of function and its derivative):
+newtype D k a b = UnsD { (#) :: a -> (b, a `k` b) }
 
 -- | Any linear function is differentiable, so it can be lifted to (:->).
 --
 -- The derivative of every linear function is itself, everywhere.
 -- Theorem 3 (linear rule) For all linear functions f, D f a= f.
-linear :: L a b -> (a :-> b)
-linear f = UnsD (\a -> (f |> a, f))
+linear :: (a -> b) -> (a `k` b) -> D k a b
+linear f f' = UnsD (\a -> (f a, f'))
 
-instance Category (:->) where
-  id = linear id
+instance Category k => Category (D k) where
+  id = linear id id
   g . f = UnsD \a -> -- chain rule
     let (b, f') = f # a
         (c, g') = g # b
      in (c, (g' . f'))
 
-instance Monoidal (:->) where
+instance Monoidal k => Monoidal (D k) where
   f × g = UnsD \(a,b) ->
     let (c, f') = f # a
         (d, g') = g # b
-     in ((c,d), UnsL \(a', b') -> (f' |> a', g' |> b'))
+     in ((c,d), f' × g')
 
-instance Cartesian (:->) where
-  exl = linear (UnsL exl)
-  exr = linear (UnsL exr)
-  dup = linear (UnsL dup) -- see, not linear as in linear logic
+instance Cartesian k => Cartesian (D k) where
+  exl = linear exl exl
+  exr = linear exr exr
+  dup = linear dup dup
 
 --------------------------------------------------------------------------------
 
 -- Num
-negate :: Num a => a :-> a
-negate = linear (UnsL P.negate)
+negate :: Num a => D k a a
+negate = linear P.negate
 
-(+), (-), (*) :: Num a => (a,a) :-> a
+(+), (-), (*) :: Num a => D k (a,a) a
 (+) = linear (UnsL (P.uncurry (P.+)))
 (-) = linear (UnsL (P.uncurry (P.-)))
 (*) = UnsD \(a,b) -> (a P.* b, scale b ▽ scale a)
 
 -- Fractional
-(/) :: Fractional a => (a,a) :-> a
+(/) :: Fractional a => D k (a,a) a
 (/) = UnsD \(a,b) ->
   (a P./ b, scale (-1 P./ b^2) . (scale b ▽ scale (-a)))
 
 -- Floating
-exp, log, sin, cos :: Floating a => a :-> a
+exp, log, sin, cos :: Floating a => D k a a
 exp = UnsD \a -> let e = P.exp a in (e, scale e)
 log = UnsD \a -> let l = P.log a in (l, scale (-1 P./ l))
 sin = UnsD \a -> (P.sin a, scale (P.cos a))
