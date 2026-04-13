@@ -26,6 +26,13 @@
         tag = "ghc-dev";
         proto = "virtiofs";
       }
+      # cabal store
+      {
+        source = "/Users/romes/.local/state/cabal/store/";
+        mountPoint = "/home/romes/.local/state/cabal/store/";
+        tag = "cabal-store";
+        proto = "virtiofs";
+      }
       # Developer
       {
         source = "/Users/romes/Developer";
