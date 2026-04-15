@@ -4,14 +4,10 @@
 --
 -- @
 -- import Prelude hiding (id, (.))
+-- import Control.Category
 -- import SEAD
 -- @
-module SEAD
- ( D
-
- -- Re-exports
- , Category(..)
- ) where
+module SEAD where
 
 import Data.Kind
 import Prelude hiding (id, (.))
@@ -92,7 +88,7 @@ instance (Cocartesian k, Obj k r) => Monoidal (Cont k r) where
   Cont f × Cont g = Cont (join . (f × g) . (\h -> (h . inl, h . inr)))
 
 instance (Cocartesian k, Obj k r) => Cartesian (Cont k r) where
-  exl = Cont (_)
+  -- exl = Cont (_)
   -- exr = Cont (_)
   -- dup = Cont (jam . unjoin)
 
