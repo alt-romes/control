@@ -94,6 +94,14 @@ in
     syntaxHighlighting.enable = true;
     autosuggestion.enable = true;
     shellAliases = {
+      g = "git";
+
+      mv = "mv -i";
+      cp = "cp -i";
+      ls = "eza";
+
+      httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
+
       # prefer nix-output-monitor
       nix-shell = "nom-shell";
       nix-build = "nom-build";
