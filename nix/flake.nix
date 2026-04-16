@@ -66,6 +66,8 @@
   outputs = inputs@{ self, nix-darwin, nixpkgs, ... }:
     let
 
+    common = { nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ]; };
+
     commonMDarwinSystem = customSystemModule: nix-darwin.lib.darwinSystem {
 
       specialArgs = {
@@ -75,6 +77,7 @@
       };
 
       modules = [
+        common
         ./darwin/common.nix
           customSystemModule
       ];
@@ -115,6 +118,7 @@
         system = "aarch64-linux";
         specialArgs = { inherit inputs; };
         modules = [
+          common
           inputs.microvm.nixosModules.microvm
           inputs.home-manager.nixosModules.home-manager
           ./linux/fukusuke/configuration.nix

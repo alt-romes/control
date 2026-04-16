@@ -17,7 +17,7 @@ in
     enable = true;
     package = inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
-    custom-instructions =
+    context =
       ''
         - When a dependency is not available, use `nix` to temporarily make it available (like
           nodejs). Don't use nix for things which are already available, like the Haskell toolchain.
@@ -94,8 +94,6 @@ in
       };
     };
   };
-
-  nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
 
   home.packages = [
     inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
