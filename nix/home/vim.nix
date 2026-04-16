@@ -222,7 +222,7 @@
     };
 
     /* Plugins */
-    plugins.treesitter.enable = true;
+    plugins.treesitter.enable = !minimal; # too slow for VM, too many languages supported.
 
     # Telescope is too slow to find files, so we use fzf-lua there.
     plugins.telescope.enable = true;

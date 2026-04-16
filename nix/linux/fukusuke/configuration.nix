@@ -71,6 +71,8 @@
     ];
   };
 
+  boot.initrd.systemd.enable = true;
+
   nix.settings = {
     trusted-users = [ "romes" ];
     experimental-features = [ "nix-command" "flakes" ];
