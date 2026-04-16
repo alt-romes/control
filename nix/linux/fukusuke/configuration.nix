@@ -28,8 +28,8 @@
       }
       # cabal store
       {
-        source = "/Users/romes/.local/state/cabal/store/";
-        mountPoint = "/home/romes/.local/state/cabal/store/";
+        source = "/Users/romes/.local/state/cabal/store";
+        mountPoint = "/home/romes/.local/state/cabal/store";
         tag = "cabal-store";
         proto = "virtiofs";
       }
