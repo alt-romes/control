@@ -62,6 +62,9 @@ in
 
     # Make this available by default
     pkgs.pkg-config
+    pkgs.zlib pkgs.zlib.dev
+    pkgs.gmp pkgs.gmp.dev
+    pkgs.ncurses pkgs.ncurses.dev
 
     # Fonts
     maple-mono.NF
