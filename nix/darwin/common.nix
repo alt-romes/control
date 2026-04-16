@@ -211,6 +211,7 @@
   };
   home-manager.extraSpecialArgs = {
     inherit inputs system;
+    minimal = false;
     # osConfig is inherited and points to the NixOS configuration
   };
 

@@ -116,7 +116,11 @@
           ./linux/fukusuke/configuration.nix
           {
             microvm.vmHostPackages = nixpkgs.legacyPackages.aarch64-darwin;
-            home-manager.extraSpecialArgs = { inherit inputs; system = "aarch64-linux"; };
+            home-manager.extraSpecialArgs = {
+              inherit inputs;
+              system = "aarch64-linux";
+              minimal = true;
+            };
           }
         ];
       };

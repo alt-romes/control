@@ -1,4 +1,4 @@
-{ config, lib, pkgs, inputs, ... }:
+{ config, lib, pkgs, inputs, minimal, ... }:
 let
   mkSkillEntry =
     name: content:
@@ -13,7 +13,7 @@ in
   home.file = lib.mapAttrs' mkSkillEntry config.programs.codex.skills;
 
   programs.codex = {
-    enable = true;
+    enable = !minimal;
     package = inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
     custom-instructions =
