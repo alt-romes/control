@@ -93,7 +93,6 @@
     # $ nix-env -qaP | grep wget
     systemPackages = [
       pkgs.vim
-      pkgs.eza    # ls replacement
 
       pkgs.iina   # video player
 
