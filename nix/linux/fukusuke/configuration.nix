@@ -119,6 +119,7 @@
 
   users.users.romes = {
     isNormalUser = true;
+    shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ romes@world"
     ];
@@ -126,6 +127,8 @@
     packages = [ ];
     uid = 1000;
   };
+
+  programs.zsh.enable = true;
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
