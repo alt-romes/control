@@ -6,7 +6,7 @@ let
 in
 {
   imports = [
-    ./codex.nix
+    ./llm.nix
     ./ghc.nix
     ./git.nix
     ./vim.nix
@@ -35,7 +35,6 @@ in
 
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [
-    inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
     ripgrep
 
     # Haskell

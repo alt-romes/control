@@ -9,6 +9,10 @@
     codex-cli-nix.inputs.nixpkgs.follows = "nixpkgs";
     codex-cli-nix.inputs.flake-utils.follows = "flake-utils";
 
+    claude-code-nix.url = "github:sadjow/claude-code-nix";
+    claude-code-nix.inputs.nixpkgs.follows = "nixpkgs";
+    claude-code-nix.inputs.flake-utils.follows = "flake-utils";
+
     nix-darwin.url = "github:LnL7/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
 

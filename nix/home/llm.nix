@@ -7,13 +7,13 @@ let
       recursive = true;
     };
 in
-{
+lib.mkIf (!minimal) {
   # Write to .codex/skills additionally, because programs.codex.skills are only
   # written to .agents/skills which codex cli still doesn't recognize
   home.file = lib.mapAttrs' mkSkillEntry config.programs.codex.skills;
 
   programs.codex = {
-    enable = !minimal;
+    enable = true;
     package = inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
     custom-instructions =
@@ -93,4 +93,11 @@ in
       };
     };
   };
+
+  nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
+
+  home.packages = [
+    inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
+    pkgs.claude-code
+  ];
 }
