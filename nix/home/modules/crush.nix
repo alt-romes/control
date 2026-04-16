@@ -33,7 +33,7 @@
           api_key = "irrelevant";
           models = [
             {
-              id = "google/gemma-4-26b-a4b";
+              id = "google/gemma-4-31b";
               name = "Gemma 4";
             }
           ];
