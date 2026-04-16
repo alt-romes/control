@@ -5,7 +5,7 @@
     hypervisor = "vfkit";
     vcpu = 8;
     mem = 32768; # I guess these should depend on where the VM is run from but OK
-    graphics.enable = false;
+    graphics.enable = true;
     # Enable ability to run x86 binaries in the VM using rosetta
     vfkit.rosetta = {
       enable = false;
@@ -78,6 +78,40 @@
   };
   nixpkgs.config.allowUnfree = true;
 
+  # Use systemd initrd (scripted initrd is deprecated in 26.05+)
+  boot.initrd.systemd.enable = true;
+
+  # Graphics / Wayland
+  hardware.graphics.enable = true;
+
+  # Sway (minimal Wayland compositor / window manager)
+  programs.sway = {
+    enable = true;
+    wrapperFeatures.gtk = true;
+  };
+
+  # XDG portal for screen sharing, file picker etc.
+  xdg.portal = {
+    enable = true;
+    wlr.enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  };
+
+  # Display manager: autologin romes directly into sway
+  services.greetd = {
+    enable = true;
+    settings = {
+      default_session = {
+        command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd sway";
+        user = "greeter";
+      };
+      initial_session = {
+        command = "${pkgs.sway}/bin/sway";
+        user = "romes";
+      };
+    };
+  };
+
   time.timeZone = "Europe/Portugal";
   
   networking = {
@@ -105,6 +139,11 @@
       btop
       gdb
       rr # debugger
+      # Wayland utilities
+      wl-clipboard
+      foot # minimal Wayland terminal
+      # Editor
+      vscode
     ];
     variables = {
       HISTCONTROL = "ignoredups";
@@ -136,8 +175,6 @@
   };
 
   services.openssh.enable = true;
-
-  services.getty.autologinUser = "romes";
 
   # environment.etc."motd".text = ''
   #   vfkit Test VM - Apple Silicon
