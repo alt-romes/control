@@ -30,6 +30,7 @@
       config = {
         virtualisation.cores = 6;        # Number of CPU cores
         virtualisation.memorySize = lib.mkForce 16384; # RAM in MB (16 GB)
+        virtualisation.diskSize = lib.mkForce 51200; # 50GB instead of default 20GB
       };
     };
 
