@@ -1,5 +1,5 @@
 # romes home configuration
-{ config, lib, pkgs, inputs, ... }:
+{ config, lib, pkgs, inputs, minimal, ... }:
 let
   hs-comp = pkgs.haskell.compiler.ghc914;
   hs-pkgs = pkgs.haskell.packages.ghc914;
@@ -122,9 +122,9 @@ in
   };
 
   programs.ghostty = {
-    enable = true;
+    enable = !minimal;
     # Broken on MacOS, so use the homebrew app. Configuration is still managed here.
-    package = if pkgs.stdenv.isLinux then pkgs.ghostty else null;
+    package = null;
     enableZshIntegration = true;
     settings = {
         # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
