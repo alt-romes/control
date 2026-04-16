@@ -7,7 +7,8 @@ let
       recursive = true;
     };
 in
-lib.mkIf (!minimal) {
+# lib.mkIf (!minimal) {
+{
   # Write to .codex/skills additionally, because programs.codex.skills are only
   # written to .agents/skills which codex cli still doesn't recognize
   home.file = lib.mapAttrs' mkSkillEntry config.programs.codex.skills;
