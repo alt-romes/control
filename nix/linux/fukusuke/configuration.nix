@@ -105,6 +105,7 @@
       btop
       gdb
       rr # debugger
+      ghostty.terminfo
     ];
     variables = {
       HISTCONTROL = "ignoredups";
