@@ -1,4 +1,4 @@
-{ config, lib, pkgs, inputs, ... }:
+{ config, lib, pkgs, inputs, minimal, ... }:
 {
 
   imports = [ inputs.nixvim.homeModules.nixvim ];
@@ -214,7 +214,7 @@
           };
 
           # Nix
-          nixd.enable = true;
+          nixd.enable = !minimal;
 
           # Swift
           sourcekit.enable = false;
