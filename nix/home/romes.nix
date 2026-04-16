@@ -113,7 +113,7 @@ in
       select-word-style bash
     '';
     localVariables = {
-        TYPEWRITTEN_PROMPT_LAYOUT="pure";
+        TYPEWRITTEN_PROMPT_LAYOUT = if pkgs.stdenv.isLinux then "singleline_verbose" else "pure";
     };
     plugins = [
       {
