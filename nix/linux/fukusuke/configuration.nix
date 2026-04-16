@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, inputs, pkgs, ... }:
 {
   # Configuration for when run as a VM using microvm.nix
   microvm = {
@@ -70,6 +70,11 @@
       }
     ];
   };
+
+  imports = [
+    # Home-manager
+    inputs.home-manager.nixosModules.home-manager
+  ];
 
   boot.initrd.systemd.enable = true;
 
