@@ -70,6 +70,8 @@
   ];
 
   boot.initrd.systemd.enable = true;
+  # Disable SME/SVE support because they are causing bugs with lldb and gdb in VM
+  boot.kernelParams = [ "arm64.nosve" "arm64.nosme" ];
 
   nix.settings = {
     trusted-users = [ "romes" ];
@@ -104,7 +106,9 @@
     systemPackages = with pkgs; [
       btop
       gdb
-      rr # debugger
+      rr
+      # lldb clangd llvm
+      ncurses
       ghostty.terminfo
     ];
     variables = {
