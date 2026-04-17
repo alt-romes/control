@@ -137,6 +137,13 @@
     imports = [
       ../../home/romes.nix
     ];
+
+    home.sessionVariables = {
+      TERMINFO_DIRS = "$HOME/.terminfo:$TERMINFO_DIRS";
+    };
+
+    home.file.".terminfo/x/xterm-ghostty".source = "${pkgs.ghostty.terminfo}/share/terminfo/x/xterm-ghostty";
+    home.file.".terminfo/x/xterm-256color".source = "${pkgs.ncurses}/share/terminfo/x/xterm-256color";
   };
 
   services.openssh.enable = true;
