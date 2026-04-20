@@ -1,7 +1,7 @@
 {- cabal:
   build-depends: base, random
 -}
-{-# LANGUAGE GHC2024, BlockArguments, TypeFamilies, UndecidableInstances #-}
+{-# LANGUAGE GHC2024, BlockArguments, TypeFamilies, UndecidableInstances, AllowAmbiguousTypes #-}
 import GHC.TypeNats
 import Prelude hiding (id, (.))
 import Control.Category
@@ -36,39 +36,55 @@ dup = linear (\x -> (x,x))
 --------------------------------------------------------------------------------
 neg  = linear negate
 add  = linear (uncurry (+))
-sub  = linear (uncurry (-))
 mul  = D (\(x,y) -> (x*y, \(dx,dy) -> dx*y + dy*x))
 rec  = D (\x -> (recip x, \dx -> dx*(-1 / x^2)))
 exp' = D (\x -> let e = exp x in (e, \dx -> dx*e))
 log' = D (\x -> let l = log x in (l, \dx -> dx*(-1/l)))
 
-(<+) :: Num a => a -> (a :-> a) -- adds constant number
-(<+) k = D \x -> (k+x, \dx -> dx)
+(+>) :: Num a => a -> (a :-> a) -- adds constant number
+(+>) k = D \x -> (k+x, \dx -> dx)
 
-sigmoid = rec . (1 <+) . exp' . neg
+sigmoid = rec . (1 +>) . exp' . neg
 --------------------------------------------------------------------------------
 type family R n where
   R 1 = Double
   R n = Double × R (n-1)
 
-xorNet :: R 2 :-> R 1
-xorNet = undefined -- sigmoid . l2 . (sigmoid × sigmoid × sigmoid × sigmoid) . l1
-  -- where
-  --   l1 :: R 2 :-> R 4
-  --   l1 = _
-  --
-  --   l2 :: R 4 :-> R 1
-  --   l2 = _
+-- ugly... how to avoid this completely?
+class Layer a where
+  weightedSum :: a -> a :-> R 1
+  weightedSum' :: (a × a) :-> R 1
+instance Layer Double where
+  weightedSum x = linear (* x)
+  weightedSum' = mul
+instance Layer b => Layer (Double, b) where
+  weightedSum (x, xs) = add . (linear (* x) × weightedSum xs) . (exl × exr) . dup
+  weightedSum' :: ((Double, b) × (Double, b)) :-> R 1
+  weightedSum' = add . (mul × weightedSum') . ((exl × exl) × (exr × exr)) . dup
 
--- Layers: 2 -> 4 -> 1
--- Weights: 2x4 + 4x1
+type L1W = (R 2 × (R 2 × (R 2 × R 2)))
+
+-- Weights: 2x4=8 + 4x1
 -- Biases: 2 + 4
+xorNet :: R 2 -> (L1W, R 4) :-> R 1
+xorNet i = sigmoid . l2 . ((l1 i . exl) × exr) . dup
 
--- cost1 :: (R 2, R 1) -> ((R 4 × R 4) × R 4) :-> R 1
--- cost1 (i, o) = mul . dup . sub
+l1 :: R 2 -> L1W :-> R 4
+l1 i = ( sigmoid . weightedSum @(R 2) i) ×
+       ((sigmoid . weightedSum @(R 2) i) ×
+       ((sigmoid . weightedSum @(R 2) i) ×
+        (sigmoid . weightedSum @(R 2) i)))
 
-cost :: ((R 4 × R 4) × R 4) :-> R 1
-cost = undefined
+l2 :: (R 4 × R 4) :-> R 1
+l2 = weightedSum'
+
+cost :: [(R 2, R 1)] -> (L1W × R 4) :-> R 1
+cost (p:ps) = normalize . foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
+  where
+    cost1 :: (R 2, R 1) -> (L1W × R 4) :-> R 1
+    cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
+
+    normalize = id -- TODO
 
 -- TODO: Neural Networks made moderately complex:
 --  do more complicated version which uses size-indexed vecs,
