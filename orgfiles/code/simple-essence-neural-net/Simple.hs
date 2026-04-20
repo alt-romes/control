@@ -5,6 +5,7 @@
 import GHC.TypeNats
 import Prelude hiding (id, (.))
 import Control.Category
+import System.Random
 
 -- | Differentiable+ function
 newtype a :-> b = D { (#) :: a -> (b, a -> b) }
@@ -85,6 +86,9 @@ cost (p:ps) = normalize . foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1
     cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
 
     normalize = id -- TODO
+
+examples :: [(R 2, R 1)]
+examples = [((0,0),0), ((0,1),1), ((1,0),1), ((1,1),0)]
 
 -- TODO: Neural Networks made moderately complex:
 --  do more complicated version which uses size-indexed vecs,
