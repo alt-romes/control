@@ -63,14 +63,10 @@
         "*.orig" "*.swp" "*.class" "*.aux" "*.log" "*.out" "*.hi" "*.o" "tags" ];
   };
 
-  programs.delta = {
+  programs.difftastic = {
     enable = true;
-    enableGitIntegration = true;
-    options = {
-      navigate = true;
-      side-by-side = true;
-      light = false;
-    };
+    git.enable = true;
+    git.diffToolMode = true;
   };
 
 }
