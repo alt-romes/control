@@ -34,16 +34,18 @@ f × g = D \(a,b) -> -- paralell composition
 exl = linear fst
 exr = linear snd
 dup = linear (\x -> (x,x))
+
+scale y = \dx -> dx*y -- (linearly) scale argument
 --------------------------------------------------------------------------------
 neg  = linear negate
 add  = linear (uncurry (+))
 mul  = D (\(x,y) -> (x*y, \(dx,dy) -> dx*y + dy*x))
-rec  = D (\x -> (recip x, \dx -> dx*(-1 / x^2)))
-exp' = D (\x -> let e = exp x in (e, \dx -> dx*e))
-log' = D (\x -> let l = log x in (l, \dx -> dx*(-1/l)))
+rec  = D (\x -> (recip x, scale (-1 / x^2)))
+exp' = D (\x -> let e = exp x in (e, scale e))
+log' = D (\x -> let l = log x in (l, scale (-1/l)))
 
-(+>) :: Num a => a -> (a :-> a) -- adds constant number
-(+>) k = D \x -> (k+x, \dx -> dx)
+(+>) :: Num a => a -> (a :-> a)
+(+>) k = D \x -> (k+x, id) -- adds constant number
 
 sigmoid = rec . (1 +>) . exp' . neg
 --------------------------------------------------------------------------------
