@@ -1,17 +1,13 @@
-{- cabal:
-  build-depends: base, random
--}
 {-# LANGUAGE GHC2024, BlockArguments, TypeFamilies, UndecidableInstances, AllowAmbiguousTypes, NoMonomorphismRestriction #-}
-import Control.Monad (foldM) -- eh
 import GHC.TypeNats
 import Prelude hiding (id, (.))
 import Control.Category
-import System.Random
 
--- | Differentiable+ function
+-- | Differentiable+ functions
 newtype a :-> b = D { (#) :: a -> (b, a <-- b) }
 
-newtype a <-- b = Dual { runDual :: b -> a } -- look at "Transposition (Fig 11)" in "You Only Linearize Once" for how to invert mathematical operations
+-- | Dual of Linear Map. See also "Transposition (Fig 11)" in "You Only Linearize Once".
+newtype a <-- b = Dual { runDual :: b -> a }
 
 -- | The derivative of every linear function is itself, everywhere
 linear :: (a -> b) -> (a <-- b) -> (a :-> b)
@@ -25,7 +21,6 @@ instance Category (:->) where
         (c, Dual g') = g # b
      in (c, Dual (f' . g') {- invert ! -})
 
--- Monoidal
 type (×) = (,)
 (×) :: (a :-> c) -> (b :-> d) -> ((a×b) :-> (c×d))
 f × g = D \(a,b) -> -- paralell composition
@@ -33,7 +28,6 @@ f × g = D \(a,b) -> -- paralell composition
       (d, Dual g') = g # b
    in ((c,d), Dual \(x,y) -> (f' x, g' y))
 
--- Cartesian
 exl = linear fst (Dual $ \x -> (x, 0))          -- TDropLin
 exr = linear snd (Dual $ \x -> (0, x))          -- TDropLin
 dup = linear (\x -> (x,x)) (Dual $ uncurry (+)) -- TLinDup
@@ -52,80 +46,67 @@ log' = D \x -> let l = log x in (l, scale (-1/l))
 
 sigmoid = rec . (1 +>) . exp' . neg
 --------------------------------------------------------------------------------
--- Example
-sqr = mul . dup
-sqrMag = add . (sqr × sqr)
-
--- gradient is [2x 2y]
-sqrMagGrad x y = runDual (snd (sqrMag # (x,y))) 1 {- seed for the output == 1, returns gradient vector -}
---------------------------------------------------------------------------------
--- Neural Net
 type family R n where
   R 1 = Double
   R n = Double × R (n-1)
 
 instance (Num a, Num b) => Num (a, b) where
-  -- another hacky... this allows us to use `dup` and `exl/r` below; and allows math on tuples to train
   fromInteger x = (fromInteger x, fromInteger x)
   (+) (a, b) (c, d) = (a+c, b+d)
-  negate (a, b) = (negate a, negate b)
+  negate (a, b)     = (negate a, negate b)
 
--- ugly... how to avoid this completely?
-class Layer a where
-  weightedSum :: a -> a :-> R 1
+class Layer a where -- ugly... how to avoid this completely?
+  weightedSum  :: a -> a :-> R 1
   weightedSum' :: (a × a) :-> R 1
 instance Layer Double where
   weightedSum x = linear (*x) (scale x)
-  weightedSum' = mul
+  weightedSum'  = mul
 
 instance (Num b, Layer b) => Layer (Double, b) where
   weightedSum (x, xs) = add . (linear (*x) (scale x) × weightedSum xs)
-  weightedSum' :: ((Double, b) × (Double, b)) :-> R 1
-  weightedSum' = add . (mul × weightedSum') . ((exl × exl) × (exr × exr)) . dup
+  weightedSum'        = add . (mul × weightedSum') . ((exl × exl) × (exr × exr)) . dup
 
 type L1W = (R 2 × (R 2 × (R 2 × R 2)))
 
--- Weights: 2x4=8 + 4x1
--- Biases: 2 + 4
 xorNet :: R 2 -> (L1W, R 4) :-> R 1
-xorNet i = sigmoid . l2 . ((l1 i . exl) × exr) . dup
+xorNet i = l2 . ((l1 i . exl) × exr) . dup
 
 l1 :: R 2 -> L1W :-> R 4
-l1 i = ( sigmoid . weightedSum @(R 2) i) ×
-       ((sigmoid . weightedSum @(R 2) i) ×
-       ((sigmoid . weightedSum @(R 2) i) ×
-        (sigmoid . weightedSum @(R 2) i)))
+l1 i = ( sigmoid . weightedSum @(R 2) i) × ((sigmoid . weightedSum @(R 2) i) ×
+       ((sigmoid . weightedSum @(R 2) i) × (sigmoid . weightedSum @(R 2) i)))
 
 l2 :: (R 4 × R 4) :-> R 1
-l2 = weightedSum'
+l2 = sigmoid . weightedSum'
 
 cost :: [(R 2, R 1)] -> (L1W × R 4) :-> R 1
-cost (p:ps) = normalize . foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
+cost (p:ps) = linear (*n) (scale n) . foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
   where
     cost1 :: (R 2, R 1) -> (L1W × R 4) :-> R 1
     cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
 
-    normalize = id -- TODO
+    n = 1/fromIntegral (length ps + 1)
 
 examples :: [(R 2, R 1)]
 examples = [((0,0),0), ((0,1),1), ((1,0),1), ((1,1),0)]
 
 step :: Int -> (L1W, R 4) -> IO (L1W, R 4)
 step i weights = do
-  putStrLn $ "Step: " ++ show i
   let (r, Dual grad) = cost examples # weights
-  putStrLn $ "Cost: " ++ show r
-  pure $ weights + grad (-1)
+  putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
+  pure $ weights + grad (-10) -- adjust weights
 
-train :: IO ()
-train = do
-  initialWeights <- randomIO @(L1W, R 4)
-  finalWeights <- foldM (flip step) initialWeights [0..100000]
+train :: (L1W, R 4) -> IO ()
+train initialWeights = do
+  finalWeights <- foldl' (\acc i -> acc >>= step i) (pure initialWeights) [0..1000000]
   putStrLn "Neural net result on examples:"
   print $ map (\ex -> fst (xorNet (fst ex) # finalWeights)) examples
   putStrLn "Expected results:"
   print (map snd examples)
-  -- cost examples # weights
+
+main = do -- try something like `awk 'BEGIN{srand(); for (i=1;i<100;i++) print(rand())}' | ./Simple`
+  -- generated with: initialWeights <- randomIO @(L1W, R 4)
+  let randomWeights = (((0.263158804855843,0.9198593145637255),((0.29665240651775127,8.055163018364941e-2),((0.5928698356302193,0.8933566967251643),(0.6951127432289572,0.9105678050355198)))),(0.28879960912172786,(0.9519938818911216,(0.3136325216345741,2.7947832757196922e-2))))
+  train randomWeights
 
 -- TODO: Neural Networks made moderately complex:
 --  do more complicated version which uses size-indexed vecs,
