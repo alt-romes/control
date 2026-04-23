@@ -44,7 +44,7 @@ log' = D \x -> let l = log x in (l, scale (-1/l))
 (+>) :: Num a => a -> (a :-> a)
 (+>) k = D \x -> (k+x, Dual id) -- adds constant number
 
-sigmoid = rec . (1 +>) . exp' . neg
+sigmoid = rec . (1 +>) . exp' . neg -- 1 / (1 + exp (-x))
 --------------------------------------------------------------------------------
 type family R n where
   R 1 = Double
@@ -107,6 +107,14 @@ main = do -- try something like `awk 'BEGIN{srand(); for (i=1;i<100;i++) print(r
   -- generated with: initialWeights <- randomIO @(L1W, R 4)
   let randomWeights = (((0.263158804855843,0.9198593145637255),((0.29665240651775127,8.055163018364941e-2),((0.5928698356302193,0.8933566967251643),(0.6951127432289572,0.9105678050355198)))),(0.28879960912172786,(0.9519938818911216,(0.3136325216345741,2.7947832757196922e-2))))
   train randomWeights
+
+--------------------------------------------------------------------------------
+-- Simple Example
+sqr = mul . dup
+sqrMag = add . (sqr × sqr)
+
+-- gradient is [2x 2y]
+sqrMagGrad x y = runDual (snd (sqrMag # (x,y))) 1 {- seed for the output == 1, returns gradient vector -}
 
 -- TODO: Neural Networks made moderately complex:
 --  do more complicated version which uses size-indexed vecs,
