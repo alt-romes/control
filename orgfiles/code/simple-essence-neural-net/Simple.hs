@@ -1,13 +1,24 @@
-{-# LANGUAGE GHC2024, BlockArguments, TypeFamilies, UndecidableInstances, AllowAmbiguousTypes, NoMonomorphismRestriction #-}
-import GHC.TypeNats
+{-# LANGUAGE GHC2024, UnicodeSyntax, BlockArguments, TypeFamilies, UndecidableInstances, AllowAmbiguousTypes, NoMonomorphismRestriction, DataKinds #-}
+{-# OPTIONS_GHC -Wno-missing-methods #-}
+import GHC.TypeLits
 import Prelude hiding (id, (.))
 import Control.Category
+import Data.Proxy
+
+-- | Vectors
+newtype V (n :: Nat) a = V { els :: [a] } deriving (Eq, Functor, Show)
+
+instance (KnownNat n, Num a) => Num (V n a) where -- really, instance Vector Space
+  fromInteger a     = V [fromInteger a | _ <- [1..natVal @n Proxy]]
+  (+) (V as) (V bs) = V (zipWith (+) as bs)
+  (*) (V as) (V bs) = V (zipWith (*) as bs) -- hadamard product
+  negate            = fmap negate
 
 -- | Differentiable+ functions
 newtype a :-> b = D { (#) :: a -> (b, a <-- b) }
 
--- | Dual of Linear Map. See also "Transposition (Fig 11)" in "You Only Linearize Once".
-newtype a <-- b = Dual { runDual :: b -> a }
+-- | Dual of Linear Map. See "Transposition (Fig 11)" in "You Only Linearize Once".
+newtype a <-- b = Dual { (<|) :: b -> a }
 
 -- | The derivative of every linear function is itself, everywhere
 linear :: (a -> b) -> (a <-- b) -> (a :-> b)
@@ -21,22 +32,21 @@ instance Category (:->) where
         (c, Dual g') = g # b
      in (c, Dual (f' . g') {- invert ! -})
 
-type (×) = (,)
-(×) :: (a :-> c) -> (b :-> d) -> ((a×b) :-> (c×d))
+(×) :: (a :-> c) -> (b :-> d) -> ((a,b) :-> (c,d))
 f × g = D \(a,b) -> -- paralell composition
   let (c, Dual f') = f # a
       (d, Dual g') = g # b
    in ((c,d), Dual \(x,y) -> (f' x, g' y))
 
-exl = linear fst (Dual $ \x -> (x, 0))          -- TDropLin
-exr = linear snd (Dual $ \x -> (0, x))          -- TDropLin
-dup = linear (\x -> (x,x)) (Dual $ uncurry (+)) -- TLinDup
-
+exl = linear fst (Dual \x -> (x, 0))            -- TDropLin
+exr = linear snd (Dual \x -> (0, x))            -- TDropLin
+dup = linear (\x -> (x,x)) (Dual \(x,y) -> x+y) -- TLinDup
+--------------------------------------------------------------------------------
 scale y = Dual \dx -> dx*y -- (linearly) scale argument by fixed y (TLinMul)
 --------------------------------------------------------------------------------
+add  = linear (uncurry (+)) (Dual \x -> (x,x))
+mul  = D \(x,y) -> (x*y, Dual \df -> (df*y, df*x))
 neg  = linear negate (scale (-1))
-add  = linear (uncurry (+)) (Dual $ \x -> (x,x))
-mul  = D \(x,y) -> (x*y, Dual \df -> (df*y,df*x))
 rec  = D \x -> (recip x, scale (-1 / x^2))
 exp' = D \x -> let e = exp x in (e, scale e)
 log' = D \x -> let l = log x in (l, scale (-1/l))
@@ -46,56 +56,49 @@ log' = D \x -> let l = log x in (l, scale (-1/l))
 
 sigmoid = rec . (1 +>) . exp' . neg -- 1 / (1 + exp (-x))
 --------------------------------------------------------------------------------
-type family R n where
-  R 1 = Double
-  R n = Double × R (n-1)
+-- | Kind of uncurry, allows fixing one of the inputs
+fixed :: ((a,b) :-> c) -> (a -> (b :-> c))
+fixed f a = D \b -> let (c, Dual d) = f # (a, b) in (c, Dual \c' -> snd (d c'))
+
+type S   = Double -- scalar (R 1)
+type R n = V n Double
+
+-- | weightedSum ([a, b], [c, d]) == a*c+b*d
+weightedSum = addN . mul
+
+xorNet :: R 2 -> (V 4 (R 2), R 4) :-> S
+xorNet i = l2 . (l1 i × id)
+
+l1 :: R 2 -> V 4 (R 2) :-> R 4
+l1 i = crossN (V [sigmoid . fixed weightedSum i | _ <- [1..4]])
+
+l2 :: (R 4, R 4) :-> S
+l2 = sigmoid . weightedSum
 
 instance (Num a, Num b) => Num (a, b) where
-  fromInteger x = (fromInteger x, fromInteger x)
+  fromInteger a     = (fromInteger a, fromInteger a)
   (+) (a, b) (c, d) = (a+c, b+d)
   negate (a, b)     = (negate a, negate b)
 
-class Layer a where -- ugly... how to avoid this completely?
-  weightedSum  :: a -> a :-> R 1
-  weightedSum' :: (a × a) :-> R 1
-instance Layer Double where
-  weightedSum x = linear (*x) (scale x)
-  weightedSum'  = mul
-
-instance (Num b, Layer b) => Layer (Double, b) where
-  weightedSum (x, xs) = add . (linear (*x) (scale x) × weightedSum xs)
-  weightedSum'        = add . (mul × weightedSum') . ((exl × exl) × (exr × exr)) . dup
-
-type L1W = (R 2 × (R 2 × (R 2 × R 2)))
-
-xorNet :: R 2 -> (L1W, R 4) :-> R 1
-xorNet i = l2 . ((l1 i . exl) × exr) . dup
-
-l1 :: R 2 -> L1W :-> R 4
-l1 i = ( sigmoid . weightedSum @(R 2) i) × ((sigmoid . weightedSum @(R 2) i) ×
-       ((sigmoid . weightedSum @(R 2) i) × (sigmoid . weightedSum @(R 2) i)))
-
-l2 :: (R 4 × R 4) :-> R 1
-l2 = sigmoid . weightedSum'
-
-cost :: [(R 2, R 1)] -> (L1W × R 4) :-> R 1
-cost (p:ps) = linear (*n) (scale n) . foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
+cost :: [(R 2, S)] -> (V 4 (R 2), R 4) :-> S
+cost (p:ps) = linear (*n) (scale n) .
+              foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
   where
-    cost1 :: (R 2, R 1) -> (L1W × R 4) :-> R 1
+    cost1 :: (R 2, S) -> (V 4 (R 2), R 4) :-> S
     cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
 
     n = 1/fromIntegral (length ps + 1)
 
-examples :: [(R 2, R 1)]
-examples = [((0,0),0), ((0,1),1), ((1,0),1), ((1,1),0)]
+examples :: [(R 2, S)]
+examples = [(V [0,0],0), (V [0,1],1), (V [1,0],1), (V [1,1],0)]
 
-step :: Int -> (L1W, R 4) -> IO (L1W, R 4)
+step :: Int -> (V 4 (R 2), R 4) -> IO (V 4 (R 2), R 4)
 step i weights = do
   let (r, Dual grad) = cost examples # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   pure $ weights + grad (-10) -- adjust weights
 
-train :: (L1W, R 4) -> IO ()
+train :: (V 4 (R 2), R 4) -> IO ()
 train initialWeights = do
   finalWeights <- foldl' (\acc i -> acc >>= step i) (pure initialWeights) [0..1000000]
   putStrLn "Neural net result on examples:"
@@ -105,16 +108,30 @@ train initialWeights = do
 
 main = do -- try something like `awk 'BEGIN{srand(); for (i=1;i<100;i++) print(rand())}' | ./Simple`
   -- generated with: initialWeights <- randomIO @(L1W, R 4)
-  let randomWeights = (((0.263158804855843,0.9198593145637255),((0.29665240651775127,8.055163018364941e-2),((0.5928698356302193,0.8933566967251643),(0.6951127432289572,0.9105678050355198)))),(0.28879960912172786,(0.9519938818911216,(0.3136325216345741,2.7947832757196922e-2))))
+  let
+    randomWeights =
+      (V[V[0.263158804855843,0.9198593145637255], V[0.29665240651775127,8.055163018364941e-2], V[0.5928698356302193,0.8933566967251643], V[0.6951127432289572,0.9105678050355198]],V[0.28879960912172786,0.9519938818911216,0.3136325216345741,2.7947832757196922e-2])
   train randomWeights
 
 --------------------------------------------------------------------------------
--- Simple Example
-sqr = mul . dup
-sqrMag = add . (sqr × sqr)
-
--- gradient is [2x 2y]
-sqrMagGrad x y = runDual (snd (sqrMag # (x,y))) 1 {- seed for the output == 1, returns gradient vector -}
+-- N-ary dup and cross
+dupN :: ∀ n a. KnownNat n => Num a => a :-> V n a
+dupN = linear (\x -> V [x | _ <- [1..natVal @n Proxy]]) (Dual (sum . els)) -- TLinDup
+crossN :: V n (a :-> b) -> (V n a :-> V n b)
+crossN (V fs) = D \(V as) -> -- paralell composition
+  let (bs, ds) = unzip (zipWith (#) fs as)
+   in (V bs, Dual \(V das) -> V (zipWith (<|) ds das))
+addN, mulN :: ∀ n a. KnownNat n => (Eq a, Num a) => V n a :-> a
+addN = linear (sum . els) (Dual \x -> V [x | _ <- [1..natVal @n Proxy]])
+mulN = D \(V as) -> (product as, Dual \df -> let ixs = zip as [1::Int ..] in
+           V [df*product [v | (v,j) <- ixs, j /= i] | (_,i) <- ixs])
+--------------------------------------------------------------------------------
+-- -- Simple Example
+-- sqr = mul . dup
+-- sqrMag = add . (sqr × sqr)
+--
+-- -- gradient is [2x 2y]
+-- sqrMagGrad x y = (snd (sqrMag # (x,y))) <| 1 {- seed for the output == 1, returns gradient vector -}
 
 -- TODO: Neural Networks made moderately complex:
 --  do more complicated version which uses size-indexed vecs,
@@ -131,4 +148,4 @@ sqrMagGrad x y = runDual (snd (sqrMag # (x,y))) 1 {- seed for the output == 1, r
 --
 -- We could do an linear algebraically module based on linear substructurally
 -- by making multiplication receive only 1 linear argument (the other is
--- unrestricted) and making addition work normally OK)
+-- unrestricted) and making addition work normally OK
