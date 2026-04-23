@@ -211,6 +211,11 @@
           hls = {
             enable = true;
             installGhc = false; # Disable a warning for ghc installation
+            settings = {
+              haskell = {
+                sessionLoading = "multipleComponents";
+              };
+            };
           };
 
           # Nix
