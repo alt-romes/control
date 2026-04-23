@@ -21,8 +21,7 @@ instance Category (:->) where
         (c, Dual g') = g # b
      in (c, Dual (f' . g') {- invert ! -})
 
-type (×) = (,)
-(×) :: (a :-> c) -> (b :-> d) -> ((a×b) :-> (c×d))
+(×) :: (a :-> c) -> (b :-> d) -> ((a,b) :-> (c,d))
 f × g = D \(a,b) -> -- paralell composition
   let (c, Dual f') = f # a
       (d, Dual g') = g # b
@@ -46,42 +45,39 @@ log' = D \x -> let l = log x in (l, scale (-1/l))
 
 sigmoid = rec . (1 +>) . exp' . neg -- 1 / (1 + exp (-x))
 --------------------------------------------------------------------------------
+fixed :: ((a,b) :-> c) -> (a -> (b :-> c))
+fixed f a = D \b -> let (c, Dual d) = f # (a, b) in (c, Dual \c' -> snd (d c'))
+--------------------------------------------------------------------------------
 type family R n where
   R 1 = Double
-  R n = Double × R (n-1)
+  R n = (Double, R (n-1))
 
 instance (Num a, Num b) => Num (a, b) where
   fromInteger x = (fromInteger x, fromInteger x)
   (+) (a, b) (c, d) = (a+c, b+d)
   negate (a, b)     = (negate a, negate b)
 
-class Layer a where -- ugly... how to avoid this completely?
-  weightedSum  :: a -> a :-> R 1
-  weightedSum' :: (a × a) :-> R 1
-instance Layer Double where
-  weightedSum x = linear (*x) (scale x)
-  weightedSum'  = mul
+class    WSum a      where weightedSum :: (a,a) :-> R 1
+instance WSum Double where weightedSum = mul
+instance (Num b, WSum b) => WSum (Double, b) where
+  weightedSum = add . (mul × weightedSum) . ((exl × exl) × (exr × exr)) . dup
 
-instance (Num b, Layer b) => Layer (Double, b) where
-  weightedSum (x, xs) = add . (linear (*x) (scale x) × weightedSum xs)
-  weightedSum'        = add . (mul × weightedSum') . ((exl × exl) × (exr × exr)) . dup
-
-type L1W = (R 2 × (R 2 × (R 2 × R 2)))
+type L1W = (R 2, (R 2, (R 2, R 2)))
 
 xorNet :: R 2 -> (L1W, R 4) :-> R 1
-xorNet i = l2 . ((l1 i . exl) × exr) . dup
+xorNet i = l2 . (l1 i × id)
 
 l1 :: R 2 -> L1W :-> R 4
-l1 i = ( sigmoid . weightedSum @(R 2) i) × ((sigmoid . weightedSum @(R 2) i) ×
-       ((sigmoid . weightedSum @(R 2) i) × (sigmoid . weightedSum @(R 2) i)))
+l1 i = ( sigmoid . fixed weightedSum i) × ((sigmoid . fixed weightedSum i) ×
+       ((sigmoid . fixed weightedSum i) × (sigmoid . fixed weightedSum i)))
 
-l2 :: (R 4 × R 4) :-> R 1
-l2 = sigmoid . weightedSum'
+l2 :: (R 4, R 4) :-> R 1
+l2 = sigmoid . weightedSum
 
-cost :: [(R 2, R 1)] -> (L1W × R 4) :-> R 1
+cost :: [(R 2, R 1)] -> (L1W, R 4) :-> R 1
 cost (p:ps) = linear (*n) (scale n) . foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
   where
-    cost1 :: (R 2, R 1) -> (L1W × R 4) :-> R 1
+    cost1 :: (R 2, R 1) -> (L1W, R 4) :-> R 1
     cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
 
     n = 1/fromIntegral (length ps + 1)
