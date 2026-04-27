@@ -47,7 +47,6 @@
     enable = true;
 
     brews = [ # non-cask formulaes
-      "llama.cpp" # for use with llama.vim
     ];
     casks = [ # casks, see also per-machine configuration (see relevant files)
       "flycut"
