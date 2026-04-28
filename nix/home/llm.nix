@@ -100,7 +100,7 @@ in
   programs.claude-code = {
     enable = true;
     package = inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
-    memory.text = aiContext;
+    context = aiContext;
   };
 
   home.packages = [
