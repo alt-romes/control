@@ -2,6 +2,7 @@
 import GHC.TypeNats
 import Prelude hiding (id, (.))
 import Control.Category
+import Data.Bifunctor
 
 newtype a :-> b = D { (#) :: a -> (b, a <-- b) }
 newtype a <-- b = Dual { (<|) :: b -> a }
@@ -37,21 +38,30 @@ cons x = D \xs -> (x:xs, Dual \(dx:dxs) -> dxs) -- add a constant number to head
 --------------------------------------------------------------------------------
 fixed f a = D \b -> let (c, Dual d) = f # (a, b) in (c, Dual \c' -> snd (d c'))
 
-sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-neuron   = sigmoid . sum' . hadamard . (cons 1 × id)
-xorNet :: [a{-2-}] -> ([a{-8-}], [a{-4-}]) :-> a
-xorNet i = neuron . (crossI n × id) where n = fixed neuron i
+crossI :: [a :-> b] -> ([a] :-> [b])
+crossI fs = D \as -> let (bs, bsas) = unzip $ zipWith (#) fs as in (bs, Dual \dbs -> zipWith (<|) bsas dbs)
 
+sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
+
+neuron :: ([Double]{-size n-}, [Double]{-size n+1-}) :-> Double
+neuron = sigmoid . sum' . hadamard . (cons 1 × id)
+
+xorNet :: [Double]{-size n-} -> ([[Double]{-size n+1-}], [Double]) :-> Double
+xorNet i = neuron . (crossI (replicate 4 n) × id) where n = fixed neuron i
+
+cost :: [([Double], Double)] -> ([[Double]], [Double]) :-> Double
 cost (p:ps) = foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
   where cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
 
-examples = [((0,0),0), ((0,1),1), ((1,0),1), ((1,1),0)]
+examples = [([ 0,0 ],0), ([ 0,1 ],1), ([ 1,0 ],1), ([ 1,1 ],0)]
 
+step :: Double -> ([[Double]], [Double]) -> IO ([[Double]], [Double])
 step i weights = do
   let (r, Dual grad) = cost examples # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
-  pure $ weights + grad (-10)
+  pure $ weights + (grad (-10))
 
+train :: ([[Double]], [Double]) -> IO ()
 train initialWeights = do
   finalWeights <- foldl' (\acc i -> acc >>= step i) (pure initialWeights) [0..1000000]
   putStrLn "Neural net result on examples:"
@@ -60,8 +70,8 @@ train initialWeights = do
   print (map snd examples)
 
 main = do
-  let randomWeights = (((0.263158804855843,0.9198593145637255),((0.29665240651775127,8.055163018364941e-2),((0.5928698356302193,0.8933566967251643),(0.6951127432289572,0.9105678050355198)))),(0.28879960912172786,(0.9519938818911216,(0.3136325216345741,2.7947832757196922e-2))))
-  train (randomWeights :: (((Double, Double), ((Double, Double), ((Double, Double), (Double, Double)))), (Double, (Double, (Double, Double)))))
+  let randomWeights = ([[0.263158804855843,0.9198593145637255], [0.29665240651775127,8.055163018364941e-2], [0.5928698356302193,0.8933566967251643], [0.6951127432289572,0.9105678050355198]],[0.28879960912172786,0.9519938818911216,0.3136325216345741,2.7947832757196922e-2])
+  train randomWeights
 --------------------------------------------------------------------------------
 -- -- Not obvious!
 -- curry' :: (a :-> (b :-> c)) -> ((a, b) :-> c)

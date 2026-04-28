@@ -1,5 +1,5 @@
 {-# LANGUAGE GHC2024, UnicodeSyntax, LinearTypes, BlockArguments, TypeFamilies, UndecidableInstances, AllowAmbiguousTypes, NoMonomorphismRestriction, RebindableSyntax #-}
-import Prelude hiding (Monad(..))
+import Prelude hiding (Applicative(..), Monad(..))
 import Control.Monad hiding (Monad(..))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -12,30 +12,61 @@ plus k = unsafeLinear \x -> x + k
 data D a b = D { image :: b, deriv :: a <-- b }
 newtype a <-- b = Dual { (<|) :: b ⊸ a }
 
-(>>=) :: D a b ⊸ (b ⊸ D b c) ⊸ D a c -- See (W1) and (W2) below
+(>>=) :: D a b ⊸ (b ⊸ D b c) ⊸ D a c -- See (W1) and (W2) and (W8) below
 D b (Dual ba) >>= f = D c (Dual (\x -> ba (cb x)))
               where !(D c (Dual cb)) = f b
+
+-- D ([a],[a]) a; D (a,a) a; D (([a],[a]), a) a
+--
+-- a -> a -> a
+--
+-- a -> (a,a) -> ([a],[a])
 
 pure :: b ⊸ D b b
 pure x = D x (Dual \dx -> dx)
 
+(×) :: D a c ⊸ D b d ⊸ D (a,b) (c,d)
+D x (Dual f') × D y (Dual g') = D (x,y) (Dual \(!(da,db)) -> (f' da, g' db))
+
+
 sigmoid :: Floating a => a ⊸ D a a
 sigmoid x = neg x >>= exp' >>= (\x' -> rec (1 `plus` x')) -- See (W5)
 
-neuron :: Floating a => [a] ⊸ [a] ⊸ D a a -- See (W6)
-neuron   = sigmoid . weightedSum
--- xorNet i = neuron . (n × (n × (n × n)) × id) where n = fixed neuron i
+weightedSum :: forall a. Num a => [a] ⊸ [a] ⊸ D ([a],[a]) a -- See (W7)
+weightedSum xs ys = hadamard (xs, ys) >>= sum'
+
+neuron :: forall a. Floating a => [a] ⊸ [a] ⊸ a ⊸ D (([a], [a]), a) a -- See (W6)
+neuron ins ws b = do
+  (wsum, b) <- weightedSum ws ins × pure b -- See (W9)
+  r    <- add (wsum, b)
+  sigmoid r
+
+xorNet :: Floating a => [a] ⊸ ([a],[a],[a],[a],[a]) ⊸ D ([a],[a],[a],[a],[a]) [a]
+xorNet ins (w1,w2,w3,w4,w5) = do
+  (ins1, ins2) <- dup ins × × × -- Achhh, because the input must match the first thing, we're still forced to do the whole cross product here... A little better, but still awful.
+  neuron . (n × (n × (n × n)) × id) where n = fixed neuron i
 
 scale :: Num a => a -> a <-- a
 scale y = Dual \dx -> unsafeLinear (*) dx y
+
+dup :: Floating a => a ⊸ D a (a,a)
+dup = unsafeLinear \x -> D (x,x) (Dual $ unsafeLinear \(!(da, db)) -> da + db)
 --------------------------------------------------------------------------------
 neg, rec, exp', log' :: Floating a => a ⊸ D a a
 neg x = D (unsafeLinear negate x) (scale (-1))
--- add  = linear (uncurry (+)) (Dual \x -> (x,x))
--- mul  = D \(x,y) -> (x*y, Dual \df -> (df*y,df*x))
 rec  = unsafeLinear \x -> D (recip x) (scale (-1 / x^2))
 exp' = unsafeLinear \x -> let e = exp x in D e (scale e) -- See (W3)
 log' = unsafeLinear \x -> D (log x) (scale (1/x))
+
+add, mul :: Num a => (a,a) ⊸ D (a,a) a
+add  = unsafeLinear \(x,y) -> D (x+y) (Dual $ unsafeLinear \df -> (df,df)) -- TLinDup/TLinAdd iirc 
+mul  = unsafeLinear \(x,y) -> D (x*y) (Dual $ unsafeLinear \df -> (df*y,df*x))
+
+sum' :: Num a => [a] ⊸ D [a] a
+sum' = unsafeLinear \xs -> D (sum xs) (Dual $ unsafeLinear \x -> replicate (length xs) x)
+
+hadamard :: Num a => ([a], [a]) ⊸ D ([a],[a]) [a]
+hadamard = unsafeLinear \(ss, xs) -> D (ss .*. xs) (Dual $ unsafeLinear \dfs -> (xs .*. dfs, ss .*. dfs)) where (.*.) = zipWith (*)
 --------------------------------------------------------------------------------
 
 -- (W1) I'm pretty sure this is unsound if we didn't use linear functions... that's novel I think.
@@ -91,9 +122,38 @@ log' = unsafeLinear \x -> D (log x) (scale (1/x))
 --  So, maybe, `+` should take 1 unrestricted argument and 1 linear argument,
 --  guaranteeing it's only ever applied to constants + variables
 
+-- (W6) Opposed to Compiling to Categories/Simple essence of autodiff, the
+-- monadic + linear types approach allows currying easily which makes writing
+-- more complicated functions, whose control flow is hard to describe using
+-- categorical combinators, much easier here.
+--
+-- That is somewhat one of my primary motivations to explore this. Writing the
+-- categorical combinators manually (not using CTC plugin) to display the
+-- "simple essence of autodiff" was too cumbersome.
+--
+-- What is wonderful is that we can receive the arguments as Haskell variables
+-- and pass them to the right location *without* needing a complicated mess of
+-- `id` `exl` `exr` and `cross`...
 
+-- (W7) As with (W6), we also gain RECURSION! and pattern matching, by using
+-- this approach, over categories and other things. Wait, or can we? The
+-- indexed state makes recursion very hard in some locations that I tried.
+--
+-- weightedSum :: forall a. Num a => [a] ⊸ [a] ⊸ D ([a],[a]) a -- See (W7)
+-- weightedSum [x] [y] = (mul (x, y))
+-- weightedSum (x:xs) (y:ys) = do
+--   xy <- mul (x, y)
+--   xsys <- weightedSum
+--   _
+--
+-- And tbf we could already use recursion (like I did in WSum). And pattern
+-- matching here didn't work bc of indexed monad types.
 
+-- (W8) Note that the Dual functions compose in the reverse.
 
+-- (W9) Well, I guess we still need (×) to satisfy the types of composition. I
+-- was doing mistakes when trying to avoid it (if the typechecker wasn't here,
+-- I would have done something incorrect and get wrong value)
 
 --------------------------------------------------------------------------------
 
