@@ -30,7 +30,7 @@
     };
 
     programs.doom-emacs = {
-      enable = config.programs.custom.doom-emacs;
+      enable = false; # too heavy ! # config.programs.custom.doom-emacs;
       doomDir = ./doom.d;
       extraPackages = epkgs: [
         epkgs.treesit-grammars.with-all-grammars
