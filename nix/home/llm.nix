@@ -6,6 +6,14 @@ let
       source = pkgs.writeTextDir "SKILL.md" (if lib.isPath content then builtins.readFile content else content);
       recursive = true;
     };
+
+  aiContext =
+    ''
+      - When a dependency is not available, use `nix` to temporarily make it available (like
+        nodejs). Don't use nix for things which are already available, like the Haskell toolchain.
+        (Example: nix-shell -p python3 python3Packages.matplotlib --run 'python3 script.py')
+      - Use unqualified imports in Haskell by default. Use qualified imports only when that's the convention or necessary.
+    '';
 in
 # lib.mkIf (!minimal) {
 {
@@ -17,13 +25,7 @@ in
     enable = true;
     package = inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
-    context =
-      ''
-        - When a dependency is not available, use `nix` to temporarily make it available (like
-          nodejs). Don't use nix for things which are already available, like the Haskell toolchain.
-          (Example: nix-shell -p python3 python3Packages.matplotlib --run 'python3 script.py')
-        - Use unqualified imports in Haskell by default. Use qualified imports only when that's the convention or necessary.
-      '';
+    context = aiContext;
 
     skills = {
       hadrian_test = ''
@@ -95,8 +97,13 @@ in
     };
   };
 
+  programs.claude-code = {
+    enable = true;
+    package = inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    memory.text = aiContext;
+  };
+
   home.packages = [
     inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
-    pkgs.claude-code
   ];
 }
