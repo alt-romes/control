@@ -138,10 +138,11 @@ in
     settings = {
         # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
         window-padding-color = "extend";
+
         unfocused-split-opacity = 1; # don't dim unfocused panes
-        # background-opacity = 0.85;
-        # background-blur = true;
-        font-family = "Maple Mono NF";
+        background-opacity = 0.95;
+        background-blur = true;
+        font-family = "Ioskeley Mono Term";
     };
   };
 
@@ -160,8 +161,8 @@ in
   };
 
   # Color management
-  style.colors.ayu-light.enable = true;
-  # style.colors.kanagawa.enable = true;
+  # style.colors.ayu-light.enable = true;
+  style.colors.kanagawa.enable = true;
   # style.colors.gruvbox-light.enable = true;
 
 }

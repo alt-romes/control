@@ -157,6 +157,8 @@
     pkgs.noto-fonts
     pkgs.noto-fonts-cjk-sans
     pkgs.noto-fonts-cjk-serif
+
+    pkgs.ioskeley-mono.normal
   ];
 
   users.users."romes" = {
