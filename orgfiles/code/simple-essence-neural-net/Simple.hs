@@ -4,7 +4,7 @@ import Prelude hiding (id, (.))
 import Control.Category
 
 newtype a :-> b = D { (#) :: a -> (b, a <-- b) }
-newtype a <-- b = Dual { runDual :: b -> a }
+newtype a <-- b = Dual { (<|) :: b -> a }
 linear f fd = D (\a -> (f a, fd))
 
 instance Category (:->) where
@@ -29,7 +29,7 @@ add  = linear (uncurry (+)) (Dual $ \x -> (x,x))
 mul  = D \(x,y) -> (x*y, Dual \df -> (df*y,df*x))
 rec  = D \x -> (recip x, scale (-1 / x^2))
 exp' = D \x -> let e = exp x in (e, scale e)
-log' = D \x -> let l = log x in (l, scale (-1/l))
+log' = D \x -> (log x, scale (1/x))
 (+>) k = D \x -> (k+x, Dual id)
 fixed f a = D \b -> let (c, Dual d) = f # (a, b) in (c, Dual \c' -> snd (d c'))
 --------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ instance WSum Double where weightedSum = mul
 instance (Num b, WSum b) => WSum (Double, b) where
   weightedSum = add . (mul × weightedSum) . ((exl × exl) × (exr × exr)) . dup
 
-sigmoid  = rec . (1 +>) . exp' . neg
+sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
 neuron   = sigmoid . weightedSum
 xorNet i = neuron . (n × (n × (n × n)) × id) where n = fixed neuron i
 
@@ -67,3 +67,17 @@ train initialWeights = do
 main = do
   let randomWeights = (((0.263158804855843,0.9198593145637255),((0.29665240651775127,8.055163018364941e-2),((0.5928698356302193,0.8933566967251643),(0.6951127432289572,0.9105678050355198)))),(0.28879960912172786,(0.9519938818911216,(0.3136325216345741,2.7947832757196922e-2))))
   train (randomWeights :: (((Double, Double), ((Double, Double), ((Double, Double), (Double, Double)))), (Double, (Double, (Double, Double)))))
+--------------------------------------------------------------------------------
+-- -- Not obvious!
+-- curry' :: (a :-> (b :-> c)) -> ((a, b) :-> c)
+-- curry' f = D \(a, b) ->
+--   let (bc, bca) = f # a
+--       (c, cb)  = bc # b
+--    in (c, Dual \c -> (bca <| bc, cb <| c))
+-- uncurry' :: ((a,b) :-> c) -> (a :-> (b :-> c))
+-- uncurry' f = D \a ->
+--   (D \b ->
+--     let
+--         (c, c_ab) = f # (a,b)
+--      in _
+--     , _)
