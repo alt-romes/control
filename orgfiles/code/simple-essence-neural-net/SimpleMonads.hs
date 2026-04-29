@@ -16,12 +16,6 @@ newtype a <-- b = Dual { (<|) :: b ⊸ a }
 D b (Dual ba) >>= f = D c (Dual (\x -> ba (cb x)))
               where !(D c (Dual cb)) = f b
 
--- D ([a],[a]) a; D (a,a) a; D (([a],[a]), a) a
---
--- a -> a -> a
---
--- a -> (a,a) -> ([a],[a])
-
 pure :: b ⊸ D b b
 pure x = D x (Dual \dx -> dx)
 
@@ -43,7 +37,9 @@ neuron ins ws b = do
 
 xorNet :: Floating a => [a] ⊸ ([a],[a],[a],[a],[a]) ⊸ D ([a],[a],[a],[a],[a]) [a]
 xorNet ins (w1,w2,w3,w4,w5) = do
-  (ins1, ins2) <- dup ins × × × -- Achhh, because the input must match the first thing, we're still forced to do the whole cross product here... A little better, but still awful.
+  -- Achhh, because the input must match the first thing, we're still forced to
+  -- do the whole cross product here... A little better, but still awful.
+  (ins1, ins2) <- dup ins × pure w1 × pure w2 × pure w3 × pure w4 × pure w5 -- ....
   neuron . (n × (n × (n × n)) × id) where n = fixed neuron i
 
 scale :: Num a => a -> a <-- a
