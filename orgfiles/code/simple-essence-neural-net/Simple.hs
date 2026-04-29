@@ -1,5 +1,4 @@
-{-# LANGUAGE GHC2024, BlockArguments, TypeFamilies, UndecidableInstances, AllowAmbiguousTypes, NoMonomorphismRestriction #-}
-import GHC.TypeNats
+{-# LANGUAGE GHC2024, BlockArguments, TypeApplications, TypeFamilies, UndecidableInstances, AllowAmbiguousTypes, NoMonomorphismRestriction #-}
 import Prelude hiding (id, (.))
 import Control.Category
 
@@ -50,9 +49,9 @@ xorNet i = neuron . (n × (n × (n × n)) × id) where n = fixed neuron i
 cost (p:ps) = foldl' (\acc x -> add . (cost1 x × acc) . dup) (cost1 p) ps
   where cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
 
-examples = [((0,0),0), ((0,1),1), ((1,0),1), ((1,1),0)]
+examples = [((0,0),0), ((0,1),1), ((1,0),1), ((1,1),0)] :: [((Double, Double), Double)]
 
-step i weights = do
+step (i :: Int) weights = do
   let (r, Dual grad) = cost examples # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   pure $ weights + grad (-10)
@@ -64,9 +63,9 @@ train initialWeights = do
   putStrLn "Expected results:"
   print (map snd examples)
 
-main = do
-  let randomWeights = (((0.263158804855843,0.9198593145637255),((0.29665240651775127,8.055163018364941e-2),((0.5928698356302193,0.8933566967251643),(0.6951127432289572,0.9105678050355198)))),(0.28879960912172786,(0.9519938818911216,(0.3136325216345741,2.7947832757196922e-2))))
-  train (randomWeights :: (((Double, Double), ((Double, Double), ((Double, Double), (Double, Double)))), (Double, (Double, (Double, Double)))))
+-- perl -pe's/x/rand/ge'<<<'(((x,x),((x,x),((x,x),(x,x)))),(x,(x,(x,x))))'
+main = readLn >>= \weights -> train weights
+
 --------------------------------------------------------------------------------
 -- -- Not obvious!
 -- curry' :: (a :-> (b :-> c)) -> ((a, b) :-> c)
