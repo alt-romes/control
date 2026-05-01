@@ -8,7 +8,7 @@ scale  y    = Dual (\dx -> dx*y)
 
 instance Category (:->) where
   id = linear id (Dual id)
-  g . f = D $ \a ->
+  g . f = D $ \a -> -- chain rule
     let (b, Dual f') = f # a; (c, Dual g') = g # b
      in (c, Dual (f' . g'))
 
@@ -31,7 +31,7 @@ sumI      = D $ \xs -> (sum xs, Dual (\x -> replicate (length xs) x))
 hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))) where (.*.) = zipWith (*)
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
 --------------------------------------------------------------------------------
-sigmoid  = rec . (1 +>) . exp' . neg
+sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
 neuron   = sigmoid . add . ((sumI . hadamard) × id) . assoc
 xorNet i = neuron . (crossI [n, n, n, n] × id) where n = fixed neuron i
 cost  ps = sumI . crossI (map cost1 ps) . dupI (length ps)
@@ -45,7 +45,7 @@ step examples (i :: Int) weights = do
 main = do
   let examples = [([0,0],0), ([0,1],1), ([1,0],1), ([1,1],0)]
   initialWeights <- readLn @Weights
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..10000]
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..1000000]
   putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (xorNet e # finalWeights)) examples)
   putStrLn $ "Expected results:   " ++ show (map snd examples)
 
@@ -53,6 +53,18 @@ type Weights = ([([Double], Double)], ([Double], Double))
 instance Num Weights where
   fromInteger x' = (replicate 4 ([x,x], x), ([x,x,x,x],x)) where x = fromInteger x'
   (w1, (w2,b2)) + (w3, (w4,b4)) = (zipWith (\(ws1, b1) (ws2, b2) -> (zipWith (+) ws1 ws2, b1+b2)) w1 w3, (zipWith (+) w2 w4, b2+b4))
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
