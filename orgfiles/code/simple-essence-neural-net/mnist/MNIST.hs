@@ -3,7 +3,6 @@
 -}
 {-# LANGUAGE GHC2024 #-}
 import Debug.Trace
-import Debug.RecoverRTTI
 import Prelude hiding (id, (.))
 import Control.Category
 import Control.Monad
@@ -19,7 +18,7 @@ scale  y    = Dual (\dx -> dx*y)
 instance Category (:->) where
   id = trace "id" $ linear id (Dual id)
   g . f = trace "." $ D $ \a -> -- chain rule
-    let (b, Dual f') = f # a; (c, Dual g') = trace ("f(a)=" ++ anythingToString a) $ g # b
+    let (b, Dual f') = f # a; (c, Dual g') = g # b
      in (c, Dual (f' . g'))
 
 f × g = trace "×" $ D $ \(a,b) ->
@@ -35,7 +34,7 @@ exp'      = trace "exp" $ D $ \x -> let e = exp x in (e, scale e)
 -- pow  k    = D $ \x -> (x^k, scale (k*x^(k-1))) -- (^) only works for integral exponents
 sqrt'     = D $ \x -> let r = sqrt x in (r, scale (r*(1/2)))
 --------------------------------------------------------------------------------
-dupI    n = trace "dupI" $ linear (\x -> replicate n x) (Dual sum)
+dupI join n = trace "dupI" $ linear (\x -> replicate n x) (Dual join)
 crossI fs = trace "crossI" $ D $ \as -> let (bs, bsas) = unzip (zipWith (#) fs as) in (bs, Dual (zipWith (<|) bsas))
 sumI      = trace "sumI" $ D $ \xs -> (sum xs, Dual (\x -> replicate (length xs) x))
 hadamard  = trace "hadamard" $ D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))) where (.*.) = zipWith (*)
@@ -48,13 +47,16 @@ c1 = trace "C1" (.)
 c2 = trace "C2" (.)
 neuron   = trace "neuron" $ trace "neuron:s" sigmoid `c1` (trace "neuron:si" sumI . trace "neuron:had" hadamard) `c2` (trace "neuron:cs" cons 1 × trace "neuron:id" id) `c2` trace "RUNNING NEURON NOW" id
 myunzip = trace "what is happening" unzip
-l2 = trace "l2" $ crossI (trace "repl10" $ replicate 10 neuron) . trace "l2:linear" (linear (\(xs,ys) -> trace "going to zip:" $ trace (show xs) $ trace "now y" $ trace (show ys) $ let z = zipWith (,) xs ys in trace "now the result z: " $ trace (show z) $ z) (Dual (trace "UNZIPPING" myunzip)))
+l2 = trace "l2" $ crossI (trace "repl10" $ replicate 10 neuron) . trace "l2:linear"
+      (linear (\(xs,ys) -> trace "going to zip:" $ trace (show xs) $ trace "now y" $ trace (show ys) $ let z = zipWith (,) xs ys in trace "now the result z: " $
+          trace (show z) $ z)
+          (Dual (trace "UNZIPPING" myunzip)))
 l1 i = trace "l1" $ crossI (replicate 300 (fixed neuron i))
 mnistNet :: [Double] -> ([[Double]], [[Double]]) :-> [Double]
-mnistNet i = trace "mnistNet" $ l2 . ((dupI 10 . l1 i) × id) where n = fixed neuron i
+mnistNet i = trace "mnistNet" $ l2 . ((dupI (foldr1 (zipWith (+))) 10 . l1 i) × id) where n = fixed neuron i
 cost :: [([Double], [Double])] -> ([[Double]], [[Double]]) :-> Double
-cost  ps = trace "cost" $ sumI . crossI (map cost1 ps) . dupI (length ps)
-  where cost1 (i, o) = trace ("cost1:" ++ show (i,o)) $ sqrt' . sumI . crossI (replicate 10 sqr) . (negate o +>) . mnistNet (trace "the-I" i)
+cost  ps = trace "cost" $ sumI . crossI (map cost1 ps) . dupI sum (length ps)
+  where cost1 (i, o) = trace ("cost1:" ++ show (i,o)) $ sqrt' . sumI . crossI (replicate 10 sqr) . (map (*(-1)) o +>) . mnistNet (trace "the-I" i)
         sqr :: Double :-> Double
         sqr = trace "sqr" $ mul . dup
 
@@ -76,9 +78,9 @@ main = do
 type Weights = ([[Double]], [[Double]])
 instance Num Weights where
   fromInteger x' = (replicate 300 (replicate 785 x), replicate 10 (replicate 301 x)) where x = fromInteger x'
-  (w1, w2) + (w3, w4) = (zipWith (+) w1 w3, zipWith (+) w2 w4)
+  (w1, w2) + (w3, w4) = (zipWith (zipWith(+)) w1 w3, zipWith (zipWith(+)) w2 w4)
 instance Num [Double] where
-  fromInteger = replicate 10{-a very big hack, bc this is only needed for `dupI 10`...-} . fromInteger
+  -- the negate/fromInteger 0/fromInteger -1 was causing such a weird loop (also the `sum` from `dupI` needing a zero..) wow.
   (+) = zipWith (+)
 chunksOf :: Int -> [e] -> [[e]]
 chunksOf i ls = map (take i) (build (splitter ls))
