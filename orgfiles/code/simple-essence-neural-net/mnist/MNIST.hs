@@ -1,7 +1,7 @@
 {-# LANGUAGE GHC2024, TypeAbstractions, Strict, OverloadedStrings,
              DeriveTraversable, DeriveGeneric, MultiParamTypeClasses,
              FlexibleInstances, LambdaCase, TypeFamilies, NoMonomorphismRestriction #-}
-{-# OPTIONS_GHC -fpolymorphic-specialisation -fspecialise-aggressively -fexpose-all-unfoldings -flate-specialise -funfolding-use-threshold=10000 #-}
+{-# OPTIONS_GHC -fpolymorphic-specialisation -fspecialise-aggressively #-}
 import Prelude hiding (id, (.))
 import Control.Category
 import Control.Monad
@@ -19,6 +19,7 @@ import Data.Equality.Graph.Lens ((^.), _class, _data)
 import Data.Maybe
 import GHC.TypeNats
 import Control.DeepSeq (force)
+import Data.Proxy
 
 newtype a :-> b = D    { (#)  :: a -> (b, a <-- b) }
 newtype a <-- b = Dual { (<|) :: b -> a            }
@@ -62,9 +63,9 @@ l2       = softmax . crossI (V.replicate @NOut neuron) . zip'
 l1 i     = crossI (V.replicate @NMid (sigmoid . fixed neuron i))
 mnistNet i = l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
 
-cost :: (KnownNat nexs, Floating a) => V.Vector nexs (V.Vector NIn a, V.Vector NOut a) -> Weights (1+NIn) (1+NMid) a :-> a
+cost :: forall nexs a. (KnownNat nexs, Floating a) => V.Vector nexs (V.Vector NIn a, V.Vector NOut a) -> Weights (1+NIn) (1+NMid) a :-> a
 cost  ps = sumI . crossI (V.map cost1 ps) . dupI sum
-  where cost1 (i, o) = sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
+  where cost1 (i, o) = fixed mul (fromIntegral $ natVal (Proxy @nexs)) . rec . sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
         sqr = mul . dup
 
 type BatchSize = 32
@@ -74,7 +75,7 @@ step :: (Show a, Floating a) => V.Vector NExamples (V.Vector NIn a, V.Vector NOu
      -> Weights (1+NIn) (1+NMid) a
      -> IO (Weights (1+NIn) (1+NMid) a)
 step examples i weights = do
-  let off = (i * 10) `mod` (nExamples - 10)
+  let off = (i * batchSize) `mod` (nExamples - batchSize)
       batch = fromJust $ V.toSized @BatchSize $ NV.slice off batchSize (V.fromSized examples)
       (r, Dual grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
