@@ -20,7 +20,6 @@ assoc     = linear (\(a,(b,c)) -> ((a,b),c)) (Dual (\((a,b),c) -> (a,(b,c))))
 dup       = linear (\x -> (x,x)) (Dual (uncurry (+)))
 neg       = linear negate (scale (-1))
 add       = linear (uncurry (+)) (Dual $ \x -> (x,x))
-(+>) k    = linear (+k) (Dual id)
 mul       = D $ \(x,y) -> (x*y, Dual (\df -> (df*y,df*x)))
 rec       = D $ \x -> (recip x, scale (-1 / x^2))
 exp'      = D $ \x -> let e = exp x in (e, scale e)
@@ -31,11 +30,11 @@ sumI      = D $ \xs -> (sum xs, Dual (\x -> replicate (length xs) x))
 hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))) where (.*.) = zipWith (*)
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
 --------------------------------------------------------------------------------
-sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
+sigmoid  = rec . (fixed add 1) . exp' . neg -- 1/(1+exp(-x))
 neuron   = sigmoid . add . ((sumI . hadamard) × id) . assoc
 xorNet i = neuron . (crossI [n, n, n, n] × id) where n = fixed neuron i
 cost  ps = sumI . crossI (map cost1 ps) . dupI (length ps)
-  where cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
+  where cost1 (i, o) = mul . dup . (fixed add (negate o)) . xorNet i
 
 step examples (i :: Int) weights = do
   let (r, Dual grad) = cost examples # weights
