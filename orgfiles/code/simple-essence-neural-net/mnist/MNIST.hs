@@ -41,7 +41,7 @@ mul       = D $ \(x,y) -> (x*y, Dual (\df -> (df*y,df*x)))
 rec       = D $ \x -> (recip x, scale (-1 / x^2))
 exp'      = D $ \x -> let e = exp x in (e, scale e)
 -- pow  k    = D $ \x -> (x^k, scale (k*x^(k-1))) -- (^) only works for integral exponents
-sqrt'     = D $ \x -> let r = sqrt x in (r, scale (r*(1/2)))
+sqrt'     = D $ \x -> let r = sqrt x in (r, scale (1/(2*r)))
 --------------------------------------------------------------------------------
 dupI :: KnownNat n => (V.Vector n a -> a) -> a :-> V.Vector n a
 dupI @n join = linear (\x -> V.replicate x) (Dual join)
@@ -68,7 +68,7 @@ step examples (i :: Int) weights = do
   let (r, Dual grad) = cost (V.take @1 ({-drop (i*10)-} examples)) # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
-  pure $ weights + grad 100
+  pure $ weights + grad (-10)
 
 type NIn = 784
 type NMid = 300
@@ -79,20 +79,21 @@ nMid = 300
 nOut = 10
 nExamples = 60000
 
-main = symGradCostSize
-mainX = do
--- main = do
+-- main = symGradCostSize
+-- mainX = do
+main = do
   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
-  let toV bs  = NV.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
+  let toV bs = NV.generate (BS.length bs) (\i -> fromIntegral @_ @Double (BS.index bs i) / 255)
       allImgs = toV rawImages
       allLbls = toV rawLabels
       examples = fromJust $ V.fromList $
         [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NV.! i) )
         | i <- [0..nExamples-1] ]
+  -- TODO: Weight inits: Xavier/Glorot
   initialWeights <- (,) <$> V.replicateM @NMid (V.replicateM @NIn $ randomM globalStdGen) <*> V.replicateM @NOut (V.replicateM @NMid $ (randomM globalStdGen))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..1]
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..100]
   pure ()
   -- putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (mnistNet e # finalWeights)) (V.toList examples))
   -- putStrLn $ "Expected results:   " ++ show (map snd (V.toList examples))
