@@ -60,7 +60,11 @@ dupI @n join = linear (\x -> V.replicate x) (Dual join)
 crossI fs = D $ \as -> let (bs, bsas) = V.unzip (V.zipWith (#) fs as) in (bs, Dual (V.zipWith (<|) bsas))
 sumI :: (KnownNat n, Num b) => V.Vector n b :-> b
 sumI      = D $ \xs -> (sum xs, Dual (\x -> V.replicate x))
-hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs)))
+weightedSum :: forall n c. (KnownNat n, Num c)
+            => (V.Vector n c, V.Vector n c) :-> c
+weightedSum = D $ \(ss, xs) ->
+  let tot = foldl' (\acc i -> acc + (V.unsafeIndex ss i * V.unsafeIndex xs i)) 0 [0..V.length ss-1]
+   in (tot, Dual (\dfs -> let dfsV = V.replicate dfs in (xs .*. dfsV, ss .*. dfsV)))
   where (.*.) = V.zipWith (*)
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
 cons :: a -> V.Vector n a :-> V.Vector (1 + n) a
@@ -69,7 +73,7 @@ zip' = linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip)
 {-# NOINLINE dupI #-}
 {-# NOINLINE crossI #-}
 {-# NOINLINE sumI #-}
-{-# NOINLINE hadamard #-}
+{-# NOINLINE weightedSum #-}
 {-# NOINLINE fixed #-}
 {-# NOINLINE cons #-}
 {-# NOINLINE zip' #-}
@@ -77,7 +81,7 @@ zip' = linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip)
 sigmoid  = {-# SCC sigmoid #-} rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
 softmax :: forall n a. (KnownNat n, Floating a) => V.Vector n a :-> V.Vector n a
 softmax  = {-# SCC softmax #-} crossI (V.replicate @n (mul . ((rec . sumI . crossI (V.replicate @n exp')) × id))) . zip' . (dupI @n sum × id) . dup
-neuron   = {-# SCC neuron #-} (sumI . hadamard) . (cons 1 × id)
+neuron   = {-# SCC neuron #-} weightedSum . (cons 1 × id)
 l2       = {-# SCC l2 #-} softmax . crossI (V.replicate @NOut neuron) . zip'
 l1 i     = {-# SCC l1 #-} crossI (V.replicate @NMid (sigmoid . fixed neuron i))
 mnistNet i = {-# SCC mnistNet #-} l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
