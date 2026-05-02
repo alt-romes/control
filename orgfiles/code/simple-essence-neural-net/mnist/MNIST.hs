@@ -51,11 +51,14 @@ hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
 cons :: a -> V.Vector n a :-> V.Vector (1 + n) a
 cons    x = D $ \xs -> (x `V.cons` xs, Dual (\dxs -> V.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
+zip' = linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip)
 --------------------------------------------------------------------------------
 sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-neuron   = sigmoid . (sumI . hadamard) . (cons 1 × id)
-l2       = crossI (V.replicate @NOut neuron) . (linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip))
-l1 i     = crossI (V.replicate @NMid (fixed neuron i))
+softmax :: forall n a. (KnownNat n, Floating a) => V.Vector n a :-> V.Vector n a
+softmax  = crossI (V.replicate @n (mul . ((rec . sumI . crossI (V.replicate @n exp')) × id))) . zip' . (dupI @n sum × id) . dup
+neuron   = (sumI . hadamard) . (cons 1 × id)
+l2       = softmax . crossI (V.replicate @NOut neuron) . zip'
+l1 i     = crossI (V.replicate @NMid (sigmoid . fixed neuron i))
 mnistNet i = l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
 
 cost :: (KnownNat nexs, Floating a) => V.Vector nexs (V.Vector NIn a, V.Vector NOut a) -> Weights (1+NIn) (1+NMid) a :-> a
@@ -63,8 +66,8 @@ cost  ps = sumI . crossI (V.map cost1 ps) . dupI sum
   where cost1 (i, o) = sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
         sqr = mul . dup
 
-type BatchSize = 100
-batchSize = 100
+type BatchSize = 32
+batchSize = 32
 
 step :: (Show a, Floating a) => V.Vector NExamples (V.Vector NIn a, V.Vector NOut a) -> Int
      -> Weights (1+NIn) (1+NMid) a
@@ -75,7 +78,7 @@ step examples i weights = do
       (r, Dual grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
-  pure $ weights + grad (-0.001)
+  pure $ weights + grad (-0.01/batchSize)
 
 type NIn = 784
 type NMid = 300
@@ -101,9 +104,8 @@ main = do
   initialWeights <- (,) <$> V.replicateM @NMid (V.replicateM @(1+NIn)  (xavier nIn))
                         <*> V.replicateM @NOut (V.replicateM @(1+NMid) (xavier nMid))
   finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..5000]
-  pure ()
-  -- putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (mnistNet e # finalWeights)) (V.toList examples))
-  -- putStrLn $ "Expected results:   " ++ show (map snd (V.toList examples))
+  putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (mnistNet e # finalWeights)) (take 10 $ reverse $ V.toList examples))
+  putStrLn $ "Expected results:   " ++ show (map snd (take 10 $ reverse $ V.toList examples))
 
 labelToVec :: Double -> V.Vector 10 Double
 labelToVec d = V.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
