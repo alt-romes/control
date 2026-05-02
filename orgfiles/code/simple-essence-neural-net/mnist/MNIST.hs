@@ -134,7 +134,7 @@ main = do
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
   let allImgs = force $ NV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
       allLbls = force $ NV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
-      examples = fromJust $ V.fromList $
+      examples = force $ fromJust $ V.fromList $
         [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NV.! i) )
         | i <- [0..nExamples-1] ]
