@@ -190,7 +190,8 @@ symGradCost = do
   V.imapM_ (\i row -> V.imapM_ (\j v ->
       putStrLn ("  ws2[" ++ show i ++ "][" ++ show j ++ "] = " ++ show v)) row) gw2
 
--- For the full mnist-sized cost: too big to print, but we can measure it.
+-- For the full mnist-sized cost: too big to print, but we can measure it
+-- and feed components through `simplify` (equality saturation) to compress.
 symGradCostSize :: IO ()
 symGradCostSize = do
   let example = ( V.replicate 784 (Var "x"), V.singleton (Var "y") )
@@ -198,9 +199,14 @@ symGradCostSize = do
                 , V.replicate 10  (V.replicate 301 (Var "v")) )
       (r, Dual g) = cost [example] # weights
       (gw1, gw2) = g (Const 1)
-  putStrLn $ "full cost size:                    " ++ show (size r) ++ " nodes"
-  putStrLn $ "d cost / d ws1[0][0] size:         " ++ show (size (gw1 V.! 0 V.! 0)) ++ " nodes"
-  putStrLn $ "d cost / d ws2[0][0] size:         " ++ show (size (gw2 V.! 0 V.! 0)) ++ " nodes"
+      report name e =
+        let s0 = size e
+            e' = simplify e
+            s1 = size e'
+        in putStrLn $ name ++ ": " ++ show s0 ++ " -> " ++ show s1 ++ " nodes"
+  report "full cost            " r
+  report "d cost / d ws1[0][0]" (gw1 V.! 0 V.! 0)
+  report "d cost / d ws2[0][0]" (gw2 V.! 0 V.! 0)
 
 --------------------------------------------------------------------------------
 -- Equality saturation via hegg
