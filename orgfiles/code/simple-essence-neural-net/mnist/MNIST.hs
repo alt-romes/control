@@ -1,7 +1,4 @@
-{- cabal:
- build-depends: base, random, bytestring, vector, hegg, containers
--}
-{-# LANGUAGE GHC2024, OverloadedLists, Strict, OverloadedStrings,
+{-# LANGUAGE GHC2024, TypeAbstractions, Strict, OverloadedStrings,
              DeriveTraversable, DeriveGeneric, MultiParamTypeClasses,
              FlexibleInstances, LambdaCase, TypeFamilies, NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -fpolymorphic-specialisation -fspecialise-aggressively -fexpose-all-unfoldings #-}
@@ -10,14 +7,17 @@ import Control.Category
 import Control.Monad
 import System.Random.Stateful
 import qualified Data.ByteString as BS
-import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed as UV
+import Data.Finite
+import qualified Data.Vector.Sized as V
+import qualified Data.Vector as NV
 import GHC.Generics (Generic)
 import Data.Equality.Saturation (Fix(..), equalitySaturation, CostFunction, Rewrite(..))
 import Data.Equality.Matching (pat)
 import Data.Equality.Analysis (Analysis(..))
 import Data.Equality.Graph (EGraph, represent, merge)
 import Data.Equality.Graph.Lens ((^.), _class, _data)
+import Data.Maybe
+import GHC.TypeLits
 
 newtype a :-> b = D    { (#)  :: a -> (b, a <-- b) }
 newtype a <-- b = Dual { (<|) :: b -> a            }
@@ -43,58 +43,66 @@ exp'      = D $ \x -> let e = exp x in (e, scale e)
 -- pow  k    = D $ \x -> (x^k, scale (k*x^(k-1))) -- (^) only works for integral exponents
 sqrt'     = D $ \x -> let r = sqrt x in (r, scale (r*(1/2)))
 --------------------------------------------------------------------------------
-dupI join n = linear (\x -> V.replicate n x) (Dual join)
+dupI :: KnownNat n => (V.Vector n a -> a) -> a :-> V.Vector n a
+dupI @n join = linear (\x -> V.replicate x) (Dual join)
 crossI fs = D $ \as -> let (bs, bsas) = V.unzip (V.zipWith (#) fs as) in (bs, Dual (V.zipWith (<|) bsas))
-sumI      = D $ \xs -> (sum xs, Dual (\x -> V.replicate (length xs) x))
+sumI :: (KnownNat n, Num b) => V.Vector n b :-> b
+sumI      = D $ \xs -> (sum xs, Dual (\x -> V.replicate x))
 hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))) where (.*.) = V.zipWith (*)
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
-cons    x = D $ \xs -> (x `V.cons` xs, Dual (\dxs -> V.drop 1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
+cons    x = D $ \xs -> (x `V.cons` xs, Dual (\dxs -> V.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
 --------------------------------------------------------------------------------
 sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-neuron   = sigmoid . (sumI . hadamard) . (cons 1 × id)
-l2       = crossI (V.replicate nOut neuron) . (linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip))
-l1 i     = crossI (V.replicate nMid (fixed neuron i))
-mnistNet i = l2 . ((dupI (V.foldr1 (V.zipWith (+))) nOut . l1 i) × id) where n = fixed neuron i
-cost  ps = sumI . crossI (V.map cost1 (V.fromList ps)) . dupI sum (length ps)
-  where cost1 (i, o) = sqrt' . sumI . crossI (V.replicate nOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
+neuron   = sigmoid . (sumI . hadamard) -- . (cons 1 × id) TODO: Re-add BIAS
+l2       = crossI (V.replicate @NOut neuron) . (linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip))
+l1 i     = crossI (V.replicate @NMid (fixed neuron i))
+mnistNet i = l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
+cost :: KnownNat nexs => V.Vector nexs (V.Vector NIn Double, V.Vector NOut Double) -> Weights Double :-> Double
+cost  ps = sumI . crossI (V.map cost1 ps) . dupI sum
+  where cost1 (i, o) = sqrt' . sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
         sqr = mul . dup
 
+step :: V.Vector NExamples (V.Vector NIn Double, V.Vector NOut Double) -> Int -> Weights Double -> IO (Weights Double)
 step examples (i :: Int) weights = do
-  let (r, Dual grad) = cost (take 1 ({-drop (i*10)-} examples)) # weights
+  let (r, Dual grad) = cost (V.take @1 ({-drop (i*10)-} examples)) # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
-  putStrLn $ "Grad(" ++ show i ++ "): " ++ show (grad 1)
+  putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
   pure $ weights + grad 100
 
+type NIn = 784
+type NMid = 300
+type NOut = 10
+type NExamples = 60000
 nIn = 784
 nMid = 300
 nOut = 10
+nExamples = 60000
 
-main = symGradCostSize
-mainX = do
+-- main = symGradCostSize
+-- mainX = do
+main = do
   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
-  let n       = BS.length rawLabels
-      toV bs  = V.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
+  let toV bs  = NV.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
       allImgs = toV rawImages
       allLbls = toV rawLabels
-      examples = [ ( V.slice (i * nIn) nIn allImgs
-                   , labelToVec (allLbls V.! i) )
-                 | i <- [0..n-1] ]
-  initialWeights <- (,) <$> V.mapM (const $ V.replicateM (nIn+1) $ randomM globalStdGen) [1..nMid] <*> V.mapM (const $ V.replicateM (nMid+1) $ (randomM globalStdGen)) [1..nOut]
-  finalWeights   <- V.foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..1000]
-  putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (mnistNet e # finalWeights)) examples)
-  putStrLn $ "Expected results:   " ++ show (map snd examples)
+      examples = fromJust $ V.fromList $
+        [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
+          , labelToVec (allLbls NV.! i) )
+        | i <- [0..nExamples-1] ]
+  initialWeights <- (,) <$> V.replicateM @NMid (V.replicateM @NIn $ randomM globalStdGen) <*> V.replicateM @NOut (V.replicateM @NMid $ (randomM globalStdGen))
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..1]
+  pure ()
+  -- putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (mnistNet e # finalWeights)) (V.toList examples))
+  -- putStrLn $ "Expected results:   " ++ show (map snd (V.toList examples))
 
-labelToVec :: Double -> V.Vector Double
-labelToVec d = V.generate 10 (\i -> if fromIntegral i == d then 1 else 0)
+labelToVec :: Double -> V.Vector 10 Double
+labelToVec d = V.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
 
-type Weights a = (V.Vector (V.Vector a), V.Vector (V.Vector a))
+type Weights a = (V.Vector NMid (V.Vector NIn a), V.Vector NOut (V.Vector NMid a))
 instance Num a => Num (Weights a) where
-  fromInteger x' = (V.replicate nMid (V.replicate (nIn+1) x), V.replicate nOut (V.replicate (nMid+1) x)) where x = fromInteger x'
+  fromInteger x' = (V.replicate @NMid (V.replicate @NIn x), V.replicate @NOut (V.replicate @NMid x)) where x = fromInteger x'
   (w1, w2) + (w3, w4) = (V.zipWith (V.zipWith(+)) w1 w3, V.zipWith (V.zipWith(+)) w2 w4)
-instance Num a => Num (V.Vector a) where
-  -- the negate/fromInteger 0/fromInteger -1 was causing such a weird loop (also the `sum` from `dupI` needing a zero..) wow.
-  (+) = V.zipWith (+)
 
 --------------------------------------------------------------------------------
 -- Symbolic ad
@@ -165,28 +173,30 @@ eval  env (Rec a)   = recip (eval env a)
 eval  env (Exp a)   = exp (eval env a)
 eval  env (Sqrt a)  = sqrt (eval env a)
 
-lookupVec :: (V.Vector Double, V.Vector Double) -> String -> Double
-lookupVec (ins,out) ('x':is) = ins V.! read is
-lookupVec (ins,out) ('y':is) = out V.! read is
+lookupVec :: (V.Vector 784 Double, V.Vector 10 Double) -> String -> Double
+lookupVec (ins,out) ('x':is) = V.index ins (finite @784 (read is))
+lookupVec (ins,out) ('y':is) = V.index out (finite @10 (read is))
 
-symGradCostSize :: IO ()
-symGradCostSize = do
-  rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
-  rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
-  let n       = BS.length rawLabels
-      toV bs  = V.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
-      allImgs = toV rawImages
-      allLbls = toV rawLabels
-      examples = [ ( V.slice (i * nIn) nIn allImgs
-                   , labelToVec (allLbls V.! i) )
-                 | i <- [0..n-1] ]
-  weights <- (,) <$> V.mapM (const $ V.replicateM (nIn+1) $ (Const <$> randomM globalStdGen)) [1..300] <*> V.mapM (const $ V.replicateM (nMid+1) $ (Const <$> randomM globalStdGen)) [1..nOut]
-  let example = (V.fromList [ Var $ 'x':show i | i <- [0..nIn-1] ], V.fromList [ Var $ 'y':show i | i <- [0..nOut-1] ])
-      (r, Dual g) = cost [example] # weights
-      (gw1, gw2) = g (Const 1)
-      report name e =
-        let s0 = size e
-        in putStrLn $ name ++ "(size: " ++ show s0 ++ "): " ++ show e -- (eval (lookupVec (head examples)) e)
-  -- report "full cost            " r
-  report "d cost / d ws1[0][0]" (gw1 V.! 0 V.! 0)
-  report "d cost / d ws2[0][0]" (gw2 V.! 0 V.! 0)
+-- symGradCostSize :: IO ()
+-- symGradCostSize = do
+--   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
+--   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
+--   let n       = BS.length rawLabels
+--       toV bs  = V.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
+--       allImgs = toV rawImages
+--       allLbls = toV rawLabels
+--       examples = [ ( V.slice (i * nIn) nIn allImgs
+--                    , labelToVec (allLbls V.! i) )
+--                  | i <- [0..n-1] ]
+--   weights <- (,) <$> V.mapM (const $ V.replicateM (nIn) $ (Const <$> randomM globalStdGen)) [1..300] <*> V.mapM (const $ V.replicateM (nMid) $ (Const <$> randomM globalStdGen)) [1..nOut]
+--   let example = (V.fromList [ Var $ 'x':show i | i <- [0..nIn-1] ], V.fromList [ Var $ 'y':show i | i <- [0..nOut-1] ])
+--       (r, Dual g) = cost [example] # weights
+--       (gw1, gw2) = g (Const 1)
+--       report name e =
+--         let s0 = size e
+--         in do
+--           putStrLn $ name ++ "(size: " ++ show s0 ++ "): " ++ show e -- (eval (lookupVec (head examples)) e)
+--           putStrLn $ name ++ ".EVAL: " ++ show (eval (lookupVec (head examples)) e)
+--   -- report "full cost            " r
+--   report "d cost / d ws1[0][0]" (gw1 V.! 0 V.! 0)
+--   -- report "d cost / d ws2[0][0]" (gw2 V.! 0 V.! 0)
