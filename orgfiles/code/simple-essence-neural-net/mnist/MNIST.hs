@@ -57,16 +57,17 @@ neuron   = sigmoid . (sumI . hadamard) -- . (cons 1 × id) TODO: Re-add BIAS
 l2       = crossI (V.replicate @NOut neuron) . (linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip))
 l1 i     = crossI (V.replicate @NMid (fixed neuron i))
 mnistNet i = l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
-cost :: KnownNat nexs => V.Vector nexs (V.Vector NIn Double, V.Vector NOut Double) -> Weights Double :-> Double
+
+cost :: (KnownNat nexs, Floating a) => V.Vector nexs (V.Vector NIn a, V.Vector NOut a) -> Weights a :-> a
 cost  ps = sumI . crossI (V.map cost1 ps) . dupI sum
   where cost1 (i, o) = sqrt' . sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
         sqr = mul . dup
 
-step :: V.Vector NExamples (V.Vector NIn Double, V.Vector NOut Double) -> Int -> Weights Double -> IO (Weights Double)
+step :: (Show a, Floating a) => V.Vector NExamples (V.Vector NIn a, V.Vector NOut a) -> Int -> Weights a -> IO (Weights a)
 step examples (i :: Int) weights = do
   let (r, Dual grad) = cost (V.take @1 ({-drop (i*10)-} examples)) # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
-  putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
+  -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
   pure $ weights + grad 100
 
 type NIn = 784
@@ -78,9 +79,9 @@ nMid = 300
 nOut = 10
 nExamples = 60000
 
--- main = symGradCostSize
--- mainX = do
-main = do
+main = symGradCostSize
+mainX = do
+-- main = do
   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
   let toV bs  = NV.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
@@ -179,24 +180,26 @@ lookupVec (ins,out) ('y':is) = V.index out (finite @10 (read is))
 
 -- symGradCostSize :: IO ()
 -- symGradCostSize = do
---   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
---   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
---   let n       = BS.length rawLabels
---       toV bs  = V.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
---       allImgs = toV rawImages
---       allLbls = toV rawLabels
---       examples = [ ( V.slice (i * nIn) nIn allImgs
---                    , labelToVec (allLbls V.! i) )
---                  | i <- [0..n-1] ]
---   weights <- (,) <$> V.mapM (const $ V.replicateM (nIn) $ (Const <$> randomM globalStdGen)) [1..300] <*> V.mapM (const $ V.replicateM (nMid) $ (Const <$> randomM globalStdGen)) [1..nOut]
---   let example = (V.fromList [ Var $ 'x':show i | i <- [0..nIn-1] ], V.fromList [ Var $ 'y':show i | i <- [0..nOut-1] ])
---       (r, Dual g) = cost [example] # weights
---       (gw1, gw2) = g (Const 1)
---       report name e =
---         let s0 = size e
---         in do
---           putStrLn $ name ++ "(size: " ++ show s0 ++ "): " ++ show e -- (eval (lookupVec (head examples)) e)
---           putStrLn $ name ++ ".EVAL: " ++ show (eval (lookupVec (head examples)) e)
---   -- report "full cost            " r
---   report "d cost / d ws1[0][0]" (gw1 V.! 0 V.! 0)
---   -- report "d cost / d ws2[0][0]" (gw2 V.! 0 V.! 0)
+symGradCostSize = do
+  rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
+  rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
+  let toV bs  = NV.generate (BS.length bs) (fromIntegral @_ @Double . BS.index bs)
+      allImgs = toV rawImages
+      allLbls = toV rawLabels
+      examples = fromJust $ V.fromList @NExamples $
+        [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
+          , labelToVec (allLbls NV.! i) )
+        | i <- [0..nExamples-1] ]
+      example = (V.generate @NIn (\i -> Var $ 'x':show i), V.generate @NOut (\i -> Var $ 'y':show i))
+  weights <- (,) <$> V.replicateM @NMid (V.replicateM @NIn $ Const <$> randomM globalStdGen) <*> V.replicateM @NOut (V.replicateM @NMid $ Const <$> randomM globalStdGen)
+  let
+      (r, Dual g) = cost (V.singleton example) # weights
+      (gw1, gw2) = g (Const 1)
+      report name e =
+        let s0 = size e
+        in do
+          putStrLn $ name ++ "(size: " ++ show s0 ++ "): " ++ take 10000 (show e) -- (eval (lookupVec (head examples)) e)
+          -- putStrLn $ name ++ ".EVAL: " ++ show (eval (lookupVec (V.head examples)) e)
+  -- report "full cost            " r
+  report "d cost / d ws1[0][0]" (V.index (V.index gw1 (finite 0)) (finite 0))
+  -- report "d cost / d ws2[0][0]" (gw2 V.! 0 V.! 0)
