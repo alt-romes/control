@@ -88,7 +88,7 @@ instance Num (V.Vector Expr) where
 --------------------------------------------------------------------------------
 
 data Expr = Const Double
-          | Var Char
+          | Var String
           | Add Expr Expr
           | Mul Expr Expr
           | Neg Expr
@@ -98,7 +98,7 @@ data Expr = Const Double
 
 instance Show Expr where
   show (Const d) = show d
-  show (Var c)   = [c]
+  show (Var c)   = c
   show (Add a b) = "(" ++ show a ++ " + " ++ show b ++ ")"
   show (Mul a b) = "(" ++ show a ++ " * " ++ show b ++ ")"
   show (Neg a)   = "(-" ++ show a ++ ")"
@@ -123,10 +123,68 @@ instance Floating Expr where
 
 symGrad :: IO ()
 symGrad = do
-  let (yS, Dual gS) = (sigmoid :: Expr :-> Expr) # Var 'x'
+  let (yS, Dual gS) = (sigmoid :: Expr :-> Expr) # Var "x"
   putStrLn $ "sigmoid(x)         = " ++ show yS
-  putStrLn $ "k * d/dx sigmoid x = " ++ show (gS (Var 'k'))
+  putStrLn $ "k * d/dx sigmoid x = " ++ show (gS (Var "k"))
   let sqr = mul . dup
-      (yQ, Dual gQ) = (sqr :: Expr :-> Expr) # Var 'x'
+      (yQ, Dual gQ) = (sqr :: Expr :-> Expr) # Var "x"
   putStrLn $ "x*x                = " ++ show yQ
-  putStrLn $ "k * d/dx (x*x)     = " ++ show (gQ (Var 'k'))
+  putStrLn $ "k * d/dx (x*x)     = " ++ show (gQ (Var "k"))
+
+size :: Expr -> Int
+size (Const _) = 1
+size (Var _)   = 1
+size (Add a b) = 1 + size a + size b
+size (Mul a b) = 1 + size a + size b
+size (Neg a)   = 1 + size a
+size (Rec a)   = 1 + size a
+size (Exp a)   = 1 + size a
+size (Sqrt a)  = 1 + size a
+
+-- Same structure as mnistNet/cost, but tiny (2 inputs, 2 hidden, 1 output) so
+-- the symbolic gradient is small enough to print.
+miniNet :: V.Vector Expr
+        -> (V.Vector (V.Vector Expr), V.Vector (V.Vector Expr)) :-> V.Vector Expr
+miniNet i = mL2 . ((dupI (V.foldr1 (V.zipWith (+))) 1 . mL1 i) × id)
+  where mL1 j = crossI (V.replicate 2 (fixed neuron j))
+        mL2   = crossI (V.replicate 1 neuron)
+              . (linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip))
+
+miniCost :: [(V.Vector Expr, V.Vector Expr)]
+         -> (V.Vector (V.Vector Expr), V.Vector (V.Vector Expr)) :-> Expr
+miniCost ps = sumI . crossI (V.map cost1 (V.fromList ps)) . dupI sum (length ps)
+  where cost1 (i, o) = sqrt' . sumI . crossI (V.replicate 1 sqr)
+                     . (V.map (*(-1)) o +>) . miniNet i
+        sqr :: Expr :-> Expr
+        sqr = mul . dup
+
+symGradCost :: IO ()
+symGradCost = do
+  let example = ( V.fromList [Var "a", Var "b"]
+                , V.singleton (Var "y") )
+      ws1 = V.fromList [ V.fromList [Var "1", Var "2", Var "3"]    -- hidden 1: bias, w_a, w_b
+                       , V.fromList [Var "4", Var "5", Var "6"] ]  -- hidden 2
+      ws2 = V.fromList [ V.fromList [Var "p", Var "q", Var "r"] ]  -- output: bias, v_h1, v_h2
+      (r, Dual g) = miniCost [example] # (ws1, ws2)
+      (gw1, gw2) = g (Const 1)
+  putStrLn $ "cost = " ++ show r
+  putStrLn $ "  (size: " ++ show (size r) ++ " nodes)"
+  putStrLn ""
+  putStrLn "d cost / d ws1:"
+  V.imapM_ (\i row -> V.imapM_ (\j v ->
+      putStrLn ("  ws1[" ++ show i ++ "][" ++ show j ++ "] = " ++ show v)) row) gw1
+  putStrLn "d cost / d ws2:"
+  V.imapM_ (\i row -> V.imapM_ (\j v ->
+      putStrLn ("  ws2[" ++ show i ++ "][" ++ show j ++ "] = " ++ show v)) row) gw2
+
+-- For the full mnist-sized cost: too big to print, but we can measure it.
+symGradCostSize :: IO ()
+symGradCostSize = do
+  let example = ( V.replicate 784 (Var "x"), V.singleton (Var "y") )
+      weights = ( V.replicate 300 (V.replicate 785 (Var "w"))
+                , V.replicate 10  (V.replicate 301 (Var "v")) )
+      (r, Dual g) = cost [example] # weights
+      (gw1, gw2) = g (Const 1)
+  putStrLn $ "full cost size:                    " ++ show (size r) ++ " nodes"
+  putStrLn $ "d cost / d ws1[0][0] size:         " ++ show (size (gw1 V.! 0 V.! 0)) ++ " nodes"
+  putStrLn $ "d cost / d ws2[0][0] size:         " ++ show (size (gw2 V.! 0 V.! 0)) ++ " nodes"
