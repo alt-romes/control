@@ -18,6 +18,7 @@ import Data.Equality.Graph (EGraph, represent, merge)
 import Data.Equality.Graph.Lens ((^.), _class, _data)
 import Data.Maybe
 import GHC.TypeNats
+import Control.DeepSeq (force)
 
 newtype a :-> b = D    { (#)  :: a -> (b, a <-- b) }
 newtype a <-- b = Dual { (<|) :: b -> a            }
@@ -94,8 +95,8 @@ nExamples = 60000
 main = do
   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
-  let allImgs = NV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
-      allLbls = NV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
+  let allImgs = force $ NV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
+      allLbls = force $ NV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
       examples = fromJust $ V.fromList $
         [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NV.! i) )
