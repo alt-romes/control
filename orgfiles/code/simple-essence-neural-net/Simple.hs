@@ -16,8 +16,10 @@ f × g = D $ \(a,b) ->
   let (c, f') = f # a; (d, g') = g # b
    in ((c,d), Dual (\(x,y) -> (f' <| x, g' <| y)))
 --------------------------------------------------------------------------------
+assoc     = linear (\(a,(b,c)) -> ((a,b),c)) (Dual (\((a,b),c) -> (a,(b,c))))
 dup       = linear (\x -> (x,x)) (Dual (uncurry (+)))
 neg       = linear negate (scale (-1))
+add       = linear (uncurry (+)) (Dual $ \x -> (x,x))
 (+>) k    = linear (+k) (Dual id)
 mul       = D $ \(x,y) -> (x*y, Dual (\df -> (df*y,df*x)))
 rec       = D $ \x -> (recip x, scale (-1 / x^2))
@@ -28,10 +30,9 @@ crossI fs = D $ \as -> let (bs, bsas) = unzip (zipWith (#) fs as) in (bs, Dual (
 sumI      = D $ \xs -> (sum xs, Dual (\x -> replicate (length xs) x))
 hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))) where (.*.) = zipWith (*)
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
-cons    x = D $ \xs -> (x:xs, Dual (\(_dx:dxs) -> dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
 --------------------------------------------------------------------------------
 sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-neuron   = sigmoid . (sumI . hadamard) . (cons 1 × id)
+neuron   = sigmoid . add . ((sumI . hadamard) × id) . assoc
 xorNet i = neuron . (crossI [n, n, n, n] × id) where n = fixed neuron i
 cost  ps = sumI . crossI (map cost1 ps) . dupI (length ps)
   where cost1 (i, o) = mul . dup . (negate o +>) . xorNet i
@@ -48,10 +49,10 @@ main = do
   putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (xorNet e # finalWeights)) examples)
   putStrLn $ "Expected results:   " ++ show (map snd examples)
 
-type Weights = ([[Double]], [Double])
+type Weights = ([([Double], Double)], ([Double], Double))
 instance Num Weights where
-  fromInteger x' = (replicate 4 ([x,x,x]), [x,x,x,x,x]) where x = fromInteger x'
-  (w1, w2) + (w3, w4) = (zipWith (zipWith (+)) w1 w3, zipWith (+) w2 w4)
+  fromInteger x' = (replicate 4 ([x,x], x), ([x,x,x,x],x)) where x = fromInteger x'
+  (w1, (w2,b2)) + (w3, (w4,b4)) = (zipWith (\(ws1, b1) (ws2, b2) -> (zipWith (+) ws1 ws2, b1+b2)) w1 w3, (zipWith (+) w2 w4, b2+b4))
 
 
 
