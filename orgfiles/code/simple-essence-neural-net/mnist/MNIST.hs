@@ -1,7 +1,9 @@
 {- cabal:
- build-depends: base, random, bytestring
+ build-depends: base, random, bytestring, vector, hegg, containers
 -}
-{-# LANGUAGE GHC2024, OverloadedLists, Strict #-}
+{-# LANGUAGE GHC2024, OverloadedLists, Strict, OverloadedStrings,
+             DeriveTraversable, DeriveGeneric, MultiParamTypeClasses,
+             FlexibleInstances, LambdaCase, TypeFamilies #-}
 import Prelude hiding (id, (.))
 import Control.Category
 import Control.Monad
@@ -9,6 +11,12 @@ import System.Random.Stateful
 import qualified Data.ByteString as BS
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as UV
+import GHC.Generics (Generic)
+import Data.Equality.Saturation (Fix(..), equalitySaturation, CostFunction, Rewrite(..))
+import Data.Equality.Matching (pat)
+import Data.Equality.Analysis (Analysis(..))
+import Data.Equality.Graph (EGraph, represent, merge)
+import Data.Equality.Graph.Lens ((^.), _class, _data)
 
 newtype a :-> b = D    { (#)  :: a -> (b, a <-- b) }
 newtype a <-- b = Dual { (<|) :: b -> a            }
@@ -126,10 +134,15 @@ symGrad = do
   let (yS, Dual gS) = (sigmoid :: Expr :-> Expr) # Var "x"
   putStrLn $ "sigmoid(x)         = " ++ show yS
   putStrLn $ "k * d/dx sigmoid x = " ++ show (gS (Var "k"))
+  putStrLn $ "        simplified = " ++ show (simplify yS)
+  putStrLn $ "k * d/dx sigmoid x = " ++ show (gS (Var "k"))
+  putStrLn $ "        simplified = " ++ show (simplify (gS (Var "k")))
   let sqr = mul . dup
       (yQ, Dual gQ) = (sqr :: Expr :-> Expr) # Var "x"
   putStrLn $ "x*x                = " ++ show yQ
+  putStrLn $ "        simplified = " ++ show (simplify yQ)
   putStrLn $ "k * d/dx (x*x)     = " ++ show (gQ (Var "k"))
+  putStrLn $ "        simplified = " ++ show (simplify (gQ (Var "k")))
 
 size :: Expr -> Int
 size (Const _) = 1
@@ -188,3 +201,102 @@ symGradCostSize = do
   putStrLn $ "full cost size:                    " ++ show (size r) ++ " nodes"
   putStrLn $ "d cost / d ws1[0][0] size:         " ++ show (size (gw1 V.! 0 V.! 0)) ++ " nodes"
   putStrLn $ "d cost / d ws2[0][0] size:         " ++ show (size (gw2 V.! 0 V.! 0)) ++ " nodes"
+
+--------------------------------------------------------------------------------
+-- Equality saturation via hegg
+--------------------------------------------------------------------------------
+
+-- | Base functor of 'Expr' so it can serve as a hegg 'Language'.
+data ExprF a = ConstF !Double
+             | VarF !String
+             | AddF a a
+             | MulF a a
+             | NegF a
+             | RecF a
+             | ExpF a
+             | SqrtF a
+             deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+toFix :: Expr -> Fix ExprF
+toFix = \case
+  Const d  -> Fix (ConstF d)
+  Var c    -> Fix (VarF c)
+  Add a b  -> Fix (AddF (toFix a) (toFix b))
+  Mul a b  -> Fix (MulF (toFix a) (toFix b))
+  Neg a    -> Fix (NegF (toFix a))
+  Rec a    -> Fix (RecF (toFix a))
+  Exp a    -> Fix (ExpF (toFix a))
+  Sqrt a   -> Fix (SqrtF (toFix a))
+
+fromFix :: Fix ExprF -> Expr
+fromFix (Fix e) = case e of
+  ConstF d  -> Const d
+  VarF c    -> Var c
+  AddF a b  -> Add (fromFix a) (fromFix b)
+  MulF a b  -> Mul (fromFix a) (fromFix b)
+  NegF a    -> Neg (fromFix a)
+  RecF a    -> Rec (fromFix a)
+  ExpF a    -> Exp (fromFix a)
+  SqrtF a   -> Sqrt (fromFix a)
+
+-- | Constant-folding analysis: each e-class carries the constant value of its
+-- expressions when known.
+instance Analysis (Maybe Double) ExprF where
+  makeA = \case
+    ConstF x -> Just x
+    VarF _   -> Nothing
+    AddF x y -> (+) <$> x <*> y
+    MulF x y -> (*) <$> x <*> y
+    NegF x   -> negate <$> x
+    RecF x   -> recip <$> x
+    ExpF x   -> exp <$> x
+    SqrtF x  -> sqrt <$> x
+
+  joinA Nothing  y         = y
+  joinA x        Nothing   = x
+  joinA (Just x) (Just y)
+    | x == y    = Just x
+    | otherwise = error "Analysis: merged inconsistent constants"
+
+  modifyA c eg = case eg ^._class c._data of
+    Nothing -> eg
+    Just d  ->
+      let (c', eg') = represent (Fix (ConstF d)) eg
+       in snd (merge c c' eg')
+
+exprCost :: CostFunction ExprF Int
+exprCost = \case
+  ConstF _ -> 1
+  VarF _   -> 1
+  AddF a b -> a + b + 2
+  MulF a b -> a + b + 3
+  NegF a   -> a + 1
+  RecF a   -> a + 4
+  ExpF a   -> a + 8
+  SqrtF a  -> a + 8
+
+rewrites :: [Rewrite (Maybe Double) ExprF]
+rewrites =
+  [ pat (AddF "a" "b")                                  := pat (AddF "b" "a")
+  , pat (MulF "a" "b")                                  := pat (MulF "b" "a")
+  , pat (AddF "a" (pat (AddF "b" "c")))                 := pat (AddF (pat (AddF "a" "b")) "c")
+  , pat (MulF "a" (pat (MulF "b" "c")))                 := pat (MulF (pat (MulF "a" "b")) "c")
+  , pat (AddF "a" (pat (ConstF 0)))                     := "a"
+  , pat (MulF "a" (pat (ConstF 0)))                     := pat (ConstF 0)
+  , pat (MulF "a" (pat (ConstF 1)))                     := "a"
+  , pat (NegF (pat (NegF "a")))                         := "a"
+  , pat (NegF (pat (ConstF 0)))                         := pat (ConstF 0)
+  , pat (AddF "a" (pat (NegF "a")))                     := pat (ConstF 0)
+  , pat (NegF "a")                                      := pat (MulF (pat (ConstF (-1))) "a")
+  , pat (MulF "a" (pat (AddF "b" "c")))                 := pat (AddF (pat (MulF "a" "b")) (pat (MulF "a" "c")))
+  , pat (RecF (pat (RecF "a")))                         := "a"
+  , pat (RecF (pat (ConstF 1)))                         := pat (ConstF 1)
+  , pat (ExpF (pat (ConstF 0)))                         := pat (ConstF 1)
+  , pat (SqrtF (pat (ConstF 0)))                        := pat (ConstF 0)
+  , pat (SqrtF (pat (ConstF 1)))                        := pat (ConstF 1)
+  ]
+
+simplify :: Expr -> Expr
+simplify e =
+  fromFix (fst (equalitySaturation (toFix e) rewrites exprCost
+                  :: (Fix ExprF, EGraph (Maybe Double) ExprF)))
