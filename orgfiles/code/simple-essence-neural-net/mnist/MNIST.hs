@@ -1,7 +1,7 @@
 {-# LANGUAGE GHC2024, TypeAbstractions, Strict, OverloadedStrings,
              DeriveTraversable, DeriveGeneric, MultiParamTypeClasses,
              FlexibleInstances, LambdaCase, TypeFamilies, NoMonomorphismRestriction #-}
-{-# OPTIONS_GHC -fpolymorphic-specialisation -fspecialise-aggressively -fexpose-all-unfoldings #-}
+{-# OPTIONS_GHC -fpolymorphic-specialisation -fspecialise-aggressively -fexpose-all-unfoldings -flate-specialise -funfolding-use-threshold=10000 #-}
 import Prelude hiding (id, (.))
 import Control.Category
 import Control.Monad
@@ -17,7 +17,7 @@ import Data.Equality.Analysis (Analysis(..))
 import Data.Equality.Graph (EGraph, represent, merge)
 import Data.Equality.Graph.Lens ((^.), _class, _data)
 import Data.Maybe
-import GHC.TypeLits
+import GHC.TypeNats
 
 newtype a :-> b = D    { (#)  :: a -> (b, a <-- b) }
 newtype a <-- b = Dual { (<|) :: b -> a            }
@@ -41,7 +41,6 @@ mul       = D $ \(x,y) -> (x*y, Dual (\df -> (df*y,df*x)))
 rec       = D $ \x -> (recip x, scale (-1 / x^2))
 exp'      = D $ \x -> let e = exp x in (e, scale e)
 -- pow  k    = D $ \x -> (x^k, scale (k*x^(k-1))) -- (^) only works for integral exponents
-sqrt'     = D $ \x -> let r = sqrt x in (r, scale (1/(2*r)))
 --------------------------------------------------------------------------------
 dupI :: KnownNat n => (V.Vector n a -> a) -> a :-> V.Vector n a
 dupI @n join = linear (\x -> V.replicate x) (Dual join)
@@ -50,25 +49,33 @@ sumI :: (KnownNat n, Num b) => V.Vector n b :-> b
 sumI      = D $ \xs -> (sum xs, Dual (\x -> V.replicate x))
 hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))) where (.*.) = V.zipWith (*)
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
+cons :: a -> V.Vector n a :-> V.Vector (1 + n) a
 cons    x = D $ \xs -> (x `V.cons` xs, Dual (\dxs -> V.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
 --------------------------------------------------------------------------------
 sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-neuron   = sigmoid . (sumI . hadamard) -- . (cons 1 × id) TODO: Re-add BIAS
+neuron   = sigmoid . (sumI . hadamard) . (cons 1 × id)
 l2       = crossI (V.replicate @NOut neuron) . (linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip))
 l1 i     = crossI (V.replicate @NMid (fixed neuron i))
 mnistNet i = l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
 
-cost :: (KnownNat nexs, Floating a) => V.Vector nexs (V.Vector NIn a, V.Vector NOut a) -> Weights a :-> a
+cost :: (KnownNat nexs, Floating a) => V.Vector nexs (V.Vector NIn a, V.Vector NOut a) -> Weights (1+NIn) (1+NMid) a :-> a
 cost  ps = sumI . crossI (V.map cost1 ps) . dupI sum
-  where cost1 (i, o) = sqrt' . sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
+  where cost1 (i, o) = sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
         sqr = mul . dup
 
-step :: (Show a, Floating a) => V.Vector NExamples (V.Vector NIn a, V.Vector NOut a) -> Int -> Weights a -> IO (Weights a)
-step examples (i :: Int) weights = do
-  let (r, Dual grad) = cost (V.take @1 ({-drop (i*10)-} examples)) # weights
+type BatchSize = 100
+batchSize = 100
+
+step :: (Show a, Floating a) => V.Vector NExamples (V.Vector NIn a, V.Vector NOut a) -> Int
+     -> Weights (1+NIn) (1+NMid) a
+     -> IO (Weights (1+NIn) (1+NMid) a)
+step examples i weights = do
+  let off = (i * 10) `mod` (nExamples - 10)
+      batch = fromJust $ V.toSized @BatchSize $ NV.slice off batchSize (V.fromSized examples)
+      (r, Dual grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
-  pure $ weights + grad (-1)
+  pure $ weights + grad (-0.001)
 
 type NIn = 784
 type NMid = 300
@@ -90,9 +97,10 @@ main = do
         [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NV.! i) )
         | i <- [0..nExamples-1] ]
-  -- TODO: Weight inits: Xavier/Glorot
-  initialWeights <- (,) <$> V.replicateM @NMid (V.replicateM @NIn $ randomM globalStdGen) <*> V.replicateM @NOut (V.replicateM @NMid $ (randomM globalStdGen))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..100]
+  let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
+  initialWeights <- (,) <$> V.replicateM @NMid (V.replicateM @(1+NIn)  (xavier nIn))
+                        <*> V.replicateM @NOut (V.replicateM @(1+NMid) (xavier nMid))
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..5000]
   pure ()
   -- putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (mnistNet e # finalWeights)) (V.toList examples))
   -- putStrLn $ "Expected results:   " ++ show (map snd (V.toList examples))
@@ -100,9 +108,9 @@ main = do
 labelToVec :: Double -> V.Vector 10 Double
 labelToVec d = V.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
 
-type Weights a = (V.Vector NMid (V.Vector NIn a), V.Vector NOut (V.Vector NMid a))
-instance Num a => Num (Weights a) where
-  fromInteger x' = (V.replicate @NMid (V.replicate @NIn x), V.replicate @NOut (V.replicate @NMid x)) where x = fromInteger x'
+type Weights nin nmid a = (V.Vector NMid (V.Vector nin a), V.Vector NOut (V.Vector nmid a))
+instance (KnownNat nin, KnownNat nmid, Num a) => Num (Weights nin nmid a) where
+  fromInteger x' = (V.replicate @NMid (V.replicate @nin x), V.replicate @NOut (V.replicate @nmid x)) where x = fromInteger x'
   (w1, w2) + (w3, w4) = (V.zipWith (V.zipWith(+)) w1 w3, V.zipWith (V.zipWith(+)) w2 w4)
 
 --------------------------------------------------------------------------------
@@ -191,7 +199,7 @@ symGradCostSize = do
           , labelToVec (allLbls NV.! i) )
         | i <- [0..nExamples-1] ]
       example = (V.generate @NIn (\i -> Var $ 'x':show i), V.generate @NOut (\i -> Var $ 'y':show i))
-  weights <- (,) <$> V.replicateM @NMid (V.replicateM @NIn $ Const <$> randomM globalStdGen) <*> V.replicateM @NOut (V.replicateM @NMid $ Const <$> randomM globalStdGen)
+  weights <- (,) <$> V.replicateM @NMid (V.replicateM @(1+NIn) $ Const <$> randomM globalStdGen) <*> V.replicateM @NOut (V.replicateM @(1+NMid) $ Const <$> randomM globalStdGen)
   let
       (r, Dual g) = cost (V.singleton example) # weights
       (gw1, gw2) = g (Const 1)
