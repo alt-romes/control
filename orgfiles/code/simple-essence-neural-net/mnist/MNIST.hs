@@ -9,10 +9,7 @@ import System.Random.Stateful
 import qualified Data.ByteString as BS
 import Data.Finite
 import qualified Data.Vector.Sized as V
-import qualified Data.Vector.Unboxed.Sized as VU
 import qualified Data.Vector as NV
-import qualified Data.Vector.Unboxed as NVU
-import Data.Vector.Unboxed (Unbox)
 import GHC.Generics (Generic)
 import Data.Equality.Saturation (Fix(..), equalitySaturation, CostFunction, Rewrite(..))
 import Data.Equality.Matching (pat)
@@ -46,7 +43,6 @@ rec       = D $ \x -> (recip x, scale (-1 / x^2))
 exp'      = D $ \x -> let e = exp x in (e, scale e)
 -- pow  k    = D $ \x -> (x^k, scale (k*x^(k-1))) -- (^) only works for integral exponents
 --------------------------------------------------------------------------------
--- BOXED (V = Data.Vector.Sized) primitives — for outer vectors of complex elements / closures
 dupI :: KnownNat n => (V.Vector n a -> a) -> a :-> V.Vector n a
 dupI @n join = linear (\x -> V.replicate x) (Dual join)
 crossI fs = D $ \as -> let (bs, bsas) = V.unzip (V.zipWith (#) fs as) in (bs, Dual (V.zipWith (<|) bsas))
@@ -57,39 +53,6 @@ fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
 cons :: a -> V.Vector n a :-> V.Vector (1 + n) a
 cons    x = D $ \xs -> (x `V.cons` xs, Dual (\dxs -> V.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
 zip' = linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip)
-
--- UNBOXED (VU = Data.Vector.Unboxed.Sized) primitives — for inner vectors of Doubles
-dupIU :: forall n a. (KnownNat n, Unbox a) => (VU.Vector n a -> a) -> a :-> VU.Vector n a
-dupIU @n join = linear (\x -> VU.replicate x) (Dual join)
-sumIU :: (KnownNat n, Num b, Unbox b) => VU.Vector n b :-> b
-sumIU = D $ \xs -> (VU.sum xs, Dual (\x -> VU.replicate x))
-hadamardU :: (KnownNat n, Num a, Unbox a) => (VU.Vector n a, VU.Vector n a) :-> VU.Vector n a
-hadamardU = D $ \(ss, xs) -> (VU.zipWith (*) ss xs, Dual (\dfs -> (VU.zipWith (*) xs dfs, VU.zipWith (*) ss dfs)))
-consU :: forall n a. (KnownNat n, Unbox a) => a -> VU.Vector n a :-> VU.Vector (1+n) a
-consU x = D $ \xs -> (x `VU.cons` xs, Dual (\dxs -> VU.drop @1 dxs))
-
--- Hybrid crossI: BOXED outer V of element type a, single function (a :-> Double), UNBOXED output VU n Double
--- All current uses are V.replicate n f, so we take a single function and avoid storing a vector of closures.
-crossNU :: forall n a. (KnownNat n) => (a :-> Double) -> V.Vector n a :-> VU.Vector n Double
-crossNU f = D $ \as ->
-  let pairs = V.map (f #) as                              -- V n (Double, a <-- Double) -- boxed of pairs
-      bs    = VU.generate (\i -> fst (V.index pairs i))   -- VU n Double — UNBOXED!
-      duals = V.map snd pairs                              -- V n (a <-- Double) — boxed of closures
-  in (bs, Dual $ \dbs -> V.generate (\i -> (V.index duals i) <| (VU.index dbs i)))
-
--- Like crossI but takes a vector of *different* functions (used in cost where each example has its own cost1)
-crossIBU :: forall n a. (KnownNat n) => V.Vector n (a :-> Double) -> V.Vector n a :-> VU.Vector n Double
-crossIBU fs = D $ \as ->
-  let pairs = V.zipWith (#) fs as
-      bs    = VU.generate (\i -> fst (V.index pairs i))
-      duals = V.map snd pairs
-  in (bs, Dual $ \dbs -> V.generate (\i -> (V.index duals i) <| (VU.index dbs i)))
-
--- Convert boxed V of Double to unboxed VU of Double (and back via dual)
-toUnboxed :: forall n. KnownNat n => V.Vector n Double :-> VU.Vector n Double
-toUnboxed = D $ \xs ->
-  let ys = VU.generate (\i -> V.index xs i)
-  in (ys, Dual (\dys -> V.generate (\i -> VU.index dys i)))
 --------------------------------------------------------------------------------
 sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
 softmax :: forall n a. (KnownNat n, Floating a) => V.Vector n a :-> V.Vector n a
