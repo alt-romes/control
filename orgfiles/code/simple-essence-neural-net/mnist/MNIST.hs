@@ -24,17 +24,22 @@ import Data.Proxy
 newtype a :-> b = D    { (#)  :: a -> (b, a <-- b) }
 newtype a <-- b = Dual { (<|) :: b -> a            }
 linear f fd = D (\a -> (f a, fd))
+{-# INLINE linear #-}
 scale  y    = Dual (\dx -> dx*y)
+{-# INLINE scale #-}
 
 instance Category (:->) where
   id = linear id (Dual id)
+  {-# INLINE id #-}
   g . f = D $ \a -> -- chain rule
     let (b, Dual f') = f # a; (c, Dual g') = g # b
      in (c, Dual (f' . g'))
+  {-# INLINE (.) #-}
 
 f × g = D $ \(a,b) ->
   let (c, f') = f # a; (d, g') = g # b
    in ((c,d), Dual (\(x,y) -> (f' <| x, g' <| y)))
+{-# INLINE (×) #-}
 --------------------------------------------------------------------------------
 dup       = linear (\x -> (x,x)) (Dual (uncurry (+)))
 neg       = linear negate (scale (-1))
@@ -42,6 +47,12 @@ neg       = linear negate (scale (-1))
 mul       = D $ \(x,y) -> (x*y, Dual (\df -> (df*y,df*x)))
 rec       = D $ \x -> (recip x, scale (-1 / x^2))
 exp'      = D $ \x -> let e = exp x in (e, scale e)
+{-# NOINLINE dup #-}
+{-# NOINLINE neg #-}
+{-# NOINLINE (+>) #-}
+{-# NOINLINE mul #-}
+{-# NOINLINE rec #-}
+{-# NOINLINE exp' #-}
 -- pow  k    = D $ \x -> (x^k, scale (k*x^(k-1))) -- (^) only works for integral exponents
 --------------------------------------------------------------------------------
 dupI :: KnownNat n => (V.Vector n a -> a) -> a :-> V.Vector n a
@@ -49,24 +60,32 @@ dupI @n join = linear (\x -> V.replicate x) (Dual join)
 crossI fs = D $ \as -> let (bs, bsas) = V.unzip (V.zipWith (#) fs as) in (bs, Dual (V.zipWith (<|) bsas))
 sumI :: (KnownNat n, Num b) => V.Vector n b :-> b
 sumI      = D $ \xs -> (sum xs, Dual (\x -> V.replicate x))
-hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs))) where (.*.) = V.zipWith (*)
+hadamard  = D $ \(ss, xs) -> (ss .*. xs, Dual (\dfs -> (xs .*. dfs, ss .*. dfs)))
+  where (.*.) = V.zipWith (*)
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
 cons :: a -> V.Vector n a :-> V.Vector (1 + n) a
 cons    x = D $ \xs -> (x `V.cons` xs, Dual (\dxs -> V.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
 zip' = linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip)
+{-# NOINLINE dupI #-}
+{-# NOINLINE crossI #-}
+{-# NOINLINE sumI #-}
+{-# NOINLINE hadamard #-}
+{-# NOINLINE fixed #-}
+{-# NOINLINE cons #-}
+{-# NOINLINE zip' #-}
 --------------------------------------------------------------------------------
-sigmoid  = rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
+sigmoid  = {-# SCC sigmoid #-} rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
 softmax :: forall n a. (KnownNat n, Floating a) => V.Vector n a :-> V.Vector n a
-softmax  = crossI (V.replicate @n (mul . ((rec . sumI . crossI (V.replicate @n exp')) × id))) . zip' . (dupI @n sum × id) . dup
-neuron   = (sumI . hadamard) . (cons 1 × id)
-l2       = softmax . crossI (V.replicate @NOut neuron) . zip'
-l1 i     = crossI (V.replicate @NMid (sigmoid . fixed neuron i))
-mnistNet i = l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
+softmax  = {-# SCC softmax #-} crossI (V.replicate @n (mul . ((rec . sumI . crossI (V.replicate @n exp')) × id))) . zip' . (dupI @n sum × id) . dup
+neuron   = {-# SCC neuron #-} (sumI . hadamard) . (cons 1 × id)
+l2       = {-# SCC l2 #-} softmax . crossI (V.replicate @NOut neuron) . zip'
+l1 i     = {-# SCC l1 #-} crossI (V.replicate @NMid (sigmoid . fixed neuron i))
+mnistNet i = {-# SCC mnistNet #-} l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
 
 cost :: forall nexs a. (KnownNat nexs, Floating a) => V.Vector nexs (V.Vector NIn a, V.Vector NOut a) -> Weights (1+NIn) (1+NMid) a :-> a
-cost  ps = sumI . crossI (V.map cost1 ps) . dupI sum
-  where cost1 (i, o) = fixed mul (fromIntegral $ natVal (Proxy @nexs)) . rec . sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
-        sqr = mul . dup
+cost  ps = {-# SCC cost #-} sumI . crossI (V.map cost1 ps) . dupI sum
+  where cost1 (i, o) = {-# SCC cost1 #-} fixed mul (fromIntegral $ natVal (Proxy @nexs)) . rec . sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
+        sqr = {-# SCC sqr #-} mul . dup
 
 type BatchSize = 32
 batchSize = 32
@@ -74,7 +93,7 @@ batchSize = 32
 step :: (Show a, Floating a) => V.Vector NExamples (V.Vector NIn a, V.Vector NOut a) -> Int
      -> Weights (1+NIn) (1+NMid) a
      -> IO (Weights (1+NIn) (1+NMid) a)
-step examples i weights = do
+step examples i weights = {-# SCC step #-} do
   let off = (i * batchSize) `mod` (nExamples - batchSize)
       batch = fromJust $ V.toSized @BatchSize $ NV.slice off batchSize (V.fromSized examples)
       (r, Dual grad) = cost batch # weights
@@ -102,12 +121,53 @@ main = do
         [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NV.! i) )
         | i <- [0..nExamples-1] ]
+
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> V.replicateM @NMid (V.replicateM @(1+NIn)  (xavier nIn))
                         <*> V.replicateM @NOut (V.replicateM @(1+NMid) (xavier nMid))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..5000]
-  putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (mnistNet e # finalWeights)) (take 10 $ reverse $ V.toList examples))
-  putStrLn $ "Expected results:   " ++ show (map snd (take 10 $ reverse $ V.toList examples))
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..150]
+
+  -- Load test data
+  rawTestImages <- BS.drop 16 <$> BS.readFile "t10k-images.idx3-ubyte"
+  rawTestLabels <- BS.drop 8  <$> BS.readFile "t10k-labels.idx1-ubyte"
+
+  let testImgs = force $ NV.generate (BS.length rawTestImages)
+          (\i -> fromIntegral @_ @Double (BS.index rawTestImages i) / 255)
+
+      testLbls = force $ NV.generate (BS.length rawTestLabels)
+          (\i -> fromIntegral @_ @Double (BS.index rawTestLabels i))
+
+      nTest = BS.length rawTestLabels
+
+      testExamples = force $ V.take @1000 $ fromJust $ V.fromList @10000
+        [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn testImgs
+          , labelToVec (testLbls NV.! i) )
+        | i <- [0 .. nTest - 1]
+        ]
+
+      predict e = V.maxIndex $ fst (mnistNet e # finalWeights)
+      target  t = V.maxIndex t
+
+      results = V.map (\(e, t) -> (predict e, target t)) testExamples
+
+      correct = length $ filter (uncurry (==)) (V.toList results)
+      total   = V.length results
+
+      accuracy = fromIntegral correct / fromIntegral total :: Double
+
+      loss (e, t) =
+        let (y, _) = mnistNet e # finalWeights
+        in V.sum $ V.map (^2) (y - t)   -- use your existing loss
+
+      totalLoss = V.sum $ V.map loss testExamples
+      avgLoss   = totalLoss / fromIntegral total
+
+  putStrLn $ "Test accuracy: " ++ show accuracy
+  putStrLn $ "Test loss:     " ++ show avgLoss
+
+  putStrLn "Sample predictions (predicted, actual):"
+  print $ take 10 $ V.toList results
+
 
 labelToVec :: Double -> V.Vector 10 Double
 labelToVec d = V.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
