@@ -68,7 +68,7 @@ step examples (i :: Int) weights = do
   let (r, Dual grad) = cost (V.take @1 ({-drop (i*10)-} examples)) # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
-  pure $ weights + grad (-10)
+  pure $ weights + grad (-1)
 
 type NIn = 784
 type NMid = 300
@@ -84,9 +84,8 @@ nExamples = 60000
 main = do
   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
-  let toV bs = NV.generate (BS.length bs) (\i -> fromIntegral @_ @Double (BS.index bs i) / 255)
-      allImgs = toV rawImages
-      allLbls = toV rawLabels
+  let allImgs = NV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
+      allLbls = NV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
       examples = fromJust $ V.fromList $
         [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NV.! i) )
