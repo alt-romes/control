@@ -4,5 +4,5 @@ version: 0.1.0.0
 build-type: Simple
 executable mnist
     main-is: MNIST.hs
-    build-depends: base, random, bytestring, recover-rtti
+    build-depends: base, random, bytestring, vector
     ghc-options: -threaded
