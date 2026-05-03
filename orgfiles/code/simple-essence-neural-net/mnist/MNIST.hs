@@ -101,8 +101,13 @@ zipB = linear (\(xs,ys) -> VS.zipWith (,) xs ys) (Dual VS.unzip)
 {-# INLINE zip' #-}
 --------------------------------------------------------------------------------
 sigmoid  = {-# SCC sigmoid #-} rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-softmax :: forall n. KnownNat n => UV.Vector n Double :-> UV.Vector n Double
-softmax  = {-# SCC softmax #-} mapI @n (mul . ((rec . sumI . mapI exp') × id)) . zip' . (dupI UV.sum × id) . dup
+softmax :: forall n. KnownNat n
+        => UV.Vector n Double :-> UV.Vector n Double
+softmax  = {-# SCC softmax #-}
+  mapI @n (mul . ((rec . sumI . mapI exp') × exp'))
+    . zip'
+    . (dupI UV.sum × id)
+    . dup
 neuron :: KnownNat (1+n) => (UV.Vector n Double, UV.Vector (1 + n) Double) :-> Double
 neuron   = {-# SCC neuron #-} dot . (cons 1 × id)
 l2 :: (VS.Vector NOut (UV.Vector NMid Double), VS.Vector NOut (UV.Vector (1 + NMid) Double)) :-> UV.Vector NOut Double
@@ -169,14 +174,14 @@ main = do
 
       nTest = BS.length rawTestLabels
 
-      testExamples = force $ VS.take @1000 $ fromJust $ VS.fromList @10000
+      testExamples = force $ fromJust $ VS.fromList @10000
         [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn testImgs
           , labelToVec (testLbls NUV.! i) )
         | i <- [0 .. nTest - 1]
         ]
 
-      predict e = UV.maxIndex $ fst (mnistNet e # finalWeights)
-      target  t = UV.maxIndex t
+      predict e = fst (mnistNet e # finalWeights)
+      target  t = t
 
       results = VS.map (\(e, t) -> (predict e, target t)) testExamples
 
