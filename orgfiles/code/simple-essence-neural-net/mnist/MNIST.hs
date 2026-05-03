@@ -143,10 +143,10 @@ step examples i weights = {-# SCC step #-} do
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
   -- putStrLn $ "Max weights:" ++ show (UV.maximum $ VS.maximum $ snd weights)
-  pure $ weights + grad (-0.01)
+  pure $ weights + grad (-0.0075)
 
-type BatchSize = 64
-batchSize = 64
+type BatchSize = 60
+batchSize = 60
 
 type NIn = 784
 type NMid = 300
