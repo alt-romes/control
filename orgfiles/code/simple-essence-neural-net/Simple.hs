@@ -1,11 +1,10 @@
-import Prelude hiding (id, (.))
-import Control.Category
+import Prelude hiding (id, (.)); import Control.Category
 
 newtype a :-> b = D { (#)  :: a -> (b, b -> a) }
 linear f fd = D (\a -> (f a, fd))
 
 instance Category (:->) where
-  id = linear id (id)
+  id = linear id id
   g . f = D $ \a -> -- chain rule
     let (b, f') = f # a; (c, g') = g # b
      in (c, f' . g')
@@ -25,11 +24,11 @@ exp'      = D $ \x -> let e = exp x in (e, (*e))
 dupI    n = linear (replicate n) sum
 crossI fs = D $ \as -> let (bs, bsas) = unzip (zipWith (#) fs as) in (bs, zipWith ($) bsas)
 sumI      = D $ \xs -> (sum xs, replicate (length xs))
-hadamard  = D $ \(ss, xs) -> (ss .*. xs, \dfs -> (xs .*. dfs, ss .*. dfs)) where (.*.) = zipWith (*)
+dotI      = D $ \(ss, xs) -> (sum (zipWith (*) ss xs), \dfs -> (map (*dfs) xs, map (*dfs) ss))
 fixed f a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)
 --------------------------------------------------------------------------------
 sigmoid  = rec . (fixed add 1) . exp' . neg -- 1/(1+exp(-x))
-neuron   = sigmoid . add . ((sumI . hadamard) × id) . assoc
+neuron   = sigmoid . add . (dotI × id) . assoc
 xorNet i = neuron . (crossI [n, n, n, n] × id) where n = fixed neuron i
 cost  ps = sumI . crossI (map cost1 ps) . dupI (length ps)
   where cost1 (i, o) = mul . dup . (fixed add (negate o)) . xorNet i
@@ -39,10 +38,10 @@ step examples (i :: Int) weights = do
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   pure $ weights + grad (-10)
 
-main = do
+main = do -- perl -pe's/r/rand/ge'<<<'([([r,r],r),([r,r],r),([r,r],r),([r,r],r)],([r,r,r,r],r))' | ./Simple
   let examples = [([0,0],0), ([0,1],1), ([1,0],1), ([1,1],0)]
   initialWeights <- readLn @([([Double], Double)], ([Double], Double))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..1000000]
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..300000]
   putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (xorNet e # finalWeights)) examples)
   putStrLn $ "Expected results:   " ++ show (map snd examples)
 
