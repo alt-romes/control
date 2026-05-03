@@ -20,17 +20,14 @@ add       = linear (uncurry (+)) (\x -> (x,x))
 mul       = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
 rec       = D $ \x -> (recip x, (*(-1 / x^2)))
 exp'      = D $ \x -> let e = exp x in (e, (*e))
---------------------------------------------------------------------------------
-dupI    n = linear (replicate n) sum
-crossI fs = D $ \as -> let (bs, bsas) = unzip (zipWith (#) fs as) in (bs, zipWith ($) bsas)
-sumI      = D $ \xs -> (sum xs, replicate (length xs))
 dotI      = D $ \(ss, xs) -> (sum (zipWith (*) ss xs), \dfs -> (map (*dfs) xs, map (*dfs) ss))
+crossI fs = D $ \as -> let (bs, bsas) = unzip (zipWith (#) fs as) in (bs, zipWith ($) bsas)
 fixed f a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)
 --------------------------------------------------------------------------------
-sigmoid  = rec . (fixed add 1) . exp' . neg -- 1/(1+exp(-x))
-neuron   = sigmoid . add . (dotI × id) . assoc
-xorNet i = neuron . (crossI [n, n, n, n] × id) where n = fixed neuron i
-cost  ps = sumI . crossI (map cost1 ps) . dupI (length ps)
+sigmoid   = rec . (fixed add 1) . exp' . neg -- 1/(1+exp(-x))
+neuron    = sigmoid . add . (dotI × id) . assoc
+xorNet  i = neuron . (crossI [n, n, n, n] × id) where n = fixed neuron i
+cost (e1,e2,e3,e4) = add . (add × add) . ((cost1 e1 × cost1 e2) × (cost1 e3 × cost1 e4)) . (dup × dup) . dup
   where cost1 (i, o) = mul . dup . (fixed add (negate o)) . xorNet i
 
 step examples (i :: Int) weights = do
@@ -39,17 +36,11 @@ step examples (i :: Int) weights = do
   pure $ weights + grad (-10)
 
 main = do -- perl -pe's/r/rand/ge'<<<'([([r,r],r),([r,r],r),([r,r],r),([r,r],r)],([r,r,r,r],r))' | ./Simple
-  let examples = [([0,0],0), ([0,1],1), ([1,0],1), ([1,1],0)]
+  let xamples@((i1,o1),(i2,o2),(i3,o3),(i4,o4)) = (([0,0],0), ([0,1],1), ([1,0],1), ([1,1],0))
   initialWeights <- readLn @([([Double], Double)], ([Double], Double))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..300000]
-  putStrLn $ "Neural net results: " ++ show (map (\(e,_) -> fst (xorNet e # finalWeights)) examples)
-  putStrLn $ "Expected results:   " ++ show (map snd examples)
+  finalWeights   <- foldl' (\acc i -> acc >>= step xamples i) (pure initialWeights) [0..300000]
+  putStrLn $ "Neural net results: " ++ let run i = fst (xorNet i # finalWeights) in show (run i1, run i2, run i3, run i4)
+  putStrLn $ "Expected results:   " ++ show (o1, o2, o3, o4)
 
-instance Num ([([Double], Double)], ([Double], Double)) where
-  fromInteger x' = (replicate 4 ([x,x], x), ([x,x,x,x],x)) where x = fromInteger x'
-  (w1, (w2,b2)) + (w3, (w4,b4)) = (zipWith (\(ws1, b1) (ws2, b2) -> (zipWith (+) ws1 ws2, b1+b2)) w1 w3, (zipWith (+) w2 w4, b2+b4))
-
--- . ^ only needed to do the hacky smallest thing. with "NN made moderately
--- complex" we can introduce all the nice classes for this to extend to all
--- vector lengths, used typed indexes, just do it much better.
---------------------------------------------------------------------------------
+instance (Num a, Num b) => Num ([a], b) where (w1,b1) + (w2,b2) = (zipWith (+) w1 w2, b1 + b2)
+dup :: Num a => a :-> (a,a)
