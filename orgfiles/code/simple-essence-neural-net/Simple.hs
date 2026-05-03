@@ -22,8 +22,8 @@ add      = linear (uncurry (+)) (\x -> (x,x))
 mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
 rec      = D $ \x -> (recip x, (*(-1 / x^2)))
 exp'     = D $ \x -> let e = exp x in (e, (*e))
-dot'     = D $ \(ss, xs) -> (sum (zipWith (*) ss xs), \dfs -> (map (*dfs) xs, map (*dfs) ss))
-map' f   = D $ \as -> let (bs, bsas) = unzip (map (f #) as) in (bs, zipWith ($) bsas)
+dot'     = D $ \(a,b) -> (sum (zipWith (*) a b), \d -> (map (*d) b, map (*d) a))
+map' f   = D $ \a -> let (b, f') = unzip (map (f #) a) in (b, zipWith ($) f')
 f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
 
 -- * Neural Network ------------------------------------------------------------
@@ -42,7 +42,7 @@ main = do -- perl -pe's/r/rand/ge'<<<'([([r,r],r),([r,r],r),([r,r],r),([r,r],r)]
   let xamples@((i1,o1),(i2,o2),(i3,o3),(i4,o4)) = (([0,0],0), ([0,1],1), ([1,0],1), ([1,1],0))
   initialWeights <- readLn @([([Double], Double)], ([Double], Double))
   finalWeights   <- foldl' (\acc i -> acc >>= step xamples i) (pure initialWeights) [0..300000]
-  putStrLn $ "Neural net results: " ++ let run i = fst (xorNet i # finalWeights) in show (run i1, run i2, run i3, run i4)
+  putStrLn $ "Neural net results: " ++ let r i = fst (xorNet i # finalWeights) in show (r i1, r i2, r i3, r i4)
   putStrLn $ "Expected results:   " ++ show (o1, o2, o3, o4)
 
 instance (Num a, Num b) => Num ([a], b) where (w1,b1) + (w2,b2) = (zipWith (+) w1 w2, b1 + b2)
