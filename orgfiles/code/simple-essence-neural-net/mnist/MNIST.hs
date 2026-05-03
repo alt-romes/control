@@ -118,6 +118,8 @@ l1 i     = {-# SCC l1 #-} mapIB (sigmoid . fixed neuron i)
 mnistNet :: UV.Vector NIn Double -> Weights (1+NIn) (1+NMid) Double :-> UV.Vector NOut Double
 mnistNet i = {-# SCC mnistNet #-} l2 . ((dupIB @NOut (VS.foldr1 (UV.zipWith (+))) . l1 i) × id) where n = fixed neuron i
 
+crossEntropy :: (UV.Vector n Double, UV.Vector n Double) :-> Double
+
 cost :: VS.Vector BatchSize (UV.Vector NIn Double, UV.Vector NOut Double) -> Weights (1+NIn) (1+NMid) Double :-> Double
 cost  ps = {-# SCC cost #-} sumI . crossIB (VS.map cost1 ps) . dupIB VS.sum
   where cost1 (i, o) = {-# SCC cost1 #-} fixed mul (fromIntegral $ natVal (Proxy @BatchSize)) . rec . sumI . mapI sqr . (UV.map (*(-1)) o +>) . mnistNet i
@@ -135,7 +137,8 @@ step examples i weights = {-# SCC step #-} do
       (r, Dual grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
-  pure $ weights + grad (-0.01/batchSize)
+  putStrLn $ "Max weights:" ++ show (UV.maximum $ VS.maximum $ snd weights)
+  pure $ weights + grad (-0.001/batchSize)
 
 type NIn = 784
 type NMid = 300
