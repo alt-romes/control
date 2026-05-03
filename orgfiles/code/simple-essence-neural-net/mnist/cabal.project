@@ -1,5 +1,5 @@
 packages: .
 package *
-    profiling: true
+    profiling: false
     profiling-detail: late
 

@@ -116,14 +116,15 @@ l2       = {-# SCC l2 #-} softmax . mapIB neuron . zipB
 l1 :: UV.Vector NIn Double -> VS.Vector NMid (UV.Vector (1 + NIn) Double) :-> UV.Vector NMid Double
 l1 i     = {-# SCC l1 #-} mapIB (sigmoid . fixed neuron i)
 mnistNet :: UV.Vector NIn Double -> Weights (1+NIn) (1+NMid) Double :-> UV.Vector NOut Double
-mnistNet i = {-# SCC mnistNet #-} l2 . ((dupIB @NOut (VS.foldr1 (UV.zipWith (+))) . l1 i) × id) where n = fixed neuron i
+mnistNet i = {-# SCC mnistNet #-} l2 . ((dupIB @NOut (VS.foldr1 (UV.zipWith (+))) . l1 i) × id)
 
-crossEntropy :: (UV.Vector n Double, UV.Vector n Double) :-> Double
+meanSquareError :: KnownNat n => UV.Vector n Double :-> Double -- well, already after subtract
+meanSquareError = fixed mul (1 / fromIntegral batchSize) . sumI . mapI sqr
+  where sqr = {-# SCC sqr #-} mul . dup
 
 cost :: VS.Vector BatchSize (UV.Vector NIn Double, UV.Vector NOut Double) -> Weights (1+NIn) (1+NMid) Double :-> Double
 cost  ps = {-# SCC cost #-} sumI . crossIB (VS.map cost1 ps) . dupIB VS.sum
-  where cost1 (i, o) = {-# SCC cost1 #-} fixed mul (fromIntegral $ natVal (Proxy @BatchSize)) . rec . sumI . mapI sqr . (UV.map (*(-1)) o +>) . mnistNet i
-        sqr = {-# SCC sqr #-} mul . dup
+  where cost1 (i, o) = {-# SCC cost1 #-} meanSquareError . (UV.map (*(-1)) o +>) . mnistNet i
 
 type BatchSize = 32
 batchSize = 32
@@ -137,8 +138,8 @@ step examples i weights = {-# SCC step #-} do
       (r, Dual grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
-  putStrLn $ "Max weights:" ++ show (UV.maximum $ VS.maximum $ snd weights)
-  pure $ weights + grad (-0.001/batchSize)
+  -- putStrLn $ "Max weights:" ++ show (UV.maximum $ VS.maximum $ snd weights)
+  pure $ weights + grad (-0.1)
 
 type NIn = 784
 type NMid = 300
@@ -164,7 +165,7 @@ main = do
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(1+NIn)  (xavier nIn))
                         <*> VS.replicateM @NOut (UV.replicateM @(1+NMid) (xavier nMid))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..150]
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..(60000 `div` batchSize)]
 
   -- Load test data
   rawTestImages <- BS.drop 16 <$> BS.readFile "t10k-images.idx3-ubyte"
@@ -184,8 +185,11 @@ main = do
         | i <- [0 .. nTest - 1]
         ]
 
-      predict e = fst (mnistNet e # finalWeights)
-      target  t = t
+      predict e = UV.maxIndex $ fst (mnistNet e # finalWeights)
+      target  t = UV.maxIndex t
+      -- we need to pick the max index, rather than compare results, bc neural
+      -- net will approximate out (like 0.99 rather than 1). We want to pick
+      -- a number based on the most active output neuron
 
       results = VS.map (\(e, t) -> (predict e, target t)) testExamples
 
