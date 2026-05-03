@@ -103,6 +103,9 @@ zipB = linear (\(xs,ys) -> VS.zipWith (,) xs ys) (Dual VS.unzip)
 {-# INLINE zip' #-}
 max' :: KnownNat (n+1) => UV.Vector (n+1) Double :-> Double
 max' = D $ \v -> (UV.maximum v, Dual UV.replicate)
+{-# INLINE max' #-}
+
+relu = D $ \v -> (max v 0, Dual (if v > 0 then id else const 0))
 --------------------------------------------------------------------------------
 sigmoid  = {-# SCC sigmoid #-} rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
 softmax :: forall n. KnownNat (n+1) -- safe softmax (to not get NaN)
@@ -115,7 +118,7 @@ neuron   = {-# SCC neuron #-} dot . (cons 1 × id)
 l2 :: (VS.Vector NOut (UV.Vector NMid Double), VS.Vector NOut (UV.Vector (1 + NMid) Double)) :-> UV.Vector NOut Double
 l2       = {-# SCC l2 #-} softmax . mapIB neuron . zipB
 l1 :: UV.Vector NIn Double -> VS.Vector NMid (UV.Vector (1 + NIn) Double) :-> UV.Vector NMid Double
-l1 i     = {-# SCC l1 #-} mapIB (sigmoid . fixed neuron i)
+l1 i     = {-# SCC l1 #-} mapIB (relu {-sigmoid-} . fixed neuron i)
 mnistNet :: UV.Vector NIn Double -> Weights (1+NIn) (1+NMid) Double :-> UV.Vector NOut Double
 mnistNet i = {-# SCC mnistNet #-} l2 . ((dupIB @NOut (VS.foldr1 (UV.zipWith (+))) . l1 i) × id)
 
@@ -130,9 +133,6 @@ cost :: VS.Vector BatchSize (UV.Vector NIn Double, UV.Vector NOut Double) -> Wei
 cost  ps = {-# SCC cost #-} sumI . crossIB (VS.map cost1 ps) . dupIB VS.sum
   where cost1 (i, o) = {-# SCC cost1 #-} crossEntropy o . mnistNet i
 
-type BatchSize = 32
-batchSize = 32
-
 step :: VS.Vector NExamples (UV.Vector NIn Double, UV.Vector NOut Double) -> Int
      -> Weights (1+NIn) (1+NMid) Double
      -> IO (Weights (1+NIn) (1+NMid) Double)
@@ -143,7 +143,10 @@ step examples i weights = {-# SCC step #-} do
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
   -- putStrLn $ "Max weights:" ++ show (UV.maximum $ VS.maximum $ snd weights)
-  pure $ weights + grad (-0.005)
+  pure $ weights + grad (-0.01)
+
+type BatchSize = 64
+batchSize = 64
 
 type NIn = 784
 type NMid = 300
