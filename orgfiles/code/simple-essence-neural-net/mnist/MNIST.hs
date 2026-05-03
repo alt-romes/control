@@ -47,6 +47,7 @@ f × g = D $ \(a,b) ->
 dup       = linear (\x -> (x,x)) (Dual (uncurry (+)))
 neg       = linear negate (scale (-1))
 (+>) k    = linear (+k) (Dual id)
+add'      = D $ \(x,y) -> (x+y, Dual (\df -> (df,df)))
 mul       = D $ \(x,y) -> (x*y, Dual (\df -> (df*y,df*x)))
 rec       = D $ \x -> (recip x, scale (-1 / x^2))
 exp'      = D $ \x -> let e = exp x in (e, scale e)
@@ -99,15 +100,15 @@ zipB = linear (\(xs,ys) -> VS.zipWith (,) xs ys) (Dual VS.unzip)
 {-# INLINE fixed #-}
 {-# INLINE cons #-}
 {-# INLINE zip' #-}
+max' :: KnownNat (n+1) => UV.Vector (n+1) Double :-> Double
+max' = D $ \v -> (UV.maximum v, Dual UV.replicate)
 --------------------------------------------------------------------------------
 sigmoid  = {-# SCC sigmoid #-} rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-softmax :: forall n. KnownNat n
-        => UV.Vector n Double :-> UV.Vector n Double
+softmax :: forall n. KnownNat (n+1) -- safe softmax (to not get NaN)
+        => UV.Vector (n+1) Double :-> UV.Vector (n+1) Double
 softmax  = {-# SCC softmax #-}
-  mapI @n (mul . ((rec . sumI . mapI exp') × exp'))
-    . zip'
-    . (dupI UV.sum × id)
-    . dup
+  mapI @(n+1) (mul . ((rec . sumI . mapI exp') × exp'))
+    . zip' . (dupI UV.sum × id) . dup . mapI add' . zip' . ((dupI @(n+1) UV.sum . neg . max') × id){-safe softmax-} . dup
 neuron :: KnownNat (1+n) => (UV.Vector n Double, UV.Vector (1 + n) Double) :-> Double
 neuron   = {-# SCC neuron #-} dot . (cons 1 × id)
 l2 :: (VS.Vector NOut (UV.Vector NMid Double), VS.Vector NOut (UV.Vector (1 + NMid) Double)) :-> UV.Vector NOut Double
