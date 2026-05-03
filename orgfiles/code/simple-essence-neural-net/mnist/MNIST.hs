@@ -51,6 +51,7 @@ add'      = D $ \(x,y) -> (x+y, Dual (\df -> (df,df)))
 mul       = D $ \(x,y) -> (x*y, Dual (\df -> (df*y,df*x)))
 rec       = D $ \x -> (recip x, scale (-1 / x^2))
 exp'      = D $ \x -> let e = exp x in (e, scale e)
+log'      = D $ \x -> (log x, scale (1/x))
 {-# INLINE dup #-}
 {-# INLINE neg #-}
 {-# INLINE (+>) #-}
@@ -118,13 +119,16 @@ l1 i     = {-# SCC l1 #-} mapIB (sigmoid . fixed neuron i)
 mnistNet :: UV.Vector NIn Double -> Weights (1+NIn) (1+NMid) Double :-> UV.Vector NOut Double
 mnistNet i = {-# SCC mnistNet #-} l2 . ((dupIB @NOut (VS.foldr1 (UV.zipWith (+))) . l1 i) × id)
 
-meanSquareError :: KnownNat n => UV.Vector n Double :-> Double -- well, already after subtract
-meanSquareError = fixed mul (1 / fromIntegral batchSize) . sumI . mapI sqr
+meanSquareError :: UV.Vector NOut Double -> UV.Vector NOut Double :-> Double -- well, already after subtract
+meanSquareError o = fixed mul (1 / fromIntegral batchSize) . sumI . mapI sqr . (UV.map (*(-1)) o +>)
   where sqr = {-# SCC sqr #-} mul . dup
+
+crossEntropy :: UV.Vector NOut Double -> UV.Vector NOut Double :-> Double
+crossEntropy o = neg . sumI . mapI (mul . (id × log')) . fixed zip' o
 
 cost :: VS.Vector BatchSize (UV.Vector NIn Double, UV.Vector NOut Double) -> Weights (1+NIn) (1+NMid) Double :-> Double
 cost  ps = {-# SCC cost #-} sumI . crossIB (VS.map cost1 ps) . dupIB VS.sum
-  where cost1 (i, o) = {-# SCC cost1 #-} meanSquareError . (UV.map (*(-1)) o +>) . mnistNet i
+  where cost1 (i, o) = {-# SCC cost1 #-} crossEntropy o . mnistNet i
 
 type BatchSize = 32
 batchSize = 32
@@ -139,7 +143,7 @@ step examples i weights = {-# SCC step #-} do
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   -- putStrLn $ "Grad(" ++ show i ++ "): " ++ show (V.index (fst $ grad 1) (finite 0))
   -- putStrLn $ "Max weights:" ++ show (UV.maximum $ VS.maximum $ snd weights)
-  pure $ weights + grad (-0.1)
+  pure $ weights + grad (-0.005)
 
 type NIn = 784
 type NMid = 300
@@ -165,7 +169,8 @@ main = do
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(1+NIn)  (xavier nIn))
                         <*> VS.replicateM @NOut (UV.replicateM @(1+NMid) (xavier nMid))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..(60000 `div` batchSize)]
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..(nExamples `div` batchSize)]
+  -- finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure finalWeights0) [0..(nExamples `div` batchSize)]
 
   -- Load test data
   rawTestImages <- BS.drop 16 <$> BS.readFile "t10k-images.idx3-ubyte"
