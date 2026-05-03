@@ -13,22 +13,22 @@ f × g = D $ \(a,b) ->
   let (c, f') = f # a; (d, g') = g # b
    in ((c,d), \(x,y) -> (f' x, g' y))
 --------------------------------------------------------------------------------
-assoc     = linear (\(a,(b,c)) -> ((a,b),c)) (\((a,b),c) -> (a,(b,c)))
-dup       = linear (\x -> (x,x)) (uncurry (+))
-neg       = linear negate (*(-1))
-add       = linear (uncurry (+)) (\x -> (x,x))
-mul       = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
-rec       = D $ \x -> (recip x, (*(-1 / x^2)))
-exp'      = D $ \x -> let e = exp x in (e, (*e))
-dotI      = D $ \(ss, xs) -> (sum (zipWith (*) ss xs), \dfs -> (map (*dfs) xs, map (*dfs) ss))
-crossI fs = D $ \as -> let (bs, bsas) = unzip (zipWith (#) fs as) in (bs, zipWith ($) bsas)
-fixed f a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)
+assoc    = linear (\(a,(b,c)) -> ((a,b),c)) (\((a,b),c) -> (a,(b,c)))
+dup      = linear (\x -> (x,x)) (uncurry (+))
+neg      = linear negate (*(-1))
+add      = linear (uncurry (+)) (\x -> (x,x))
+mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
+rec      = D $ \x -> (recip x, (*(-1 / x^2)))
+exp'     = D $ \x -> let e = exp x in (e, (*e))
+dotI     = D $ \(ss, xs) -> (sum (zipWith (*) ss xs), \dfs -> (map (*dfs) xs, map (*dfs) ss))
+mapI f   = D $ \as -> let (bs, bsas) = unzip (map (f #) as) in (bs, zipWith ($) bsas)
+f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d) -- partial app at static point
 --------------------------------------------------------------------------------
-sigmoid   = rec . (fixed add 1) . exp' . neg -- 1/(1+exp(-x))
-neuron    = sigmoid . add . (dotI × id) . assoc
-xorNet  i = neuron . (crossI [n, n, n, n] × id) where n = fixed neuron i
+sigmoid  = rec . (add `at` 1) . exp' . neg -- 1/(1+exp(-x))
+neuron   = sigmoid . add . (dotI × id) . assoc
+xorNet i = neuron . (mapI (neuron `at` i) × id)
 cost (e1,e2,e3,e4) = add . (add × add) . ((cost1 e1 × cost1 e2) × (cost1 e3 × cost1 e4)) . (dup × dup) . dup
-  where cost1 (i, o) = mul . dup . (fixed add (negate o)) . xorNet i
+  where cost1 (i, o) = mul . dup . (add `at` (negate o)) . xorNet i
 
 step examples (i :: Int) weights = do
   let (r, grad) = cost examples # weights
