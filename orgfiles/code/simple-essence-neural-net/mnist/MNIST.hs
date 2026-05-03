@@ -1,4 +1,4 @@
-{-# LANGUAGE GHC2024, TypeAbstractions, Strict, OverloadedStrings,
+{-# LANGUAGE GHC2024, TypeAbstractions, Strict, OverloadedStrings, PartialTypeSignatures,
              DeriveTraversable, DeriveGeneric, MultiParamTypeClasses,
              FlexibleInstances, LambdaCase, TypeFamilies, NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -fpolymorphic-specialisation -fspecialise-aggressively -ddump-simpl -ddump-to-file -dsuppress-all #-}
@@ -9,7 +9,10 @@ import System.Random.Stateful
 import qualified Data.ByteString as BS
 import Data.Finite
 import qualified Data.Vector.Sized as V
+import qualified Data.Vector.Unboxed.Sized as UV
+import qualified Data.Vector.Generic.Sized as GV
 import qualified Data.Vector as NV
+import qualified Data.Vector.Unboxed as NUV
 import GHC.Generics (Generic)
 import Data.Equality.Saturation (Fix(..), equalitySaturation, CostFunction, Rewrite(..))
 import Data.Equality.Matching (pat)
@@ -55,20 +58,23 @@ exp'      = D $ \x -> let e = exp x in (e, scale e)
 {-# INLINE exp' #-}
 -- pow  k    = D $ \x -> (x^k, scale (k*x^(k-1))) -- (^) only works for integral exponents
 --------------------------------------------------------------------------------
-dupI :: KnownNat n => (V.Vector n a -> a) -> a :-> V.Vector n a
-dupI @n join = linear (\x -> V.replicate x) (Dual join)
+dupI :: KnownNat n => (UV.Vector n a -> a) -> a :-> UV.Vector n a
+dupI @n join = linear (\x -> UV.replicate x) (Dual join)
+mapI :: (a3 :-> a2) -> UV.Vector n a3 :-> UV.Vector n a2
+mapI f = D $ \as -> let (bs, bsas) = UV.unzip (UV.map (f #) as) in (bs, Dual (UV.zipWith (<|) bsas))
+crossI :: V.Vector n (b :-> a) -> UV.Vector n b :-> UV.Vector n a
 crossI fs = D $ \as -> let (bs, bsas) = V.unzip (V.zipWith (#) fs as) in (bs, Dual (V.zipWith (<|) bsas))
-sumI :: (KnownNat n, Num b) => V.Vector n b :-> b
-sumI      = D $ \xs -> (sum xs, Dual (\x -> V.replicate x))
-weightedSum :: forall n c. (KnownNat n, Num c)
-            => (V.Vector n c, V.Vector n c) :-> c
+sumI :: (KnownNat n, Num b) => UV.Vector n b :-> b
+sumI      = D $ \xs -> (sum xs, Dual (\x -> UV.replicate x))
+weightedSum :: forall n. (KnownNat n) => (UV.Vector n Double, UV.Vector n Double) :-> Double
 weightedSum = D $ \(ss, xs) ->
-  let tot = foldl' (\acc i -> acc + (V.unsafeIndex ss i * V.unsafeIndex xs i)) 0 [0..V.length ss-1]
-   in (tot, Dual (\dfs -> (V.zipWith (*) xs (V.replicate dfs), V.zipWith (*) ss (V.replicate dfs))))
+  let tot = foldl' (\acc i -> acc + (UV.unsafeIndex ss i * UV.unsafeIndex xs i)) 0 [0..UV.length ss-1]
+   in (tot, Dual (\dfs -> (UV.map (*dfs) xs, UV.map (*dfs) ss)))
 fixed f a = D $ \b -> let (c, Dual d) = f # (a, b) in (c, Dual (snd . d))
-cons :: a -> V.Vector n a :-> V.Vector (1 + n) a
-cons    x = D $ \xs -> (x `V.cons` xs, Dual (\dxs -> V.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
-zip' = linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip)
+cons :: a -> UV.Vector n a :-> UV.Vector (1 + n) a
+cons    x = D $ \xs -> (x `UV.cons` xs, Dual (\dxs -> UV.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
+zip' :: _ => (GV.Vector v n a, GV.Vector v n b) :-> GV.Vector v n (a, b)
+zip' = linear (\(xs,ys) -> GV.zipWith (,) xs ys) (Dual GV.unzip)
 {-# INLINE dupI #-}
 {-# INLINE crossI #-}
 {-# INLINE sumI #-}
@@ -78,22 +84,26 @@ zip' = linear (\(xs,ys) -> V.zipWith (,) xs ys) (Dual V.unzip)
 {-# INLINE zip' #-}
 --------------------------------------------------------------------------------
 sigmoid  = {-# SCC sigmoid #-} rec . (1 +>) . exp' . neg -- 1/(1+exp(-x))
-softmax :: forall n a. (KnownNat n, Floating a) => V.Vector n a :-> V.Vector n a
-softmax  = {-# SCC softmax #-} crossI (V.replicate @n (mul . ((rec . sumI . crossI (V.replicate @n exp')) × id))) . zip' . (dupI @n sum × id) . dup
+softmax :: forall n a. KnownNat n => UV.Vector n Double :-> UV.Vector n Double
+softmax  = {-# SCC softmax #-} mapI (mul . ((rec . sumI . mapI exp') × id)) . zip' . (dupI @n sum × id) . dup
+neuron :: (UV.Vector n Double, UV.Vector (1 + n) Double) :-> Double
 neuron   = {-# SCC neuron #-} weightedSum . (cons 1 × id)
-l2       = {-# SCC l2 #-} softmax . crossI (V.replicate @NOut neuron) . zip'
-l1 i     = {-# SCC l1 #-} crossI (V.replicate @NMid (sigmoid . fixed neuron i))
+l2 :: (V.Vector n1 (UV.Vector n2 Double), V.Vector n1 (UV.Vector (1 + n2) Double)) :-> UV.Vector n1 Double
+l2       = {-# SCC l2 #-} softmax . crossI (V.replicate neuron) . zip'
+l1 :: UV.Vector n1 Double -> V.Vector n2 (UV.Vector (1 + n1) Double) :-> UV.Vector n2 Double
+l1 i     = {-# SCC l1 #-} mapI (sigmoid . fixed neuron i)
+mnistNet :: UV.Vector n1 Double -> Weights (1+NIn) (1+NMid) Double :-> UV.Vector NOut Double
 mnistNet i = {-# SCC mnistNet #-} l2 . ((dupI @NOut (V.foldr1 (V.zipWith (+))) . l1 i) × id) where n = fixed neuron i
 
-cost :: V.Vector BatchSize (V.Vector NIn Double, V.Vector NOut Double) -> Weights (1+NIn) (1+NMid) Double :-> Double
+cost :: V.Vector BatchSize (UV.Vector NIn Double, UV.Vector NOut Double) -> Weights (1+NIn) (1+NMid) Double :-> Double
 cost  ps = {-# SCC cost #-} sumI . crossI (V.map cost1 ps) . dupI sum
-  where cost1 (i, o) = {-# SCC cost1 #-} fixed mul (fromIntegral $ natVal (Proxy @BatchSize)) . rec . sumI . crossI (V.replicate @NOut sqr) . (V.map (*(-1)) o +>) . mnistNet i
+  where cost1 (i, o) = {-# SCC cost1 #-} fixed mul (fromIntegral $ natVal (Proxy @BatchSize)) . rec . sumI . mapI sqr . (UV.map (*(-1)) o +>) . mnistNet i
         sqr = {-# SCC sqr #-} mul . dup
 
 type BatchSize = 32
 batchSize = 32
 
-step :: V.Vector NExamples (V.Vector NIn Double, V.Vector NOut Double) -> Int
+step :: V.Vector NExamples (UV.Vector NIn Double, UV.Vector NOut Double) -> Int
      -> Weights (1+NIn) (1+NMid) Double
      -> IO (Weights (1+NIn) (1+NMid) Double)
 step examples i weights = {-# SCC step #-} do
@@ -118,11 +128,11 @@ nExamples = 60000
 main = do
   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
-  let allImgs = force $ NV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
-      allLbls = force $ NV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
+  let allImgs = NUV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
+      allLbls = NUV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
       examples = force $ fromJust $ V.fromList $
-        [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn allImgs
-          , labelToVec (allLbls NV.! i) )
+        [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn allImgs
+          , labelToVec (allLbls NUV.! i) )
         | i <- [0..nExamples-1] ]
 
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
@@ -134,22 +144,22 @@ main = do
   rawTestImages <- BS.drop 16 <$> BS.readFile "t10k-images.idx3-ubyte"
   rawTestLabels <- BS.drop 8  <$> BS.readFile "t10k-labels.idx1-ubyte"
 
-  let testImgs = force $ NV.generate (BS.length rawTestImages)
+  let testImgs = force $ NUV.generate (BS.length rawTestImages)
           (\i -> fromIntegral @_ @Double (BS.index rawTestImages i) / 255)
 
-      testLbls = force $ NV.generate (BS.length rawTestLabels)
+      testLbls = force $ NUV.generate (BS.length rawTestLabels)
           (\i -> fromIntegral @_ @Double (BS.index rawTestLabels i))
 
       nTest = BS.length rawTestLabels
 
       testExamples = force $ V.take @1000 $ fromJust $ V.fromList @10000
-        [ ( fromJust $ V.toSized @NIn $ NV.slice (i * nIn) nIn testImgs
-          , labelToVec (testLbls NV.! i) )
+        [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn testImgs
+          , labelToVec (testLbls NUV.! i) )
         | i <- [0 .. nTest - 1]
         ]
 
-      predict e = V.maxIndex $ fst (mnistNet e # finalWeights)
-      target  t = V.maxIndex t
+      predict e = UV.maxIndex $ fst (mnistNet e # finalWeights)
+      target  t = UV.maxIndex t
 
       results = V.map (\(e, t) -> (predict e, target t)) testExamples
 
@@ -172,13 +182,13 @@ main = do
   print $ take 10 $ V.toList results
 
 
-labelToVec :: Double -> V.Vector 10 Double
-labelToVec d = V.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
+labelToVec :: Double -> UV.Vector 10 Double
+labelToVec d = UV.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
 
-type Weights nin nmid a = (V.Vector NMid (V.Vector nin a), V.Vector NOut (V.Vector nmid a))
+type Weights nin nmid a = (V.Vector NMid (UV.Vector nin a), V.Vector NOut (UV.Vector nmid a))
 instance (KnownNat nin, KnownNat nmid, Num a) => Num (Weights nin nmid a) where
-  fromInteger x' = (V.replicate @NMid (V.replicate @nin x), V.replicate @NOut (V.replicate @nmid x)) where x = fromInteger x'
-  (w1, w2) + (w3, w4) = (V.zipWith (V.zipWith(+)) w1 w3, V.zipWith (V.zipWith(+)) w2 w4)
+  fromInteger x' = (V.replicate @NMid (UV.replicate @nin x), V.replicate @NOut (UV.replicate @nmid x)) where x = fromInteger x'
+  (w1, w2) + (w3, w4) = (V.zipWith (UV.zipWith(+)) w1 w3, V.zipWith (UV.zipWith(+)) w2 w4)
 
 --------------------------------------------------------------------------------
 -- Symbolic ad
