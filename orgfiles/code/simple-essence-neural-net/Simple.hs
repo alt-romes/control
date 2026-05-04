@@ -1,6 +1,6 @@
 import Prelude hiding (id, (.)); import Control.Category
 
-------------------------- Differentiable+ --------------------------------------
+--------------------- Differentiable functions----------------------------------
 newtype a :-> b = D { (#) :: a -> (b, b -> a) }
 
 instance Category (:->) where
@@ -30,7 +30,7 @@ sigmoid        = rec . (add `at` 1) . exp' . neg                -- 1/(1+exp(-x))
 neuron         = sigmoid . add . (dot' × id) . assoc                 -- σ(W·I+b)
 xorNet i       = neuron . (map' (neuron `at` i) × id)
 cost1 (i, o)   = mul . dup . (add `at` (-o)) . xorNet i
-cost (a,b,c,d) = add . (add × add) . ((cost1 a × cost1 b) × (cost1 c × cost1 d)) . (dup × dup) . dup
+cost (m,n,l,p) = add . (add × add) . ((cost1 m × cost1 n) × (cost1 l × cost1 p)) . (dup × dup) . dup
 
 step (i :: Int) weights = do
   let (r, grad) = cost exs # weights
