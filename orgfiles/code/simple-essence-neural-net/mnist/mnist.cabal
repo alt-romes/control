@@ -4,7 +4,7 @@ version: 0.1.0.0
 build-type: Simple
 executable mnist
     main-is: MNIST.hs
-    build-depends: base, random, bytestring, vector, hegg, containers, vector-sized, finite-typelits, deepseq
+    build-depends: base, random, bytestring, vector, containers, vector-sized, finite-typelits, deepseq
     ghc-options: -threaded
 
 test-suite test-accuracy
