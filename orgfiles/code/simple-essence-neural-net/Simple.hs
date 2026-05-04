@@ -33,15 +33,15 @@ cost1 (i, o)   = mul . dup . (add `at` (-o)) . xorNet i
 cost (a,b,c,d) = add . (add × add) . ((cost1 a × cost1 b) × (cost1 c × cost1 d)) . (dup × dup) . dup
 
 step (i :: Int) weights = do
-  let (r, grad) = cost examples # weights
+  let (r, grad) = cost exs # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   return $ weights + grad (-10)
 
-examples@((i1,o1),(i2,o2),(i3,o3),(i4,o4)) = (([0,0],0), ([0,1],1), ([1,0],1), ([1,1],0))
+exs@((a,a'),(b,b'),(c,c'),(d,d')) = (([0,0],0), ([0,1],1), ([1,0],1), ([1,1],0))
 main = do -- perl -pe's/r/rand/ge'<<<'([([r,r],r),([r,r],r),([r,r],r),([r,r],r)],([r,r,r,r],r))' | ./Simple
   initialWeights <- readLn @([([Double], Double)], ([Double], Double))
   finalWeights   <- foldl' (\acc i -> acc >>= step i) (pure initialWeights) [0..300000]
-  putStrLn $ "Neural net results: " ++ let r i = fst (xorNet i # finalWeights) in show (r i1, r i2, r i3, r i4)
-  putStrLn $ "Expected results:   " ++ show (o1, o2, o3, o4)
+  putStrLn $ "Neural net results: " ++ let r i = fst (xorNet i # finalWeights) in show (r a, r b, r c, r d)
+  putStrLn $ "Expected results:   " ++ show (a', b', c', d')
 
 instance (Num a, Num b) => Num ([a], b) where (w1,b1) + (w2,b2) = (zipWith (+) w1 w2, b1 + b2)
