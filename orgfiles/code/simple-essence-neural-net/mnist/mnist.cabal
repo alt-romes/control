@@ -1,4 +1,4 @@
-cabal-version: >= 1.2
+cabal-version: 3.4
 name: mnist
 version: 0.1.0.0
 build-type: Simple
@@ -6,3 +6,10 @@ executable mnist
     main-is: MNIST.hs
     build-depends: base, random, bytestring, vector, hegg, containers, vector-sized, finite-typelits, deepseq
     ghc-options: -threaded
+
+test-suite test-accuracy
+    type: exitcode-stdio-1.0
+    hs-source-dirs: test
+    main-is: TestAccuracy.hs
+    build-depends: base, process
+    build-tool-depends: mnist:mnist

@@ -1,7 +1,7 @@
 {-# LANGUAGE GHC2024, TypeAbstractions, Strict, OverloadedStrings, PartialTypeSignatures,
              DeriveTraversable, DeriveGeneric, MultiParamTypeClasses,
              FlexibleInstances, LambdaCase, TypeFamilies, NoMonomorphismRestriction #-}
-{-# OPTIONS_GHC -fpolymorphic-specialisation -fspecialise-aggressively -ddump-simpl -ddump-to-file -dsuppress-all #-}
+{-# OPTIONS_GHC -O2 -fpolymorphic-specialisation -fspecialise-aggressively -ddump-simpl -ddump-to-file -dsuppress-all #-}
 import Prelude hiding (id, (.))
 import Control.Category
 import Control.Monad
