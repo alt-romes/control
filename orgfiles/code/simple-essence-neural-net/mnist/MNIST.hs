@@ -1,6 +1,4 @@
-{-# LANGUAGE GHC2024, TypeAbstractions, Strict, OverloadedStrings, PartialTypeSignatures,
-             DeriveTraversable, DeriveGeneric, MultiParamTypeClasses,
-             FlexibleInstances, LambdaCase, TypeFamilies, NoMonomorphismRestriction #-}
+{-# LANGUAGE GHC2024, NoMonomorphismRestriction, PartialTypeSignatures, Strict #-} -- Strict makes a HUGE difference in this scenario
 import Prelude hiding (id, (.))
 import Control.Category
 import System.Random.Stateful
@@ -33,78 +31,59 @@ f × g = D $ \(a,b) ->
 ----------------------- Primitive functions ------------------------------------
 assoc    = D $ \(a,(b,c)) -> (((a,b),c), \((a,b),c) -> (a,(b,c)))
 dup      = D $ \x -> ((x,x), uncurry (+))          ; dup :: Num a => a :-> (a,a)
-add'     = D $ \(x,y) -> (x + y, \x -> (x,x))
+add      = D $ \(x,y) -> (x + y, \x -> (x,x))
 mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
 rec      = D $ \x -> (1/x, (*(-1 / x^2)))
 exp'     = D $ \x -> let e = exp x in (e, (*e))
 log'     = D $ \x -> (log x, (*(1/x)))                          -- new addition!
-relu     = D $ \v -> (max v 0, if v > 0 then id else const 0)          -- ditto!
 f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
 --------------------------------------------------------------------------------
 
 ------------------------- Vec primitives ---------------------------------------
-dot' = D $ \(a,b) ->
-  let tot = UV.sum (UV.zipWith (*) a b)  -- very IMPORTANT to let-bind for perf.
-   in (tot, \d -> (UV.map (*d) b, UV.map (*d) a))
-sum' = D $ \xs -> (UV.sum xs, UV.replicate)
-map' f = D $ \a ->
-  let pairs = VS.generate (\i -> f # VG.index a i)
+rep'     = D $ \x -> (VG.replicate x, VG.sum)                -- repeat/replicate
+sum'     = D $ \xs -> (UV.sum xs, UV.replicate)
+zip'     = D $ \(xs,ys) -> (VG.zipWith (,) xs ys, (VG.unzip))
+max'     = D $ \v -> (UV.maximum v, UV.replicate)
+dot'     = D $ \case (a,b) | r <- UV.sum (UV.zipWith (*) a b) -- MUST bind for perf
+                         -> (r, \d -> (UV.map (*d) b, UV.map (*d) a))
+map' f   = D $ \as ->
+  let pairs = VS.generate (\i -> f # VG.index as i)
    in ( VG.generate (\i -> fst (VS.index pairs i))
       , (\d -> VG.generate (\i -> snd (VS.index pairs i) (VG.index d i))) )
-dup' = D $ \x -> (VG.replicate x, VG.sum)
-zip' = D $ \(xs,ys) -> (VG.zipWith (,) xs ys, (VG.unzip))
-max' = D $ \v -> (UV.maximum v, UV.replicate)
+cross fs = D $ \as ->
+  let pairs = VS.generate (\i -> VS.index fs i # VS.index as i)
+   in ( UV.generate (\i -> fst (VS.index pairs i))
+      , (\dfs -> VS.generate (\i -> snd (VS.index pairs i) (UV.index dfs i))) )
+
+-- Todo: NO CONS
+cons :: UV.Unbox a => a -> UV.Vector n a :-> UV.Vector (1 + n) a
+cons    x = D $ \xs -> (x `UV.cons` xs, (\dxs -> UV.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
 --------------------------------------------------------------------------------
 
 ------------------------- Neural Network ---------------------------------------
-{-
 sigmoid        = rec . (add `at` 1) . exp' . (mul `at` (-1))    -- 1/(1+exp(-x))
-neuron         = sigmoid . add . (dot' × id) . assoc                 -- σ(W·I+b)
-xornet i       = neuron . (map' (neuron `at` i) × id)        -- 2x4x1 neural net
-cost1 (i, o)   = mul . dup . (add `at` (-o)) . xornet i  -- sqr err cost of 1 ex
-cost [m,n,l,p] = add . (add × add) . ((cost1 m × cost1 n) × (cost1 l × cost1 p))
-                                                             . (dup × dup) . dup
+relu = D $ \v -> (max v 0, if v > 0 then id else const 0)            -- max(x,0)
+neuron activation = activation . dot' . (cons 1 × id)                -- φ(W·I+b)
+  -- TODO GET RID OF CONS; AWFUL COPYING; USE `assoc` probably. See Simpler.hs
+
+softmax    = map' (mul . ((rec . sum' . map' exp') × exp')) . (zip' :: _ :-> UV.Vector _ _)
+            . (rep' × id) . dup . map' add . zip' . ((rep' . (mul `at` (-1)) . max') × id){-safe softmax-} . dup
+mnistnet i = softmax . map' (neuron id) . zip' . ((rep' . map' (neuron relu `at` i)) × id) -- 784x300x10
+  -- softmax at 150 batches: 90% accuracy; sigmoid: 16%... (btw: softmax . (map sigmoid) is 85% instead! makes some sense)
+
+-- Using meanSquareError means 20% accuracy on 150 batches. cross entropy gets us 90% with same 150 batches.
+meanSquareError o = (mul `at` (1 / batchSize)) . sum' . map' ({-sqr=-}mul . dup) . (add `at` (UV.map (*(-1)) o))
+crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at` o)
+
+cost1 (i, o) = crossEntropy o . mnistnet i
+cost ps = sum' . cross (VS.map cost1 ps) . rep'
+
+{-
 step i weights | let (r, grad) = cost exs # weights
                = putStrLn ("Cost(" ++ show i ++ "): " ++ show r)
                >> return (weights + grad (-10))
 -}
---------------------------------------------------------------------------------
 
-crossIB :: forall n b a. (KnownNat n, UV.Unbox a) => VS.Vector n (b :-> a) -> VS.Vector n b :-> UV.Vector n a
-crossIB fs = D $ \as ->
-  let pairs = VS.generate @n (\i -> VS.index fs i # VS.index as i)
-   in (UV.generate (\i -> fst (VS.index pairs i)), (\dfs -> VS.generate (\i -> snd (VS.index pairs i) (UV.index dfs i))))
-
-cons :: UV.Unbox a => a -> UV.Vector n a :-> UV.Vector (1 + n) a
-cons    x = D $ \xs -> (x `UV.cons` xs, (\dxs -> UV.drop @1 dxs)) -- add a constant number to head of Vec. All weight vecs have leading biases
-
---------------------------------------------------------------------------------
-sqr      = mul . dup
-sigmoid  = rec . (add' `at` 1) . exp' . (mul `at` (-1)) -- 1/(1+exp(-x))
-softmax :: forall n. KnownNat (n+1) -- safe softmax (to not get NaN)
-        => UV.Vector (n+1) Double :-> UV.Vector (n+1) Double
-softmax  =
-  map' (mul . ((rec . sum' . map' exp') × exp'))
-    . (zip' :: _ :-> UV.Vector _ _) . (dup' × id) . dup . map' add' . zip' . ((dup' . (mul `at` (-1)) . max') × id){-safe softmax-} . dup
-neuron :: KnownNat (1+n) => (Double :-> Double) -> (UV.Vector n Double, UV.Vector (1 + n) Double) :-> Double
-neuron activation = activation . dot' . (cons 1 × id)
-l2 :: (VS.Vector NOut (UV.Vector NMid Double), VS.Vector NOut (UV.Vector (1 + NMid) Double)) :-> UV.Vector NOut Double
-l2       = softmax . map' (neuron id) . zip'
-l1 :: UV.Vector NIn Double -> VS.Vector NMid (UV.Vector (1 + NIn) Double) :-> UV.Vector NMid Double
-l1 i     = map' (neuron relu `at` i)
-mnistNet :: UV.Vector NIn Double -> Weights (1+NIn) (1+NMid) Double :-> UV.Vector NOut Double
-mnistNet i = l2 . ((dup' . l1 i) × id)
-
-meanSquareError o = (mul `at` ((1::Double) / batchSize)) . sum' . map' sqr . (add' `at` (UV.map (*(-1)) o))
-crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at` o)
-
-cost :: VS.Vector BatchSize (UV.Vector NIn Double, UV.Vector NOut Double) -> Weights (1+NIn) (1+NMid) Double :-> Double
-cost  ps = sum' . crossIB (VS.map cost1 ps) . dup'
-  where cost1 (i, o) = crossEntropy o . mnistNet i
-
-step :: VS.Vector NExamples (UV.Vector NIn Double, UV.Vector NOut Double) -> Int
-     -> Weights (1+NIn) (1+NMid) Double
-     -> IO (Weights (1+NIn) (1+NMid) Double)
 step examples i weights = do
   let off = (i * batchSize) `mod` (nExamples - batchSize)
       batch = fromJust $ VS.toSized @BatchSize $ NV.slice off batchSize (VS.fromSized examples)
@@ -128,7 +107,7 @@ main = do
   rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
   let allImgs = NUV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
       allLbls = NUV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
-      examples = fromJust $ VS.fromList $
+      examples = fromJust $ VS.fromList @NExamples $
         [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NUV.! i) )
         | i <- [0..nExamples-1] ]
@@ -156,7 +135,7 @@ main = do
         | i <- [0 .. nTest - 1]
         ]
 
-      predict e = UV.maxIndex $ fst (mnistNet e # finalWeights)
+      predict e = UV.maxIndex $ fst (mnistnet e # finalWeights)
       target  t = UV.maxIndex t
       -- we need to pick the max index, rather than compare results, bc neural
       -- net will approximate out (like 0.99 rather than 1). We want to pick
@@ -170,7 +149,7 @@ main = do
       accuracy = fromIntegral correct / fromIntegral total :: Double
 
       loss (e, t) =
-        let (y, _) = mnistNet e # finalWeights
+        let (y, _) = mnistnet e # finalWeights
         in UV.sum $ UV.map (^2) (y - t)
 
       totalLoss = VS.sum $ VS.map loss testExamples
