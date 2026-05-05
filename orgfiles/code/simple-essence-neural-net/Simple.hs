@@ -15,15 +15,15 @@ f × g = D $ \(a,b) ->
 --------------------------------------------------------------------------------
 
 ----------------------- Primitive functions ------------------------------------
-assoc    = D (\(a,(b,c)) -> (((a,b),c), \((a,b),c) -> (a,(b,c))))
-dup      = D (\x -> ((x,x), uncurry (+)))          ; dup :: Num a => a :-> (a,a)
-add      = D (\(x,y) -> (x + y, \x -> (x,x)))
-mul      = D (\(x,y) -> (x*y, \df -> (df*y,df*x)))
-rec      = D (\x -> (1/x, (*(-1 / x^2))))
-exp'     = D (\x -> let e = exp x in (e, (*e)))
-dot'     = D (\(a,b) -> (sum (zipWith (*) a b), \d -> (map (*d) b, map (*d) a)))
-map' f   = D (\a -> let (b, f') = unzip (map (f #) a) in (b, zipWith ($) f'))
-f `at` a = D (\b -> let (c, d) = f # (a, b) in (c, snd . d))  -- papp static val
+assoc    = D $ \(a,(b,c)) -> (((a,b),c), \((a,b),c) -> (a,(b,c)))
+dup      = D $ \x -> ((x,x), uncurry (+))          ; dup :: Num a => a :-> (a,a)
+add      = D $ \(x,y) -> (x + y, \x -> (x,x))
+mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
+rec      = D $ \x -> (1/x, (*(-1 / x^2)))
+exp'     = D $ \x -> let e = exp x in (e, (*e))
+dot'     = D $ \(a,b) -> (sum (zipWith (*) a b), \d -> (map (*d) b, map (*d) a))
+map' f   = D $ \a -> let (b, f') = unzip (map (f #) a) in (b, zipWith ($) f')
+f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
 --------------------------------------------------------------------------------
 
 ------------------------- Neural Network ---------------------------------------
