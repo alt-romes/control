@@ -35,7 +35,7 @@ add      = D $ \(x,y) -> (x + y, \x -> (x,x))
 mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
 rec      = D $ \x -> (1/x, (*(-1 / x^2)))
 exp'     = D $ \x -> let e = exp x in (e, (*e))
-log'     = D $ \x -> (log x, (*(1/x)))                          -- new addition!
+log'     = D $ \x -> (log x, (*(1/x)))                         -- new primitive!
 f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
 --------------------------------------------------------------------------------
 
@@ -73,14 +73,8 @@ step examples i weights = do
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
 
-type BatchSize = 60
-type NIn = 784
-type NMid = 300
-type NOut = 10
-nIn = 784
-nMid = 300
-nExamples = 60000
-batchSize = 60
+type BatchSize = 60; type NIn = 784; type NMid = 300; type NOut = 10
+batchSize      = 60; nIn      = 784; nMid      = 300; nExamples = 60000
 
 main = do
   rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
@@ -91,11 +85,12 @@ main = do
         [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn allImgs
           , labelToVec (allLbls NUV.! i) )
         | i <- [0..nExamples-1] ]
+      labelToVec d = UV.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
 
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(NIn)  (xavier nIn))
                         <*> VS.replicateM @NOut (UV.replicateM @(NMid) (xavier nMid))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..(nExamples `div` batchSize)]
+  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..150]--(nExamples `div` batchSize)]
 
   -- Load test data
   rawTestImages <- BS.drop 16 <$> BS.readFile "t10k-images.idx3-ubyte"
@@ -127,12 +122,6 @@ main = do
   putStrLn $ "Test accuracy: " ++ show accuracy
   putStrLn $ "Test loss:     " ++ show avgLoss
 
-  putStrLn "Sample predictions (predicted, actual):"
-  print $ take 10 $ VS.toList results
-
-
-labelToVec d = UV.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
-
 type Weights nin nmid a = (VS.Vector NMid (UV.Vector nin a), VS.Vector NOut (UV.Vector nmid a))
 instance (KnownNat nin, KnownNat nmid, Num a, UV.Unbox a) => Num (Weights nin nmid a) where
   fromInteger x' = (VS.replicate @NMid (UV.replicate @nin x), VS.replicate @NOut (UV.replicate @nmid x)) where x = fromInteger x'
@@ -147,4 +136,5 @@ Notes:
 - removing the bias doesn't have an effect on accuracy. but perhaps we should be initializing the biases to 0?
 - Using random weights (rather than e.g. Xavier initialization) results in lots of NaNs very soon.
 - Using "Strict" and let-binding the total result in `dot'` matter a lot for performance.
+- The Num instance for Weights is also important for performance. e.g. using Num (a,b) kills the performance.
 -}
