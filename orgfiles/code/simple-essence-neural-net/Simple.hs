@@ -1,4 +1,5 @@
-import Prelude hiding (id, (.)); import Control.Category
+import Prelude hiding (id, (.))
+import Control.Category
 
 --------------------- Differentiable functions----------------------------------
 newtype a :-> b = D { (#) :: a -> (b, b -> a) }
