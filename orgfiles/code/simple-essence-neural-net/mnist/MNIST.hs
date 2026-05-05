@@ -63,7 +63,7 @@ cons    x = D $ \xs -> (x `UV.cons` xs, (\dxs -> UV.drop @1 dxs)) -- add a const
 ------------------------- Neural Network ---------------------------------------
 sigmoid        = rec . (add `at` 1) . exp' . (mul `at` (-1))    -- 1/(1+exp(-x))
 relu = D $ \v -> (max v 0, if v > 0 then id else const 0)            -- max(x,0)
-neuron activation = activation . dot' . (cons 1 × id)                -- φ(W·I+b)
+neuron activation = activation . dot' -- . (cons 1 × id)                -- φ(W·I+b)
   -- TODO GET RID OF CONS; AWFUL COPYING; USE `assoc` probably. See Simpler.hs
 
 softmax    = map' (mul . ((rec . sum' . map' exp') × exp')) . (zip' :: _ :-> UV.Vector _ _)
@@ -113,8 +113,8 @@ main = do
         | i <- [0..nExamples-1] ]
 
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
-  initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(1+NIn)  (xavier nIn))
-                        <*> VS.replicateM @NOut (UV.replicateM @(1+NMid) (xavier nMid))
+  initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(NIn)  (xavier nIn))
+                        <*> VS.replicateM @NOut (UV.replicateM @(NMid) (xavier nMid))
   finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..150] -- (nExamples `div` batchSize)
 
   -- Load test data
