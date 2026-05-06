@@ -272,6 +272,29 @@
         "url": "ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git"
       }
     },
+    "mercury-cli": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1777501717,
+        "narHash": "sha256-eyPDdYxzCgY3KVbizVdA48pYdsra92T5/Bh58/6zikE=",
+        "owner": "MercuryTechnologies",
+        "repo": "mercury-cli",
+        "rev": "23891dc11d77903627e052f432a9ad75e9b0ce02",
+        "type": "github"
+      },
+      "original": {
+        "owner": "MercuryTechnologies",
+        "repo": "mercury-cli",
+        "type": "github"
+      }
+    },
     "microvm": {
       "inputs": {
         "nixpkgs": [
@@ -470,6 +493,7 @@
         "hadrian-util": "hadrian-util",
         "home-manager": "home-manager_2",
         "kimai-client": "kimai-client",
+        "mercury-cli": "mercury-cli",
         "microvm": "microvm",
         "nix-darwin": "nix-darwin",
         "nix-doom-emacs-unstraightened": "nix-doom-emacs-unstraightened",

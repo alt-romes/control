@@ -9,6 +9,10 @@
     codex-cli-nix.inputs.nixpkgs.follows = "nixpkgs";
     codex-cli-nix.inputs.flake-utils.follows = "flake-utils";
 
+    mercury-cli.url = "github:MercuryTechnologies/mercury-cli";
+    mercury-cli.inputs.nixpkgs.follows = "nixpkgs";
+    mercury-cli.inputs.flake-utils.follows = "flake-utils";
+
     claude-code-nix.url = "github:sadjow/claude-code-nix";
     claude-code-nix.inputs.nixpkgs.follows = "nixpkgs";
     claude-code-nix.inputs.flake-utils.follows = "flake-utils";

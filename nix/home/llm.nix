@@ -105,5 +105,6 @@ in
 
   home.packages = [
     inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
+    inputs.mercury-cli.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 }
