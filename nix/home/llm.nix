@@ -13,6 +13,9 @@ let
         nodejs). Don't use nix for things which are already available, like the Haskell toolchain.
         (Example: nix-shell -p python3 python3Packages.matplotlib --run 'python3 script.py')
       - Use unqualified imports in Haskell by default. Use qualified imports only when that's the convention or necessary.
+      - To browse Haskell dependencies of a Haskell project use `cabal repl` to get a shell with the project packages.
+        If you need to browse a package which is not yet a dependency of the project, use `cabal repl --build-depends=<pkg>`.
+        Do not look around with `ghc-pkg` nor directly for interface files (e.g. you should never look in `dist-newstyle`).
     '';
 in
 # lib.mkIf (!minimal) {
