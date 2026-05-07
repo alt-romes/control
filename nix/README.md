@@ -5,7 +5,7 @@ Previously we used flakes, which looked like this:
 * Update flake deps with `nix flake update`
 * Apply system configuration
     ```
-    darwin-rebuild switch --flake $HOME/control/nix/darwin/
+    darwin-rebuild switch --flake $HOME/control/darwin/
     ```
 
 Installing existing configuration on a new computer:

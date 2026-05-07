@@ -43,7 +43,6 @@ in
 {
   options = {
     haskell.env.STATIC_HASKELL_CABAL_OPTS = pkgs.lib.mkEnableOption "STATIC_HASKELL_CABAL_OPTS";
-
   };
 
   config = {

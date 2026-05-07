@@ -1,0 +1,146 @@
+# Linux machine named 福助
+# microvm.nix using vfkit (with Rosetta support)
+# Run VM using `nix run .#fukusuke-vm` `run-linux-vm`
+# Login with `ssh -A 127.0.0.1 -p 2222`
+#   (port 2222 is mapped to VM's 22, -A forwards the SSH agent)
+{ self, inputs, ... }:
+{
+  flake.nixosConfigurations.fukusuke = inputs.nixpkgs.lib.nixosSystem {
+    modules = [
+      inputs.microvm.nixosModules.microvm
+      self.nixosModules.fukusuke
+    ];
+    system = "aarch64-linux";
+  };
+
+  flake.nixosModules.fukusuke = { config, inputs, pkgs, ... }: { 
+
+    imports = [
+      self.nixosModules.base
+    ];
+
+    # Configuration for when run as a VM using microvm.nix
+    microvm = {
+      hypervisor = "vfkit";
+      vcpu = 8;
+      mem = 32768; # I guess these should depend on where the VM is run from but OK
+      graphics.enable = false;
+      # Enable ability to run x86 binaries in the VM using rosetta
+      vfkit.rosetta = {
+        enable = false;
+        install = false; # install if not available
+      };
+      shares = [
+        # Share (read-only) Nix store
+        {
+          source = "/nix/store";
+          mountPoint = "/nix/.ro-store";
+          tag = "ro-store";
+          proto = "virtiofs";
+        }
+        # ghc-dev
+        {
+          source = "/Users/romes/ghc-dev";
+          mountPoint = "/home/romes/ghc-dev";
+          tag = "ghc-dev";
+          proto = "virtiofs";
+        }
+        # Developer
+        {
+          source = "/Users/romes/Developer";
+          mountPoint = "/home/romes/Developer";
+          tag = "Developer";
+          proto = "virtiofs";
+        }
+  
+        # VM control
+        {
+          source = "/Users/romes/control/vms/fukusuke";
+          mountPoint = "/fukusuke";
+          tag = "fukusuke-control";
+          proto = "virtiofs";
+        }
+      ];
+      interfaces = [{
+        type = "user";
+        id = "usernet";
+        mac = "02:00:00:01:01:08";
+      }];
+      socket = "fukusuke-vm.sock";
+      # Only supported with qemu hypervisor
+      # forwardPorts = [
+      #   { from = "host"; host.port = 2222; guest.port = 22; }
+      # ];
+      # Add writable nix store to build derivations inside the VM
+      writableStoreOverlay = "/nix/.rw-store";
+      volumes = [
+        # Volume for writable nix store
+        {
+          image = "/Users/romes/control/vms/nix-store-overlay.img";
+          mountPoint = config.microvm.writableStoreOverlay;
+          size = 32768; # 32GB
+        }
+      ];
+      vmHostPackages = inputs.nixpkgs.legacyPackages.aarch64-darwin;
+    };
+  
+    boot.initrd.systemd.enable = true;
+    # Disable SME/SVE support because they are causing bugs with lldb and gdb in VM
+    boot.kernelParams = [ "arm64.nosve" "arm64.nosme" ];
+  
+    nix.settings = {
+      sandbox = false; # see https://abhinavsarkar.net/notes/2026-microvm-nix/#cb2-10
+    };
+  
+    time.timeZone = "Europe/Portugal";
+    
+    networking = {
+      hostName = "fukusuke";
+      # Disable firewall for faster boot and less hassle;
+      # we are behind a layer of NAT anyway.
+      firewall.enable = false;
+    };
+  
+    # Write VM ip in shared folder so host can connect via ssh
+    systemd.services.write-ip = {
+      description = "Write VM IP for host";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+  
+      script = ''
+        IP=$(${pkgs.hostname-debian}/bin/hostname -I | ${pkgs.gawk}/bin/awk '{print $1}')
+        echo "$IP" > /fukusuke/ip
+      '';
+    };
+  
+    environment = {
+      systemPackages = with pkgs; [
+        gdb
+        rr
+        # lldb clangd llvm
+      ];
+    };
+
+    services.getty.autologinUser = "romes";
+  
+    # environment.etc."motd".text = ''
+    #   vfkit Test VM - Apple Silicon
+    #   Features:
+    #     - Graphics (virtio-gpu + GUI, if enabled)
+    #     - Rosetta (x86_64 emulation)
+    #     - virtiofs /nix/store sharing
+    #     - NAT networking
+    #   Test commands:
+    #     uname -m                    # aarch64
+    #     file $(which hello-x86_64)  # x86-64
+    #     hello-x86_64                # runs via Rosetta!
+    #     ping -c 3 1.1.1.1           # network test
+    # '';
+    # programs.bash.loginShellInit = "cat /etc/motd";
+  
+    # The microvm module already sets up the rosetta filesystem and binfmt
+    # We just need to set the state version
+    system.stateVersion = "25.11";
+  };
+}

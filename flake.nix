@@ -21,7 +21,6 @@
     codex-cli-nix.url   = "github:sadjow/codex-cli-nix";
     claude-code-nix.url = "github:sadjow/claude-code-nix";
     nix-doom-emacs-unstraightened.url = "github:marienz/nix-doom-emacs-unstraightened";
-    # nix-rosetta-builder.url = "github:cpick/nix-rosetta-builder";
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";
@@ -44,8 +43,11 @@
     hadrian-util.inputs.flake-utils.follows    = "flake-utils";
   };
 
+  # FIXME: common = { nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ]; };
+  # this was imported by all hosts
+
   outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; }
-    (inputs.import-tree ./modules);
+    (inputs.import-tree [./nix]); # ./finances/nix]);
 
   # outputs = inputs@{ self, nix-darwin, nixpkgs, ... }:
   #   let
