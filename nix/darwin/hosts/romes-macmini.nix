@@ -8,14 +8,6 @@
 # `?submodules=1` is needed because some modules live inside of git submodules
 
 # TODO
-# 
-#  home-manager.users.romes = {
-#    imports = [
-#      self.homeModules.romes
-#      ../private/kimai.nix
-#    ];
-#  };
-#
 # environment.sellAliases
 #    ghc-shell = "nix-shell -p haskell.compiler.ghc914 haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
 #
@@ -47,12 +39,7 @@
 #      echo "Connect to VM with agent forwarding (-A):"
 #      echo "  ssh -A $(cat $IP_FILE)"
 #    '';
-#environment.systemPackages = [
-#  # THESE SHOULDN'T BE SYSTEM PACKAGES.
-#    pkgs.iina   # video player
-#
-#    pkgs.tart   # virtualization
-#];
+
 # TODO:
 #
 #   # ------------------------------------------------------------------------
@@ -182,6 +169,10 @@
           "codex-app"
       ];
     };
+
+    environment.systemPackages = [
+       pkgs.iina   # video player
+    ];
   
     # --- Network ----------------------------------------------------------------
   

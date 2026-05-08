@@ -10,15 +10,6 @@
       self.darwinModules.caddy # Localhost reverse proxy
     ];
 
-    nix.settings = {
-      experimental-features = [ "nix-command" "flakes" ];
-      trusted-users = [ "root" "romes" "@admin" ];
-      system-features = [ "nixos-test" "apple-virt" ];
-        # ^ Apple virtualization for linux builder
-    };
-
-    system.primaryUser = "romes";
-
     homebrew = {
       # this doesn't install homebrew, needs to be installed manually (see instructions on website)
       enable = true;
@@ -37,7 +28,7 @@
         "affinity-designer"
       ];
 
-      # Manage brew formulae using nix only
+      # Manage brew formulae using nix only:
       # Pass --cleanup --zap to bundle, so everything not referenced is uninstalled.
       onActivation.cleanup = "zap";
 
@@ -113,6 +104,8 @@
     # ------------------------------------------------------------------------
     # Users & Home Manager
 
+    system.primaryUser = "romes";
+
     users.users."romes" = {
       name = "romes";
       home = "/Users/romes";
@@ -135,6 +128,15 @@
 
     # ------------------------------------------------------------------------
     # Meta
+
+    nix.settings = {
+      experimental-features = [ "nix-command" "flakes" ];
+      trusted-users = [ "root" "romes" "@admin" ];
+      system-features = [ "nixos-test" "apple-virt" ];
+        # ^ Apple virtualization for linux builder
+    };
+
+    nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
 
     nixpkgs.hostPlatform = "aarch64-darwin";
     nixpkgs.config.allowUnfree = true;
