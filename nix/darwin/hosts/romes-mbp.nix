@@ -30,6 +30,12 @@
 
     home-manager.users.romes.programs.kimai.enable = false;
 
+    # --- Users ------------------------------------------------------------------
+
+    # UID is necessary. I listed mine out.
+    # The rest is in `base.nix` and in the home-manager `romes` config.
+    users.users."romes".uid = 501;
+
     # --- Remote Builders --------------------------------------------------------
 
     # Background linux VM runner process is enabled per-machine as needed
@@ -41,7 +47,6 @@
       brews = [
       ];
       casks = [
-          "bambu-studio"
           "steam"
       ];
     };
@@ -89,7 +94,5 @@
       };
     };
 
-    # UID is necessary. I listed mine out.
-    users.users."romes".uid = 501;
   };
 }

@@ -7,61 +7,6 @@
 #
 # `?submodules=1` is needed because some modules live inside of git submodules
 
-# TODO
-# environment.sellAliases
-#    ghc-shell = "nix-shell -p haskell.compiler.ghc914 haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
-#
-#    run-linux-vm = ''
-#      IP_FILE=/Users/romes/control/vms/fukusuke/ip
-#      if [ -e "$IP_FILE" ]; then
-#        PREV_MTIME=$(stat -f %m "$IP_FILE")
-#      else
-#        PREV_MTIME=0
-#      fi
-#
-#      ${pkgs.tmux}/bin/tmux new -s microvm -d
-#      ${pkgs.tmux}/bin/tmux new-window -t microvm: -n vm-console "exec nix run '/Users/romes/control/.#fukusuke-vm'"
-#
-#      echo "The VM is now running in a tmux session:"
-#      echo "  tmux attach -t microvm                "
-#
-#      echo "Waiting for VM to update IP at $IP_FILE..."
-#      while true; do
-#        if [ -e "$IP_FILE" ]; then
-#          MTIME=$(stat -f %m "$IP_FILE")
-#            if [ "$MTIME" -gt "$PREV_MTIME" ]; then
-#              break
-#            fi
-#        fi
-#        sleep 0.2
-#      done
-#
-#      echo "Connect to VM with agent forwarding (-A):"
-#      echo "  ssh -A $(cat $IP_FILE)"
-#    '';
-
-# TODO:
-#
-#   # ------------------------------------------------------------------------
-#   # Agenix secrets
-
-#   # While SSH_AUTH_SOCKET doesn't work, we need to download from 1Password the
-#   # key into this path to decrypt the secrets.
-#   # See https://github.com/ryantm/agenix/issues/182
-#   # once this made the switch fail; but re-running fixed it... it looked like a
-#   # race where the identity key wasn't ready yet.
-#   age.identityPaths = [ "/Users/romes/.ssh/agenix" ];
-#   age.secrets.kimai = {
-#     file = ../../secrets/kimai.age;
-#     # this secret will be accessed on home-manager activation and when used as a tool
-#     # so the user needs permissions
-#     owner = "romes";
-#   };
-#  # Allow localhost reverse proxy resolution for custom domains
-#  # The specific virtualHosts are defined where necessary (e.g. in "ledger.localhost" in finances.nix)
-#  services.caddy.enable = true;
-
-
 # Mac Mini M4
 { self, self', inputs, ... }:
 {
@@ -112,6 +57,12 @@
     services.caddy.enable = true;
   
     home-manager.users.romes.programs.custom.doom-emacs = true;
+
+    # --- Users ------------------------------------------------------------------
+
+    # UID is necessary. I listed mine out.
+    # The rest is in `base.nix` and in the home-manager `romes` config.
+    users.users."romes".uid = 501;
   
     # --- Builders ---------------------------------------------------------------
   
@@ -197,9 +148,22 @@
         ];
       };
     };
+
+    # ------------------------------------------------------------------------
+    # Agenix secrets
+
+    # While SSH_AUTH_SOCKET doesn't work, we need to download from 1Password the
+    # key into this path to decrypt the secrets.
+    # See https://github.com/ryantm/agenix/issues/182
+    # once this made the switch fail; but re-running fixed it... it looked like a
+    # race where the identity key wasn't ready yet.
+    age.identityPaths = [ "/Users/romes/.ssh/agenix" ];
+    age.secrets.kimai = {
+      file = ../../secrets/kimai.age;
+      # this secret will be accessed on home-manager activation and when used as a tool
+      # so the user needs permissions
+      owner = "romes";
+    };
   
-    # UID is necessary. See man id(1) to find the right one for a machine.
-    # The one for macmini:
-    users.users."romes".uid = 501;
   };
 }
