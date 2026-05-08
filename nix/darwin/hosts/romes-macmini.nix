@@ -88,8 +88,8 @@
   
     imports = [
       self.darwinModules.base
-      self.darwinModules.finances
       self.darwinModules.duckdns
+      self.darwinModules.finances
       self.darwinModules.backups
     ];
  

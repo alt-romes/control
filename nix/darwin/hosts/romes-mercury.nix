@@ -15,10 +15,14 @@
 
     nix.settings.trusted-public-keys = [ "cult-m4:ptTV1P5s2mpYCfFQMUb+6S8LbtrYK5HfCYas3YrUbho=" ];
 
-    # Not here!
-    finances.enable = false;
     home-manager.users.romes.programs.kimai.enable = false;
     home-manager.users.romes.programs.custom.doom-emacs = true;
+
+    # --- Users ------------------------------------------------------------------
+
+    # UID is necessary. I listed mine out.
+    # The rest is in `base.nix` and in the home-manager `romes` config.
+    users.users."romes".uid = 501;
 
     # --- Remote Builders --------------------------------------------------------
 
@@ -84,8 +88,5 @@
         forwardAgent = true; # Forward Agent authentication to mbp (basically allowing auth with local 1Pass)
       };
     };
-
-    # UID is necessary. I listed mine out.
-    users.users."romes".uid = 501;
   };
 }

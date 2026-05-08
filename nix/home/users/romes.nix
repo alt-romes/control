@@ -9,25 +9,15 @@
     {
       imports = [
         self.homeModules.ssh
-
-        self.homeModules.llm
+        self.homeModules.kimai
+        self.homeModules.vim
+        self.homeModules.git
         self.homeModules.ghc
-        ./ghc.nix
-        ./git.nix
-        ./vim.nix
-        ./email.nix
-
-        # Modules
-        ./modules/colors.nix
-        ./modules/static_haskell.nix
-        ./modules/crush.nix
-        ./modules/emacs.nix
-
-        # External modules
-        inputs.nix-doom-emacs-unstraightened.homeModule
-
-        # TODO
-        inputs.mercury-cli.packages.${pkgs.stdenv.hostPlatform.system}.default
+        self.homeModules.llm
+        self.homeModules.emacs
+        self.homeModules.email
+        self.homeModules.colors
+        self.homeModules.static_haskell
       ];
 
       # You can update Home Manager without changing this value.
