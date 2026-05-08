@@ -71,7 +71,7 @@
     ];
   };
 
-  flake.darwinModules.romes-macmini = { pkgs, config, lib, ... }: {
+  flake.darwinModules.romes-macmini = { pkgs, config, ... }: {
   
     imports = [
       self.darwinModules.base
@@ -79,6 +79,9 @@
       self.darwinModules.finances
       self.darwinModules.backups
     ];
+
+    # --------------------------------------------------------------------------------
+    # My modules
  
     finances = {
       enable = true;
@@ -104,14 +107,10 @@
       # Currently, this is macmini = ON, mbp = OFF
     };
 
-    # ------------------------------------------------------------------------
-    # Networking
-
     # Allow localhost reverse proxy resolution for custom domains
     # The specific virtualHosts are defined where necessary (e.g. in "ledger.localhost" in finances.nix)
     services.caddy.enable = true;
   
-    home-manager.users.romes.programs.kimai.enable = true;
     home-manager.users.romes.programs.custom.doom-emacs = true;
   
     # --- Builders ---------------------------------------------------------------

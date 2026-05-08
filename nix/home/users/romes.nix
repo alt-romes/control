@@ -12,6 +12,7 @@
         self.homeModules.kimai
         self.homeModules.vim
         self.homeModules.git
+        self.homeModules.zsh
         self.homeModules.ghc
         self.homeModules.llm
         self.homeModules.emacs
@@ -20,18 +21,20 @@
         self.homeModules.static_haskell
       ];
 
-      # You can update Home Manager without changing this value.
-      home.stateVersion = "24.11";
+      # --------------------------------------------------------------------------------
+      # My modules
 
-      # Let Home Manager install and manage itself.
-      programs.home-manager.enable = true;
+      # style.colors.ayu-light.enable = true;
+      style.colors.kanagawa.enable = true;
+      # style.colors.gruvbox-light.enable = true;
 
-      # Home Manager needs a bit of information about you and the
-      # paths it should manage.
-      home.username = "romes";
-      home.homeDirectory = if pkgs.stdenv.isLinux then "/home/romes" else "/Users/romes";
+      programs.kimai.enable = true;
 
-      # Packages that should be installed to the user profile.
+      haskell.env.STATIC_HASKELL_CABAL_OPTS = false; # cabal build $(echo $STATIC_HASKELL_CABAL_OPTS)
+
+      # --------------------------------------------------------------------------------
+      # Packages / programs
+
       home.packages = with pkgs; [
         ripgrep
         eza
@@ -68,65 +71,7 @@
         maple-mono.NF
         nerd-fonts.symbols-only # emacs uses it
       ];
-
       fonts.fontconfig.enable = true;
-
-      home.sessionVariables = {
-        # Commonly needed in the env for building haskell pkgs
-        # ncurses, gmp, zlib
-        PKG_CONFIG_PATH = "${pkgs.zlib.dev}/lib/pkgconfig:${pkgs.gmp.dev}/lib/pkgconfig:${pkgs.ncurses.dev}/lib/pkgconfig";
-        C_INCLUDE_PATH = "${pkgs.zlib.dev}/include:${pkgs.gmp.dev}/include:${pkgs.ncurses.dev}/include";
-        LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
-        LD_LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
-      };
-      home.sessionPath = [
-        "$HOME/.local/bin"
-      ];
-
-      # export STATIC_HASKELL_CABAL_OPTS with cabal options for producing a static binary
-      haskell.env.STATIC_HASKELL_CABAL_OPTS = false;
-
-      home.shell.enableZshIntegration = true;
-      programs.zsh = {
-        enable = true; # will use the same zsh as the one in nixpkgs shared with nix-darwin
-        enableCompletion = true;
-        syntaxHighlighting.enable = true;
-        autosuggestion.enable = true;
-        shellAliases = {
-          g = "git";
-
-          mv = "mv -i";
-          cp = "cp -i";
-          ls = "eza";
-
-          httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
-
-          # prefer nix-output-monitor
-          nix-shell = "nom-shell";
-          nix-build = "nom-build";
-        };
-        initContent = ''
-          # Delete words like bash (up to slash)
-          # Very important to usefully do Alt+backspace and friends.
-          autoload -U select-word-style
-          select-word-style bash
-        '';
-        localVariables = {
-            TYPEWRITTEN_PROMPT_LAYOUT = if pkgs.stdenv.isLinux then "singleline_verbose" else "singleline";
-        };
-        plugins = [
-          {
-            # will source zsh-autosuggestions.plugin.zsh
-            name = "typewritten";
-            src = pkgs.fetchFromGitHub {
-              owner = "reobin";
-              repo = "typewritten";
-              rev = "v1.5.2";
-              sha256 = "ZHPe7LN8AMr4iW0uq3ZYqFMyP0hSXuSxoaVSz3IKxCc=";
-            };
-          }
-        ];
-      };
 
       programs.ghostty = {
         enable = true;
@@ -158,10 +103,37 @@
         ];
       };
 
-      # Color management
-      # style.colors.ayu-light.enable = true;
-      style.colors.kanagawa.enable = true;
-      # style.colors.gruvbox-light.enable = true;
+      # --------------------------------------------------------------------------------
+      # Home
+
+      # Home Manager needs a bit of information about you and the
+      # paths it should manage.
+      home.username = "romes";
+      home.homeDirectory = if pkgs.stdenv.isLinux then "/home/romes" else "/Users/romes";
+
+      home.sessionVariables = {
+        # Commonly needed in the env for building haskell pkgs
+        # ncurses, gmp, zlib
+        PKG_CONFIG_PATH = "${pkgs.zlib.dev}/lib/pkgconfig:${pkgs.gmp.dev}/lib/pkgconfig:${pkgs.ncurses.dev}/lib/pkgconfig";
+        C_INCLUDE_PATH = "${pkgs.zlib.dev}/include:${pkgs.gmp.dev}/include:${pkgs.ncurses.dev}/include";
+        LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
+        LD_LIBRARY_PATH = "${pkgs.zlib}/lib:${pkgs.gmp}/lib:${pkgs.ncurses}/lib";
+      };
+
+      home.sessionPath = [
+        "$HOME/.local/bin"
+      ];
+
+      home.shell.enableZshIntegration = true;
+
+      # --------------------------------------------------------------------------------
+      # Meta
+
+      # You can update Home Manager without changing this value.
+      home.stateVersion = "24.11";
+
+      # Let Home Manager install and manage itself.
+      programs.home-manager.enable = true;
 
     };
 
