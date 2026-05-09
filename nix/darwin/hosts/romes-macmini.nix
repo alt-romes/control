@@ -8,7 +8,7 @@
 # `?submodules=1` is needed because some modules live inside of git submodules
 
 # Mac Mini M4
-{ self, self', inputs, ... }:
+{ self, inputs, ... }:
 {
   flake.darwinConfigurations.romes-macmini = inputs.nix-darwin.lib.darwinSystem {
     modules = [
@@ -44,7 +44,7 @@
       # Packages needed to build some of the finance utilities
       packages = {
         kimai = config.home-manager.users.romes.programs.kimai.package;
-        run-things-url = self'.Shortcut-Run-Things-URL;
+        run-things-url = self.packages.${pkgs.stdenv.hostPlatform.system}.Shortcut-Run-Things-URL;
       };
 
       # Note: finances.daemons must be set per-machine depending on
