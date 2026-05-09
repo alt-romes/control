@@ -48,8 +48,6 @@
 
     # --- Networking -------------------------------------------------------------
 
-    age.secrets.wireguard-mercury-mbp.file = ../../secrets/wireguard-mercury-mbp.age;
-
     # Wireguard client
     # ---
     # It seems like this doesn't get applied properly while wg is up? possibly

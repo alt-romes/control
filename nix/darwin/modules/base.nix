@@ -4,8 +4,7 @@
 
     modules = [
       inputs.home-manager.darwinModules.home-manager
-      inputs.agenix.darwinModules.default
-
+      self.darwinModules.agenix
       self.darwinModules.linux-builder
       self.darwinModules.caddy # Localhost reverse proxy
     ];

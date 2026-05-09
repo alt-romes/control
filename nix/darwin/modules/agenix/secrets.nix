@@ -28,5 +28,4 @@ in
   "wireguard-macmini.age".publicKeys = [ romes-macmini ]; # private key for macmini
   "wireguard-mbp.age".publicKeys = [ romes-mbp ]; # private key for mbp
   "wireguard-mercury-mbp.age".publicKeys = [ romes-mercury-mbp ]; # private key for mercury-mbp
-  "remote-builder-key.age".publicKeys = [ romes-mbp ]; # mbp uses key to access remote builder (on mac mini)
 }

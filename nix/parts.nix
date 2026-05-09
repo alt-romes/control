@@ -6,7 +6,6 @@
     # nix-topology ? https://oddlama.github.io/nix-topology/
     # nixos-healthchecks ? https://github.com/mrVanDalo/nixos-healthchecks
     # mission-control ? https://github.com/Platonic-Systems/mission-control#readme
-    # agenix-rekey ? https://github.com/oddlama/agenix-rekey?tab=readme-ov-file#usage
   ];
 
   config = {
