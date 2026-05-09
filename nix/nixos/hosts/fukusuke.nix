@@ -13,7 +13,7 @@
     system = "aarch64-linux";
   };
 
-  flake.nixosModules.fukusuke = { config, inputs, pkgs, ... }: { 
+  flake.nixosModules.fukusuke = { config, pkgs, ... }: {
 
     imports = [
       self.nixosModules.base

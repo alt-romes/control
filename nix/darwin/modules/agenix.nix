@@ -23,22 +23,25 @@
     # ------------------------------------------------------------------------
     # Agenix secrets
 
-    # We list all ./agenix/secrets.nix secrets here. Whoever includes this
+    # We list all ./_agenix/secrets.nix secrets here. Whoever includes this
     # module can reference all secrets, but not all hosts can necessarily
-    # decrypt them all (see ./agenix/secrets.nix).
+    # decrypt them all (see ./_agenix/secrets.nix).
+
+    # (Note: the folder has an underscore to be ignored by the flake's
+    # import-tree; secrets.nix is not a nix-darwin module)
 
     age.secrets.kimai = {
-      file = ./agenix/kimai.age;
+      file = ./_agenix/kimai.age;
       # this secret will be accessed on home-manager activation and when used as a tool
       # so the user needs permissions
       owner = "romes";
     };
 
-    age.secrets.duckdns.file = ./duckdns.age;
+    age.secrets.duckdns.file = ./_agenix/duckdns.age;
 
-    age.secrets.wireguard-macmini.file     = ./wireguard-macmini.age;
-    age.secrets.wireguard-mbp.file         = ./wireguard-mbp.age;
-    age.secrets.wireguard-mercury-mbp.file = ./wireguard-mercury-mbp.age;
+    age.secrets.wireguard-macmini.file     = ./_agenix/wireguard-macmini.age;
+    age.secrets.wireguard-mbp.file         = ./_agenix/wireguard-mbp.age;
+    age.secrets.wireguard-mercury-mbp.file = ./_agenix/wireguard-mercury-mbp.age;
 
   };
 }

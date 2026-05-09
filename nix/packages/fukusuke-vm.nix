@@ -1,7 +1,7 @@
 { self, ...}:
 {
   perSystem = { ... }: {
-    fukusuke-vm =
+    packages.fukusuke-vm =
       self.nixosConfigurations.fukusuke.config.microvm.declaredRunner;
   };
 }
