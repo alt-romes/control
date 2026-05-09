@@ -1,7 +1,7 @@
 { inputs, ... }:
 {
     # Utilities for working on GHC.
- flake.homeUtils.ghc = { pkgs, ... }:
+ flake.homeModules.ghc = { pkgs, ... }:
     let
       hadrianUtil = inputs.hadrian-util.packages.${pkgs.stdenv.hostPlatform.system}.default;
       hadrianUtilZshCompletion = pkgs.runCommandLocal "hadrian-util-zsh-completion" {

@@ -15,7 +15,6 @@
 
     nix.settings.trusted-public-keys = [ "cult-m4:ptTV1P5s2mpYCfFQMUb+6S8LbtrYK5HfCYas3YrUbho=" ];
 
-    home-manager.users.romes.programs.kimai.enable = false;
     home-manager.users.romes.programs.custom.doom-emacs = true;
 
     # --- Users ------------------------------------------------------------------

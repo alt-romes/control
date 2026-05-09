@@ -1,6 +1,10 @@
 { inputs, ... }:
 {
   flake.homeModules.emacs = { lib, ... }: {
+    imports = [
+      inputs.nix-doom-emacs-unstraightened.homeModule
+    ];
+
     options = {
       programs.custom.doom-emacs = lib.mkOption {
         type = lib.types.bool;
@@ -10,9 +14,6 @@
     };
 
     config = {
-      imports = [
-        inputs.nix-doom-emacs-unstraightened.homeModule
-      ];
 
       programs.emacs = {
         enable = false; # doom-emacs instead

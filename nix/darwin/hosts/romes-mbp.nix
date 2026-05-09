@@ -28,8 +28,6 @@
       };
     };
 
-    home-manager.users.romes.programs.kimai.enable = false;
-
     # --- Users ------------------------------------------------------------------
 
     # UID is necessary. I listed mine out.
