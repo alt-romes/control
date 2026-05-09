@@ -136,7 +136,8 @@
         # ^ Apple virtualization for linux builder
     };
 
-    nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
+    # TODO: Needed?
+    # nixpkgs.overlays = [ inputs.claude-code-nix.overlays.default ];
 
     nixpkgs.hostPlatform = "aarch64-darwin";
     nixpkgs.config.allowUnfree = true;

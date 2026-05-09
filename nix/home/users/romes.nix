@@ -8,11 +8,16 @@
     in
     {
       imports = [
+        # Private
         self.homeModules.ssh
         self.homeModules.kimai
+
+        # Core
         self.homeModules.vim
         self.homeModules.git
         self.homeModules.zsh
+
+        # More
         self.homeModules.ghc
         self.homeModules.llm
         self.homeModules.emacs
