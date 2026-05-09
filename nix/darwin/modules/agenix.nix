@@ -2,7 +2,7 @@
 {
   flake.darwinModules.agenix = { pkgs, ... }: {
 
-    modules = [
+    imports = [
       inputs.agenix.darwinModules.default
     ];
 

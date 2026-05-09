@@ -2,7 +2,7 @@
 {
   flake.darwinModules.base = { pkgs, ... }: {
 
-    modules = [
+    imports = [
       inputs.home-manager.darwinModules.home-manager
       self.darwinModules.agenix
       self.darwinModules.linux-builder
