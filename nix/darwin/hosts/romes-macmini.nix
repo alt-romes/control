@@ -96,6 +96,7 @@
           # Xperiments
           "antigravity"
           "codex-app"
+          "google-chrome"
       ];
     };
 
