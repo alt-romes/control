@@ -41,6 +41,24 @@
     mercury-cli.inputs.flake-utils.follows     = "flake-utils";
     claude-code-nix.inputs.flake-utils.follows = "flake-utils";
     hadrian-util.inputs.flake-utils.follows    = "flake-utils";
+
+    # Follow flake-parts
+    nixvim.inputs.flake-parts.follows       = "flake-parts";
+    kimai-client.inputs.flake-parts.follows = "flake-parts";
+
+    # Follow systems (many deps pull it in independently)
+    systems.url = "github:nix-systems/default";
+    flake-utils.inputs.systems.follows                        = "systems";
+    nixvim.inputs.systems.follows                             = "systems";
+    nix-doom-emacs-unstraightened.inputs.systems.follows      = "systems";
+    agenix.inputs.systems.follows                             = "systems";
+
+    # Collapse nixpkgs-lib into nixpkgs (flake-parts only needs lib)
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
+
+    # Collapse agenix's bundled home-manager and nix-darwin into ours
+    agenix.inputs.home-manager.follows = "home-manager";
+    agenix.inputs.darwin.follows       = "nix-darwin";
   };
 
   outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; }
