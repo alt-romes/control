@@ -1,4 +1,4 @@
-{-# LANGUAGE GHC2024, NoMonomorphismRestriction, PartialTypeSignatures, Strict #-} -- Strict makes a HUGE difference in this scenario
+{-# LANGUAGE GHC2024, TypeAbstractions, NoMonomorphismRestriction, PartialTypeSignatures, Strict #-} -- Strict makes a HUGE difference in this scenario
 import Prelude hiding (id, (.))
 import Control.Category
 import System.Random.Stateful
@@ -12,6 +12,7 @@ import qualified Data.Vector.Unboxed.Sized as UV
 import qualified Data.Vector as NV
 import qualified Data.Vector.Unboxed as NUV
 import Data.Maybe
+import Data.Proxy (Proxy(..))
 import GHC.TypeNats
 
 --------------------- Differentiable functions----------------------------------
@@ -29,7 +30,6 @@ f × g = D $ \(a,b) ->
 --------------------------------------------------------------------------------
 
 ----------------------- Primitive functions ------------------------------------
-assoc    = D $ \(a,(b,c)) -> (((a,b),c), \((a,b),c) -> (a,(b,c)))
 dup      = D $ \x -> ((x,x), uncurry (+))          ; dup :: Num a => a :-> (a,a)
 add      = D $ \(x,y) -> (x + y, \x -> (x,x))
 mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
@@ -66,47 +66,48 @@ crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at`
 cost1 (i, o)   = crossEntropy o . mnistnet i
 cost ps        = sum' . cross (VS.map cost1 ps) . rep'
 
+sizedSlice :: (KnownNat n, KnownNat off) => Proxy off -> VS.Vector ((off+n)+m) a -> VS.Vector n a
+sizedSlice @n (Proxy @off) v = VS.slice (Proxy @off) v
+
 step examples i weights = do
-  let off = (i * batchSize) `mod` (nExamples - batchSize)
-      batch = fromJust $ VS.toSized @BatchSize $ NV.slice off batchSize (VS.fromSized examples)
+  let off       = (i * batchSize) `mod` (nExamples - batchSize)
+      batch     = sizedSlice @BatchSize off examples
       (r, grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
+
+loadSamples :: forall n. KnownNat n
+             => FilePath -> FilePath
+             -> IO (VS.Vector n (UV.Vector NIn Double, UV.Vector NOut Double))
+loadSamples imgPath lblPath = do
+  rawImgs <- BS.drop 16 <$> BS.readFile imgPath
+  rawLbls <- BS.drop 8  <$> BS.readFile lblPath
+  let imgs = NUV.generate (BS.length rawImgs)
+               (\i -> fromIntegral @_ @Double (BS.index rawImgs i) / 255)
+      lbls = NUV.generate (BS.length rawLbls)
+               (\i -> fromIntegral @_ @Double (BS.index rawLbls i))
+      labelToVec d = UV.generate @NOut
+                       (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
+      n = fromIntegral (natVal (Proxy @n))
+  pure $ fromJust $ VS.fromList
+    [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn imgs
+      , labelToVec (lbls NUV.! i) )
+    | i <- [0 .. n - 1] ]
 
 type BatchSize = 60; type NIn = 784; type NMid = 300; type NOut = 10
 batchSize      = 60; nIn      = 784; nMid      = 300; nExamples = 60000
 
 main = do
-  rawImages <- BS.drop 16 <$> BS.readFile "train-images.idx3-ubyte"
-  rawLabels <- BS.drop 8  <$> BS.readFile "train-labels.idx1-ubyte"
-  let allImgs = NUV.generate (BS.length rawImages) (\i -> fromIntegral @_ @Double (BS.index rawImages i) / 255)
-      allLbls = NUV.generate (BS.length rawLabels) (\i -> fromIntegral @_ @Double (BS.index rawLabels i))
-      examples = fromJust $ VS.fromList @60000 $
-        [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn allImgs
-          , labelToVec (allLbls NUV.! i) )
-        | i <- [0..nExamples-1] ]
-      labelToVec d = UV.generate @10 (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
+  examples <- loadSamples @60000 "train-images.idx3-ubyte" "train-labels.idx1-ubyte"
 
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(NIn)  (xavier nIn))
                         <*> VS.replicateM @NOut (UV.replicateM @(NMid) (xavier nMid))
   finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..150]--(nExamples `div` batchSize)]
 
-  -- Load test data
-  rawTestImages <- BS.drop 16 <$> BS.readFile "t10k-images.idx3-ubyte"
-  rawTestLabels <- BS.drop 8  <$> BS.readFile "t10k-labels.idx1-ubyte"
+  testExamples <- loadSamples @10000 "t10k-images.idx3-ubyte" "t10k-labels.idx1-ubyte"
 
-  let testImgs = NUV.generate (BS.length rawTestImages)
-          (\i -> fromIntegral @_ @Double (BS.index rawTestImages i) / 255)
-      testLbls = NUV.generate (BS.length rawTestLabels)
-          (\i -> fromIntegral @_ @Double (BS.index rawTestLabels i))
-      testExamples = fromJust $ VS.fromList @10000
-        [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn testImgs
-          , labelToVec (testLbls NUV.! i) )
-        | i <- [0 .. BS.length rawTestLabels - 1]
-        ]
-
-      loss (e, t) =
+  let loss (e, t) =
         let (y, _) = mnistnet e # finalWeights
         in UV.sum $ UV.map (^2) (y - t)
 
