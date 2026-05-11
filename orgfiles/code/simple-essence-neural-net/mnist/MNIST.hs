@@ -66,14 +66,10 @@ crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at`
 cost1 (i, o)   = crossEntropy o . mnistnet i
 cost ps        = sum' . cross (VS.map cost1 ps) . rep'
 
-sizedSlice :: (KnownNat n, KnownNat off) => Proxy off -> VS.Vector ((off+n)+m) a -> VS.Vector n a
-sizedSlice @n (Proxy @off) v = VS.slice (Proxy @off) v
-
-step examples i weights = do
-  let off       = (i * batchSize) `mod` (nExamples - batchSize)
-      batch     = sizedSlice @BatchSize off examples
+step (i :: Data.Finite.Finite i) examples weights = do
+  let batch     = VS.slice @((i GHC.TypeNats.* BatchSize) `Mod` (NExamples - BatchSize)) @BatchSize Proxy examples
       (r, grad) = cost batch # weights
-  putStrLn $ "Cost(" ++ show i ++ "): " ++ show r
+  putStrLn $ "Cost(" ++ show (natVal (Proxy @i)) ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
 
 loadSamples :: forall n. KnownNat n
@@ -95,7 +91,7 @@ loadSamples imgPath lblPath = do
     | i <- [0 .. n - 1] ]
 
 type BatchSize = 60; type NIn = 784; type NMid = 300; type NOut = 10
-batchSize      = 60; nIn      = 784; nMid      = 300; nExamples = 60000
+batchSize      = 60; nIn      = 784; nMid      = 300; nExamples = 60000; type NExamples = 60000
 
 main = do
   examples <- loadSamples @60000 "train-images.idx3-ubyte" "train-labels.idx1-ubyte"
@@ -103,7 +99,7 @@ main = do
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(NIn)  (xavier nIn))
                         <*> VS.replicateM @NOut (UV.replicateM @(NMid) (xavier nMid))
-  finalWeights   <- foldl' (\acc i -> acc >>= step examples i) (pure initialWeights) [0..150]--(nExamples `div` batchSize)]
+  finalWeights   <- VS.ifoldM' (\acc i _ -> step i examples acc) initialWeights (VS.enumFromN @150 {-NExamples `div` BatchSize-} 0)
 
   testExamples <- loadSamples @10000 "t10k-images.idx3-ubyte" "t10k-labels.idx1-ubyte"
 
