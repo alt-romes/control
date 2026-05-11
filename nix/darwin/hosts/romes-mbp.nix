@@ -49,6 +49,10 @@
       ];
     };
 
+    # --- Secrets ----------------------------------------------------------------
+
+    age.secrets.wireguard-mbp.file = ../modules/_agenix/wireguard-mbp.age;
+
     # --- Networking -------------------------------------------------------------
 
     # Wireguard client

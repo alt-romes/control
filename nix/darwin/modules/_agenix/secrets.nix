@@ -26,6 +26,5 @@ in
   "kimai.age".publicKeys = romes-machines;
   "duckdns.age".publicKeys = romes-machines;
   "wireguard-macmini.age".publicKeys = [ romes-macmini ]; # private key for macmini
-  "wireguard-mbp.age".publicKeys = [ romes-mbp ]; # private key for mbp
-  "wireguard-mercury-mbp.age".publicKeys = [ romes-mercury-mbp ]; # private key for mercury-mbp
+  "wireguard-mbp.age".publicKeys = [ romes-mbp romes-mercury-mbp ]; # private key for mbps
 }

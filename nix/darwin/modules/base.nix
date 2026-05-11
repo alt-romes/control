@@ -101,6 +101,14 @@
     security.pam.services.sudo_local.touchIdAuth = true; # enable touch id for sudo
 
     # ------------------------------------------------------------------------
+    # Secrets
+
+    age.secrets.kimai = {
+      file = ./_agenix/kimai.age;
+      owner = "romes";
+    };
+
+    # ------------------------------------------------------------------------
     # Users & Home Manager
 
     system.primaryUser = "romes";

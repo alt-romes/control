@@ -103,6 +103,11 @@
        pkgs.iina   # video player
     ];
   
+    # --- Secrets ----------------------------------------------------------------
+
+    age.secrets.duckdns.file           = ../modules/_agenix/duckdns.age;
+    age.secrets.wireguard-macmini.file = ../modules/_agenix/wireguard-macmini.age;
+
     # --- Network ----------------------------------------------------------------
   
     # Dynamic DNS

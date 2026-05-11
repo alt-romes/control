@@ -7,7 +7,7 @@
     ];
   };
 
-  flake.darwinModules.romes-mercury = { config, ... }: {
+  flake.darwinModules.romes-mercury = { config, pkgs, ... }: {
 
     imports = [
       self.darwinModules.base
@@ -45,6 +45,10 @@
       ];
     };
 
+    # --- Secrets ----------------------------------------------------------------
+
+    age.secrets.wireguard-mbp.file = ../modules/_agenix/wireguard-mbp.age;
+
     # --- Networking -------------------------------------------------------------
 
     # Wireguard client
@@ -55,10 +59,10 @@
     #
     # If nothing works, comment out @wg0@, rebuild, uncomment, rebuild.
     networking.wg-quick.interfaces = {
-      wg0 = {
+      wg1 = {
         autostart = true;
         address = [ "10.0.0.4/32" ];
-        privateKeyFile = config.age.secrets.wireguard-mercury-mbp.path; # for ?
+        privateKeyFile = config.age.secrets.wireguard-mbp.path; # for ?
         peers = [
           # wireguard-macmini
           {
