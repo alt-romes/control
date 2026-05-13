@@ -67,7 +67,7 @@
     programs.difftastic = {
       enable = true;
       git.enable = true;
-      git.diffToolMode = false;
+      git.diffToolMode = true;
     };
 
   };
