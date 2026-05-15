@@ -29,9 +29,8 @@
       # --------------------------------------------------------------------------------
       # My modules
 
-      # style.colors.ayu-light.enable = true;
-      style.colors.kanagawa.enable = true;
-      # style.colors.gruvbox-light.enable = true;
+      style.colors.theme = "nord";
+      # Other options: ayu-light, ayu-dark, kanagawa, gruvbox-light, gruvbox-dark, everforest, oxocarbon, nord, rose-pine, tokyonight, github, hotblue
 
       programs.kimai.enable = true;
 
