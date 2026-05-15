@@ -9,11 +9,10 @@ import qualified Data.Vector.Generic.Sized as VG
 import qualified Data.Vector.Generic as VC
 import qualified Data.Vector.Sized as VS
 import qualified Data.Vector.Unboxed.Sized as UV
-import qualified Data.Vector as NV
-import qualified Data.Vector.Unboxed as NUV
 import Data.Maybe
 import Data.Proxy (Proxy(..))
 import GHC.TypeNats
+import Data.Word
 
 --------------------- Differentiable functions----------------------------------
 newtype a :-> b = D { (#) :: a -> (b, b -> a) }
@@ -72,36 +71,29 @@ step (i :: Data.Finite.Finite i) examples weights = do
   putStrLn $ "Cost(" ++ show (natVal (Proxy @i)) ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
 
-loadSamples :: forall n. KnownNat n
+loadSamples :: forall n. (KnownNat n, KnownNat (n GHC.TypeNats.* NIn), KnownNat ((n GHC.TypeNats.* NIn) + NIn))
              => FilePath -> FilePath
              -> IO (VS.Vector n (UV.Vector NIn Double, UV.Vector NOut Double))
 loadSamples imgPath lblPath = do
   rawImgs <- BS.drop 16 <$> BS.readFile imgPath
   rawLbls <- BS.drop 8  <$> BS.readFile lblPath
-  let imgs = NUV.generate (BS.length rawImgs)
-               (\i -> fromIntegral @_ @Double (BS.index rawImgs i) / 255)
-      lbls = NUV.generate (BS.length rawLbls)
-               (\i -> fromIntegral @_ @Double (BS.index rawLbls i))
-      labelToVec d = UV.generate @NOut
-                       (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
-      n = fromIntegral (natVal (Proxy @n))
-  pure $ fromJust $ VS.fromList
-    [ ( fromJust $ UV.toSized @NIn $ NUV.slice (i * nIn) nIn imgs
-      , labelToVec (lbls NUV.! i) )
-    | i <- [0 .. n - 1] ]
+  let imgs = UV.generate @((n GHC.TypeNats.* NIn) + NIn) (\i -> fromIntegral (BS.index rawImgs (fromIntegral (getFinite i))) / 255)
+      lbls = UV.generate (\i -> BS.index rawLbls (fromIntegral (getFinite i)))
+      labelToVec d = UV.generate (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
+  pure $ VS.generate $ \(i::Data.Finite.Finite i) ->
+    ( UV.slice @(i GHC.TypeNats.* NIn) @NIn @0 Proxy imgs, labelToVec (UV.index lbls i) )
 
 type BatchSize = 60; type NIn = 784; type NMid = 300; type NOut = 10
 batchSize      = 60; nIn      = 784; nMid      = 300; nExamples = 60000; type NExamples = 60000
 
 main = do
   examples <- loadSamples @60000 "train-images.idx3-ubyte" "train-labels.idx1-ubyte"
+  testExamples <- loadSamples @10000 "t10k-images.idx3-ubyte" "t10k-labels.idx1-ubyte"
 
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(NIn)  (xavier nIn))
                         <*> VS.replicateM @NOut (UV.replicateM @(NMid) (xavier nMid))
   finalWeights   <- VS.ifoldM' (\acc i _ -> step i examples acc) initialWeights (VS.enumFromN @150 {-NExamples `div` BatchSize-} 0)
-
-  testExamples <- loadSamples @10000 "t10k-images.idx3-ubyte" "t10k-labels.idx1-ubyte"
 
   let loss (e, t) =
         let (y, _) = mnistnet e # finalWeights
