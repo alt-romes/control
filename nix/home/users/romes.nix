@@ -23,6 +23,7 @@
         self.homeModules.emacs
         self.homeModules.email
         self.homeModules.colors
+        self.homeModules.fonts
         self.homeModules.static_haskell
       ];
 
@@ -31,6 +32,9 @@
 
       style.colors.theme = "nord";
       # Other options: ayu-light, ayu-dark, kanagawa, gruvbox-light, gruvbox-dark, everforest, oxocarbon, nord, rose-pine, tokyonight, github, hotblue
+
+      style.fonts.font = "iosevka";
+      # Other options: maple-mono, jetbrains-mono, fira-code
 
       programs.kimai.enable = true;
 
@@ -72,7 +76,6 @@
         pkgs.ncurses pkgs.ncurses.dev
 
         # Fonts
-        maple-mono.NF
         nerd-fonts.symbols-only # emacs uses it
       ];
       fonts.fontconfig.enable = true;
@@ -89,7 +92,6 @@
             unfocused-split-opacity = 1; # don't dim unfocused panes
             background-opacity = 0.95;
             background-blur = true;
-            font-family = "Ioskeley Mono Term";
         };
       };
 
