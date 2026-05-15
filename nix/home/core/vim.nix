@@ -65,6 +65,9 @@
         # --------------------------------------------
         { mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
 
+        # Undo tree
+        { mode = "n"; key = "<leader>u"; action = "<cmd>Undotree<cr>"; }
+
         # Tree keymaps
         { mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
         { mode = "n"; key = "<leader>o";
@@ -379,6 +382,8 @@
       # Enable with :LlamaEnable
       # show_info = 0,
       extraConfigLua = ''
+        require('vim._core.ui2').enable({})
+
         vim.g.llama_config = {
           enable_at_startup = false,
           endpoint = "http://127.0.0.1:8012/v1/completions"
@@ -406,6 +411,7 @@
       '';
 
       extraConfigVim = ''
+        packadd nvim.undotree
         digraph -o 8888
         digraph cp 215
       '';
