@@ -89,9 +89,9 @@
             # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.
             window-padding-color = "extend";
 
-            unfocused-split-opacity = 1; # don't dim unfocused panes
-            background-opacity = 0.95;
-            background-blur = true;
+            unfocused-split-opacity = 0.95; # don't dim unfocused panes
+            # background-opacity = 0.95;
+            # background-blur = true;
         };
       };
 
@@ -102,14 +102,29 @@
 
       programs.tmux = {
         enable = true;
+        focusEvents = true;
         keyMode = "vi";
+        escapeTime = 0;
         mouse = true;
         plugins = [
           pkgs.tmuxPlugins.cpu
+          pkgs.tmuxPlugins.extrakto
         ];
         extraConfig = ''
+          set -g history-limit 50000
+          set -g default-terminal "screen-256color"
+
+          # Emacs key bindings in tmux command prompt (prefix + :) are better than
+          # vi keys, even for vim users
+          set -g status-keys emacs
+
           bind h select-pane -L
           bind l select-pane -R
+
+          # For shift+enter
+          set -g allow-passthrough on
+          set -s extended-keys on
+          set -as terminal-features 'xterm*:extkeys'
         '';
       };
 
