@@ -107,6 +107,10 @@
         plugins = [
           pkgs.tmuxPlugins.cpu
         ];
+        extraConfig = ''
+          bind h select-pane -L
+          bind l select-pane -R
+        '';
       };
 
       # --------------------------------------------------------------------------------
