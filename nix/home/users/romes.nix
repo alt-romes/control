@@ -30,7 +30,7 @@
       # --------------------------------------------------------------------------------
       # My modules
 
-      style.colors.theme = "everforest";
+      style.colors.theme = "melange-light";
       # Other options: oxocarbon, ayu-light, ayu-dark, everforest, hotblue,
       # github, kanagawa, gruvbox-light, gruvbox-dark, catppuccin, tokyonight,
       # rose-pine, nord, catppuccin-latte, rose-pine-dawn, tokyonight-day,
@@ -38,7 +38,7 @@
       # dawnfox, melange-light, modus-operandi, gruvbox-material-light,
       # nord-light
 
-      style.fonts.font = "jetbrains-mono";
+      style.fonts.font = "martian-mono";
       # Other options: ioskeley, iosevka, maple-mono, jetbrains-mono,
       # fira-code, cascadia-code, victor-mono, hack, commit-mono, geist-mono,
       # zed-mono, departure-mono, monaspace-neon, monaspace-argon,
