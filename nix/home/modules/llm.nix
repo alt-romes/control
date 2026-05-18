@@ -26,6 +26,48 @@
         enable = true;
         package = inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
         context = aiContext;
+
+        settings.permissions.allow = [
+          "Read"
+          "Glob"
+          "Grep"
+          "WebFetch"
+          "WebSearch"
+          "Bash(ls:*)"
+          "Bash(cat:*)"
+          "Bash(head:*)"
+          "Bash(tail:*)"
+          "Bash(wc:*)"
+          "Bash(file:*)"
+          "Bash(stat:*)"
+          "Bash(pwd)"
+          "Bash(which:*)"
+          "Bash(type:*)"
+          "Bash(find:* -name *)"
+          "Bash(find:* -type *)"
+          "Bash(find:* -path *)"
+          "Bash(find:* -iname *)"
+          "Bash(find:* -maxdepth *)"
+          "Bash(rg:*)"
+          "Bash(grep:*)"
+          "Bash(tree:*)"
+          "Bash(git status:*)"
+          "Bash(git log:*)"
+          "Bash(git diff:*)"
+          "Bash(git show:*)"
+          "Bash(git branch:*)"
+          "Bash(git blame:*)"
+          "Bash(git remote:*)"
+          "Bash(git config --get:*)"
+          "Bash(cabal list-bin:*)"
+          "Bash(cabal path:*)"
+          "Bash(nix-shell -p *)"
+        ];
+
+        settings.permissions.ask = [
+          "Bash(nix-shell:* --run *)"
+          "Bash(nix-shell:* --command *)"
+        ];
       };
     
       # Write to .codex/skills additionally, because programs.codex.skills are only
