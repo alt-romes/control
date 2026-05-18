@@ -30,10 +30,10 @@
       # --------------------------------------------------------------------------------
       # My modules
 
-      style.colors.theme = "nord";
+      style.colors.theme = "everforest";
       # Other options: ayu-light, ayu-dark, kanagawa, gruvbox-light, gruvbox-dark, everforest, oxocarbon, nord, rose-pine, tokyonight, github, hotblue
 
-      style.fonts.font = "iosevka";
+      style.fonts.font = "jetbrains-mono";
       # Other options: maple-mono, jetbrains-mono, fira-code
 
       programs.kimai.enable = true;

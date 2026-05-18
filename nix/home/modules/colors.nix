@@ -19,7 +19,7 @@
         };
         everforest = {
           vim = "everforest";
-          ghostty = "Everforest Dark - Hard";
+          ghostty = "Everforest Dark Hard";
           background = "dark";
           extraSettings = {
             programs.nixvim.colorschemes.everforest.settings.background = "hard";
@@ -73,6 +73,73 @@
           vim = "nord";
           background = "dark";
           ghostty = "Nord";
+        };
+        catppuccin-latte = {
+          vim = "catppuccin";
+          vim-colorscheme = "catppuccin-latte";
+          background = "light";
+          ghostty = "Catppuccin Latte";
+        };
+        rose-pine-dawn = {
+          vim = "rose-pine";
+          vim-colorscheme = "rose-pine-dawn";
+          background = "light";
+          ghostty = "Rose Pine Dawn";
+        };
+        tokyonight-day = {
+          vim = "tokyonight";
+          vim-colorscheme = "tokyonight-day";
+          background = "light";
+          ghostty = "TokyoNight Day";
+        };
+        everforest-light = {
+          vim = "everforest";
+          ghostty = "Everforest Light Med";
+          background = "light";
+        };
+        github-light-high-contrast = {
+          vim = "github-theme";
+          vim-colorscheme = "github_light_high_contrast";
+          background = "light";
+          ghostty = "GitHub Light High Contrast";
+        };
+        kanagawa-lotus = {
+          vim = "kanagawa";
+          vim-colorscheme = "kanagawa-lotus";
+          background = "light";
+          ghostty = "Kanagawa Lotus";
+        };
+        dayfox = {
+          vim = "nightfox";
+          vim-colorscheme = "dayfox";
+          background = "light";
+          ghostty = "Dayfox";
+        };
+        dawnfox = {
+          vim = "nightfox";
+          vim-colorscheme = "dawnfox";
+          background = "light";
+          ghostty = "Dawnfox";
+        };
+        melange-light = {
+          vim = "melange";
+          background = "light";
+          ghostty = "Melange Light";
+        };
+        modus-operandi = {
+          vim = "modus";
+          background = "light";
+          ghostty = "Modus Operandi";
+        };
+        gruvbox-material-light = {
+          vim = "gruvbox-material";
+          background = "light";
+          ghostty = "Gruvbox Material Light";
+        };
+        nord-light = {
+          vim = "nord";
+          background = "light";
+          ghostty = "Nord Light";
         };
       };
 
