@@ -31,10 +31,19 @@
       # My modules
 
       style.colors.theme = "everforest";
-      # Other options: ayu-light, ayu-dark, kanagawa, gruvbox-light, gruvbox-dark, everforest, oxocarbon, nord, rose-pine, tokyonight, github, hotblue
+      # Other options: oxocarbon, ayu-light, ayu-dark, everforest, hotblue,
+      # github, kanagawa, gruvbox-light, gruvbox-dark, catppuccin, tokyonight,
+      # rose-pine, nord, catppuccin-latte, rose-pine-dawn, tokyonight-day,
+      # everforest-light, github-light-high-contrast, kanagawa-lotus, dayfox,
+      # dawnfox, melange-light, modus-operandi, gruvbox-material-light,
+      # nord-light
 
       style.fonts.font = "jetbrains-mono";
-      # Other options: maple-mono, jetbrains-mono, fira-code
+      # Other options: ioskeley, iosevka, maple-mono, jetbrains-mono,
+      # fira-code, cascadia-code, victor-mono, hack, commit-mono, geist-mono,
+      # zed-mono, departure-mono, monaspace-neon, monaspace-argon,
+      # monaspace-krypton, monaspace-xenon, monaspace-radon, intel-one-mono,
+      # recursive-mono, martian-mono, mononoki, fantasque-sans-mono, lilex
 
       programs.kimai.enable = true;
 
