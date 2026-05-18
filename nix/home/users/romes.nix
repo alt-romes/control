@@ -121,6 +121,9 @@
           bind h select-pane -L
           bind l select-pane -R
 
+          bind v split-window -h
+          bind s split-window -v
+
           # For shift+enter
           set -g allow-passthrough on
           set -s extended-keys on
