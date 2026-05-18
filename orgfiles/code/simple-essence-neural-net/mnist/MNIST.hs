@@ -26,7 +26,6 @@ instance Category (:->) where
 f × g = D $ \(a,b) ->
   let (c, f') = f # a; (d, g') = g # b
    in ((c,d), \(x,y) -> (f' x, g' y))
---------------------------------------------------------------------------------
 
 ----------------------- Primitive functions ------------------------------------
 dup      = D $ \x -> ((x,x), uncurry (+))          ; dup :: Num a => a :-> (a,a)
@@ -36,7 +35,6 @@ rec      = D $ \x -> (1/x, (*(-1 / x^2)))
 exp'     = D $ \x -> let e = exp x in (e, (*e))
 log'     = D $ \x -> (log x, (*(1/x)))                         -- new primitive!
 f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
---------------------------------------------------------------------------------
 
 ------------------------- Vec primitives ---------------------------------------
 rep'     = D $ \x -> (VG.replicate x, VG.sum)                -- repeat/replicate
@@ -53,7 +51,6 @@ cross fs = D $ \as ->
   let pairs = VS.generate (\i -> VS.index fs i # VS.index as i)
    in ( UV.generate (\i -> fst (VS.index pairs i))
       , (\dfs -> VS.generate (\i -> snd (VS.index pairs i) (UV.index dfs i))) )
---------------------------------------------------------------------------------
 
 ------------------------- Neural Network ---------------------------------------
 relu = D $ \v -> (max v 0, if v > 0 then id else const 0)            -- max(x,0)
