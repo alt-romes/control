@@ -117,7 +117,6 @@
         escapeTime = 0;
         mouse = true;
         plugins = [
-          pkgs.tmuxPlugins.cpu
           pkgs.tmuxPlugins.extrakto
         ];
         extraConfig = ''
@@ -129,9 +128,13 @@
           set -g status-keys emacs
 
           bind C-h select-pane -L
+          bind h   select-pane -L
           bind C-l select-pane -R
+          bind l   select-pane -R
           bind C-k select-pane -U
+          bind k   select-pane -U
           bind C-j select-pane -D
+          bind j   select-pane -D
 
           # For shift+enter
           set -g allow-passthrough on
@@ -139,10 +142,6 @@
           set -as terminal-features 'xterm*:extkeys'
           set -as terminal-features 'xterm*:RGB'
 
-          set -g status-style "bg=default,fg=default"
-          set -g status-left-style "bg=default,fg=default"
-          set -g status-right-style "bg=default,fg=default"
-          set -g window-status-current-style "bg=default,fg=default,bold"
         '';
       };
 
