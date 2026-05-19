@@ -41,45 +41,45 @@
           vim-colorscheme = "kanagawa-dragon";
           background = "dark";
           ghostty = "Kanagawa Dragon";
-          tmux = "ukiyo";
+          tmux = "kanagawa/dragon";
         };
         gruvbox-light = {
           vim = "gruvbox";
           background = "light";
           ghostty = "Gruvbox Light";
-          tmux = "gruvbox";
+          tmux = "gruvbox/light";
         };
         gruvbox-dark = {
           vim = "gruvbox";
           background = "dark";
           ghostty = "Gruvbox Dark";
-          tmux = "gruvbox";
+          tmux = "gruvbox/dark";
         };
         catppuccin = {
           vim = "catppuccin";
           vim-colorscheme = "catppuccin-mocha";
           background = "dark";
           ghostty = "Catppuccin Mocha";
-          tmux = "ukiyo";
+          tmux = "catppuccin/mocha";
         };
         tokyonight = {
           vim = "tokyonight";
           vim-colorscheme = "tokyonight-night";
           background = "dark";
           ghostty = "TokyoNight Night";
-          tmux = "ukiyo";
+          tmux = "tokyonight/night";
         };
         rose-pine = {
           vim = "rose-pine";
           background = "dark";
           ghostty = "Rose Pine";
-          tmux = "rose-pine";
+          tmux = "rose-pine/main";
         };
         nord = {
           vim = "nord";
           background = "dark";
           ghostty = "Nord";
-          tmux = "nord";
+          tmux = "nord/default";
         };
         catppuccin-latte = {
           vim = "catppuccin";
@@ -92,14 +92,13 @@
           vim-colorscheme = "rose-pine-dawn";
           background = "light";
           ghostty = "Rose Pine Dawn";
-          tmux = "rose-pine";
+          tmux = "rose-pine/dawn";
         };
         tokyonight-day = {
           vim = "tokyonight";
           vim-colorscheme = "tokyonight-day";
           background = "light";
           ghostty = "TokyoNight Day";
-          tmux = "ukiyo";
         };
         everforest-light = {
           vim = "everforest";
@@ -117,7 +116,7 @@
           vim-colorscheme = "kanagawa-lotus";
           background = "light";
           ghostty = "Kanagawa Lotus";
-          tmux = "ukiyo";
+          tmux = "kanagawa/lotus";
         };
         dayfox = {
           vim = "nightfox";
@@ -165,7 +164,10 @@
               programs.nixvim.colorscheme = themeConf.vim-colorscheme;
             } else {};
             tmux = if themeConf ? tmux then {
-              programs.tmux.plugins = [ pkgs.tmuxPlugins.${themeConf.tmux} ];
+              programs.tmux.plugins = [ {
+                plugin = pkgs.tmuxPlugins.ukiyo;
+                extraConfig = ''set -g @ukiyo-theme "${themeConf.tmux}"'';
+              } ];
             } else {};
             extra = if themeConf ? extraSettings then themeConf.extraSettings else {};
         in lib.mkIf (config.style.colors.theme == themeName)

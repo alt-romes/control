@@ -30,7 +30,8 @@
       # --------------------------------------------------------------------------------
       # My modules
 
-      style.colors.theme = "melange-light";
+      # style.colors.theme = "melange-light";
+      style.colors.theme = "rose-pine-dawn";
       # Other options: oxocarbon, ayu-light, ayu-dark, everforest, hotblue,
       # github, kanagawa, gruvbox-light, gruvbox-dark, catppuccin, tokyonight,
       # rose-pine, nord, catppuccin-latte, rose-pine-dawn, tokyonight-day,
@@ -129,9 +130,6 @@
 
           bind h select-pane -L
           bind l select-pane -R
-
-          bind v split-window -h
-          bind s split-window -v
 
           # For shift+enter
           set -g allow-passthrough on
