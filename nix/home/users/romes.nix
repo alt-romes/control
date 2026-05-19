@@ -122,7 +122,7 @@
         ];
         extraConfig = ''
           set -g history-limit 50000
-          set -g default-terminal "screen-256color"
+          set -g default-terminal "tmux-256color"
 
           # Emacs key bindings in tmux command prompt (prefix + :) are better than
           # vi keys, even for vim users
