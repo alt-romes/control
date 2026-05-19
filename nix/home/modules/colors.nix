@@ -166,7 +166,10 @@
             tmux = if themeConf ? tmux then {
               programs.tmux.plugins = [ {
                 plugin = pkgs.tmuxPlugins.ukiyo;
-                extraConfig = ''set -g @ukiyo-theme "${themeConf.tmux}"'';
+                extraConfig = ''
+                  set -g @ukiyo-theme "${themeConf.tmux}"
+                  set -g @ukiyo-plugins "git cpu-usage ram-usage"
+                '';
               } ];
             } else {};
             extra = if themeConf ? extraSettings then themeConf.extraSettings else {};
