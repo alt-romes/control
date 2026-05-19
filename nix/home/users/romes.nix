@@ -137,6 +137,7 @@
           set -g allow-passthrough on
           set -s extended-keys on
           set -as terminal-features 'xterm*:extkeys'
+          set -as terminal-features 'xterm*:RGB'
         '';
       };
 
