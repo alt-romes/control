@@ -41,7 +41,7 @@
           vim-colorscheme = "kanagawa-dragon";
           background = "dark";
           ghostty = "Kanagawa Dragon";
-          tmux = "kanagawa";
+          tmux = "ukiyo";
         };
         gruvbox-light = {
           vim = "gruvbox";
@@ -60,14 +60,14 @@
           vim-colorscheme = "catppuccin-mocha";
           background = "dark";
           ghostty = "Catppuccin Mocha";
-          tmux = "catppuccin";
+          tmux = "ukiyo";
         };
         tokyonight = {
           vim = "tokyonight";
           vim-colorscheme = "tokyonight-night";
           background = "dark";
           ghostty = "TokyoNight Night";
-          tmux = "tokyo-night-tmux";
+          tmux = "ukiyo";
         };
         rose-pine = {
           vim = "rose-pine";
@@ -99,7 +99,7 @@
           vim-colorscheme = "tokyonight-day";
           background = "light";
           ghostty = "TokyoNight Day";
-          tmux = "tokyo-night-tmux";
+          tmux = "ukiyo";
         };
         everforest-light = {
           vim = "everforest";
@@ -117,7 +117,7 @@
           vim-colorscheme = "kanagawa-lotus";
           background = "light";
           ghostty = "Kanagawa Lotus";
-          tmux = "kanagawa";
+          tmux = "ukiyo";
         };
         dayfox = {
           vim = "nightfox";
