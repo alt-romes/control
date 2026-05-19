@@ -128,8 +128,10 @@
           # vi keys, even for vim users
           set -g status-keys emacs
 
-          bind h select-pane -L
-          bind l select-pane -R
+          bind C-h select-pane -L
+          bind C-l select-pane -R
+          bind C-k select-pane -U
+          bind C-j select-pane -D
 
           # For shift+enter
           set -g allow-passthrough on
