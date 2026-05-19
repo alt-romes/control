@@ -138,6 +138,11 @@
           set -s extended-keys on
           set -as terminal-features 'xterm*:extkeys'
           set -as terminal-features 'xterm*:RGB'
+
+          set -g status-style "bg=default,fg=default"
+          set -g status-left-style "bg=default,fg=default"
+          set -g status-right-style "bg=default,fg=default"
+          set -g window-status-current-style "bg=default,fg=default,bold"
         '';
       };
 

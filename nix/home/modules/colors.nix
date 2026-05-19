@@ -41,45 +41,38 @@
           vim-colorscheme = "kanagawa-dragon";
           background = "dark";
           ghostty = "Kanagawa Dragon";
-          tmux = "kanagawa/dragon";
         };
         gruvbox-light = {
           vim = "gruvbox";
           background = "light";
           ghostty = "Gruvbox Light";
-          tmux = "gruvbox/light";
         };
         gruvbox-dark = {
           vim = "gruvbox";
           background = "dark";
           ghostty = "Gruvbox Dark";
-          tmux = "gruvbox/dark";
         };
         catppuccin = {
           vim = "catppuccin";
           vim-colorscheme = "catppuccin-mocha";
           background = "dark";
           ghostty = "Catppuccin Mocha";
-          tmux = "catppuccin/mocha";
         };
         tokyonight = {
           vim = "tokyonight";
           vim-colorscheme = "tokyonight-night";
           background = "dark";
           ghostty = "TokyoNight Night";
-          tmux = "tokyonight/night";
         };
         rose-pine = {
           vim = "rose-pine";
           background = "dark";
           ghostty = "Rose Pine";
-          tmux = "rose-pine/main";
         };
         nord = {
           vim = "nord";
           background = "dark";
           ghostty = "Nord";
-          tmux = "nord/default";
         };
         catppuccin-latte = {
           vim = "catppuccin";
@@ -92,7 +85,6 @@
           vim-colorscheme = "rose-pine-dawn";
           background = "light";
           ghostty = "Rose Pine Dawn";
-          tmux = "rose-pine/dawn";
         };
         tokyonight-day = {
           vim = "tokyonight";
@@ -116,7 +108,6 @@
           vim-colorscheme = "kanagawa-lotus";
           background = "light";
           ghostty = "Kanagawa Lotus";
-          tmux = "kanagawa/lotus";
         };
         dayfox = {
           vim = "nightfox";
@@ -163,18 +154,9 @@
             vim2 = if themeConf ? vim-colorscheme then {
               programs.nixvim.colorscheme = themeConf.vim-colorscheme;
             } else {};
-            tmux = if themeConf ? tmux then {
-              programs.tmux.plugins = [ {
-                plugin = pkgs.tmuxPlugins.ukiyo;
-                extraConfig = ''
-                  set -g @ukiyo-theme "${themeConf.tmux}"
-                  set -g @ukiyo-plugins "git cpu-usage ram-usage"
-                '';
-              } ];
-            } else {};
             extra = if themeConf ? extraSettings then themeConf.extraSettings else {};
         in lib.mkIf (config.style.colors.theme == themeName)
-             (lib.foldl' lib.recursiveUpdate base [ vim1 vim2 tmux extra ]);
+             (lib.foldl' lib.recursiveUpdate base [ vim1 vim2 extra ]);
     in
     {
 
