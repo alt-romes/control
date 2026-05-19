@@ -1,5 +1,5 @@
 {
-  flake.homeModules.colors = { config, lib, ... }:
+  flake.homeModules.colors = { config, lib, pkgs, ... }:
     let
       simpleThemes = {
         oxocarbon = {
@@ -41,56 +41,66 @@
           vim-colorscheme = "kanagawa-dragon";
           background = "dark";
           ghostty = "Kanagawa Dragon";
+          tmux = "kanagawa";
         };
         gruvbox-light = {
           vim = "gruvbox";
           background = "light";
           ghostty = "Gruvbox Light";
+          tmux = "gruvbox";
         };
         gruvbox-dark = {
           vim = "gruvbox";
           background = "dark";
           ghostty = "Gruvbox Dark";
+          tmux = "gruvbox";
         };
         catppuccin = {
           vim = "catppuccin";
           vim-colorscheme = "catppuccin-mocha";
           background = "dark";
           ghostty = "Catppuccin Mocha";
+          tmux = "catppuccin";
         };
         tokyonight = {
           vim = "tokyonight";
           vim-colorscheme = "tokyonight-night";
           background = "dark";
           ghostty = "TokyoNight Night";
+          tmux = "tokyo-night-tmux";
         };
         rose-pine = {
           vim = "rose-pine";
           background = "dark";
           ghostty = "Rose Pine";
+          tmux = "rose-pine";
         };
         nord = {
           vim = "nord";
           background = "dark";
           ghostty = "Nord";
+          tmux = "nord";
         };
         catppuccin-latte = {
           vim = "catppuccin";
           vim-colorscheme = "catppuccin-latte";
           background = "light";
           ghostty = "Catppuccin Latte";
+          tmux = "catppuccin";
         };
         rose-pine-dawn = {
           vim = "rose-pine";
           vim-colorscheme = "rose-pine-dawn";
           background = "light";
           ghostty = "Rose Pine Dawn";
+          tmux = "rose-pine";
         };
         tokyonight-day = {
           vim = "tokyonight";
           vim-colorscheme = "tokyonight-day";
           background = "light";
           ghostty = "TokyoNight Day";
+          tmux = "tokyo-night-tmux";
         };
         everforest-light = {
           vim = "everforest";
@@ -108,6 +118,7 @@
           vim-colorscheme = "kanagawa-lotus";
           background = "light";
           ghostty = "Kanagawa Lotus";
+          tmux = "kanagawa";
         };
         dayfox = {
           vim = "nightfox";
@@ -140,6 +151,7 @@
           vim = "nord";
           background = "light";
           ghostty = "Nord Light";
+          tmux = "nord";
         };
       };
 
@@ -154,9 +166,12 @@
             vim2 = if themeConf ? vim-colorscheme then {
               programs.nixvim.colorscheme = themeConf.vim-colorscheme;
             } else {};
+            tmux = if themeConf ? tmux then {
+              programs.tmux.plugins = [ pkgs.tmuxPlugins.${themeConf.tmux} ];
+            } else {};
             extra = if themeConf ? extraSettings then themeConf.extraSettings else {};
         in lib.mkIf (config.style.colors.theme == themeName)
-             (lib.recursiveUpdate (lib.recursiveUpdate base (lib.recursiveUpdate vim1 vim2)) extra);
+             (lib.foldl' lib.recursiveUpdate base [ vim1 vim2 tmux extra ]);
     in
     {
 
