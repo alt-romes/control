@@ -6,6 +6,7 @@
         enableCompletion = true;
         syntaxHighlighting.enable = true;
         autosuggestion.enable = true;
+        history.share = false;
         shellAliases = {
           g = "git";
 

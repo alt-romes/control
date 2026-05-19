@@ -86,7 +86,6 @@
           vim-colorscheme = "catppuccin-latte";
           background = "light";
           ghostty = "Catppuccin Latte";
-          tmux = "catppuccin";
         };
         rose-pine-dawn = {
           vim = "rose-pine";
@@ -151,7 +150,6 @@
           vim = "nord";
           background = "light";
           ghostty = "Nord Light";
-          tmux = "nord";
         };
       };
 

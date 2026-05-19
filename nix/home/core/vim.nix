@@ -386,7 +386,7 @@
 
         vim.g.llama_config = {
           enable_at_startup = false,
-          endpoint = "http://127.0.0.1:8012/v1/completions"
+          endpoint_fim = "http://127.0.0.1:8012/v1/completions"
         }
 
         function _G.open_url(url)
