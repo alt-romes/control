@@ -44,11 +44,6 @@
         smarttab=true;                                  # Makes tabbing smarter will realize you have 2 vs 4, and default to tabstop/tabwidth when not obvious
         cursorline=true; cursorlineopt="both";          # Highlight the line number of the cursor line (cursorlineopt=number is also good)
         swapfile=true;                                  # We want swapfiles, and use vim's macOS default 'directory' option, which is within ~/Library
-
-        # === Statusline ===
-        laststatus = 2;
-        showmode = false;
-        statusline = " %{mode()} | %t%m%r %{FugitiveStatusline()} %= %y %p%% %l:%c ";
       };
 
       # Share clipboard between vim and system
