@@ -249,8 +249,6 @@
       plugins.fzf-lua.settings.winopts.fullscreen = true;
       plugins.web-devicons.enable = true; # required by telescope
 
-      plugins.lightline.enable = true;
-
       plugins.nvim-surround.enable = true;
       plugins.fugitive.enable = true;
       plugins.emmet.enable = true;
