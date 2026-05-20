@@ -1,7 +1,7 @@
 # romes home configuration
 { self, inputs, ... }:
 {
-  flake.homeModules.romes = { pkgs, ... }:
+  flake.homeModules.romes = { pkgs, osConfig, ... }:
     let
       hs-comp = pkgs.haskell.compiler.ghc914;
       hs-pkgs = pkgs.haskell.packages.ghc914;
@@ -46,7 +46,8 @@
       # monaspace-krypton, monaspace-xenon, monaspace-radon, intel-one-mono,
       # recursive-mono, martian-mono, mononoki, fantasque-sans-mono, lilex
 
-      programs.kimai.enable = true;
+      # Enable kimai only when agenix secrets are available (skipped in VMs like fukusuke)
+      programs.kimai.enable = osConfig ? age && osConfig.age.secrets ? kimai;
 
       haskell.env.STATIC_HASKELL_CABAL_OPTS = false; # cabal build $(echo $STATIC_HASKELL_CABAL_OPTS)
 
@@ -94,6 +95,7 @@
         enable = true;
         # Broken on MacOS, so use the homebrew app. Configuration is still managed here.
         package = null;
+        systemd.enable = false;
         enableZshIntegration = true;
         settings = {
             # This fixes the awful problem where the vim colorscheme doesn't extend to the border of the terminal window.

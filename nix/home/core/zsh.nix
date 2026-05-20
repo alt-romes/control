@@ -31,7 +31,7 @@
             fi
 
             ${pkgs.tmux}/bin/tmux new -s microvm -d
-            ${pkgs.tmux}/bin/tmux new-window -t microvm: -n vm-console "exec nix run '/Users/romes/control/.#fukusuke-vm'"
+            ${pkgs.tmux}/bin/tmux new-window -t microvm: -n vm-console "exec nix run '/Users/romes/control/.?submodules=1#fukusuke-vm'"
 
             echo "The VM is now running in a tmux session:"
             echo "  tmux attach -t microvm                "
