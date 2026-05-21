@@ -54,6 +54,11 @@
         };
 
         initContent = ''
+          # Force emacs keymap. Otherwise, when $EDITOR contains "vi" (e.g. "vim"
+          # as set system-wide on the fukusuke VM), zsh picks the vi keymap and
+          # ^A/^E etc. end up bound to self-insert.
+          bindkey -e
+
           # Delete words like bash (up to slash)
           # Very important to usefully do Alt+backspace and friends.
           autoload -U select-word-style
