@@ -4,14 +4,11 @@ import Prelude hiding (id, (.)); import Control.Category
 newtype a :-> b = D { (#) :: a -> (b, b -> a) }
 
 instance Category (:->) where
-  id = D $ \a -> (a, id)
-  g . f = D $ \a -> -- chain rule
-    let (b, f') = f # a; (c, g') = g # b
-     in (c, f' . g')
-
-f × g = D $ \(a,b) ->
-  let (c, f') = f # a; (d, g') = g # b
-   in ((c,d), \(x,y) -> (f' x, g' y))
+  id    = D $ \a -> (a, id)
+  g . f = D $ \a -> let (b, f') = f # a; (c, g') = g # b in (c, f' . g')
+                                                                   -- chain rule
+f × g = D $ \(a,b) -> let (c, f') = f # a; (d, g') = g # b
+                       in ((c, d), \(x,y) -> (f' x, g' y))
 
 ----------------------- Primitive functions ------------------------------------
 assoc    = D $ \(a,(b,c)) -> (((a,b),c), \((a,b),c) -> (a,(b,c)))
