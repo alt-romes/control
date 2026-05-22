@@ -62,23 +62,24 @@ crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at`
 cost1 (i, o)   = crossEntropy o . mnistnet i
 cost ps        = sum' . cross (VS.map cost1 ps) . rep'
 
-step (i :: Data.Finite.Finite i) examples weights = do
-  let batch     = VS.slice @((i GHC.TypeNats.* BatchSize) `Mod` (NExamples - BatchSize)) @BatchSize Proxy examples
+step i examples weights = do
+  let start     = (fromIntegral (getFinite i) * batchSize) `mod` (nExamples - batchSize)
+      batch     = VS.generate @BatchSize $ \j -> VS.index examples (finite (fromIntegral (start + fromIntegral (getFinite j))))
       (r, grad) = cost batch # weights
-  putStrLn $ "Cost(" ++ show (natVal (Proxy @i)) ++ "): " ++ show r
+  putStrLn $ "Cost(" ++ show (getFinite i) ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
 
-loadSamples :: forall n. (KnownNat n, KnownNat (n GHC.TypeNats.* NIn), KnownNat ((n GHC.TypeNats.* NIn) + NIn))
+loadSamples :: forall n. KnownNat n
              => FilePath -> FilePath
              -> IO (VS.Vector n (UV.Vector NIn Double, UV.Vector NOut Double))
 loadSamples imgPath lblPath = do
   rawImgs <- BS.drop 16 <$> BS.readFile imgPath
   rawLbls <- BS.drop 8  <$> BS.readFile lblPath
-  let imgs = UV.generate @((n GHC.TypeNats.* NIn) + NIn) (\i -> fromIntegral (BS.index rawImgs (fromIntegral (getFinite i))) / 255)
-      lbls = UV.generate (\i -> BS.index rawLbls (fromIntegral (getFinite i)))
-      labelToVec d = UV.generate (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
-  pure $ VS.generate $ \(i::Data.Finite.Finite i) ->
-    ( UV.slice @(i GHC.TypeNats.* NIn) @NIn @0 Proxy imgs, labelToVec (UV.index lbls i) )
+  let labelToVec d = UV.generate (\i -> if fromIntegral (getFinite i) == d then 1 else 0)
+  pure $ VS.generate $ \i ->
+    let off = fromIntegral (getFinite i) * nIn
+        img = UV.generate (\j -> fromIntegral (BS.index rawImgs (off + fromIntegral (getFinite j))) / 255)
+    in (img, labelToVec (BS.index rawLbls (fromIntegral (getFinite i))))
 
 type BatchSize = 60; type NIn = 784; type NMid = 300; type NOut = 10
 batchSize      = 60; nIn      = 784; nMid      = 300; nExamples = 60000; type NExamples = 60000
