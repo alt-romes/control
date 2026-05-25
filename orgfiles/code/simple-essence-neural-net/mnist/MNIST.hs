@@ -1,6 +1,5 @@
 {-# LANGUAGE GHC2024, TypeAbstractions, NoMonomorphismRestriction, PartialTypeSignatures, Strict #-} -- Strict makes a HUGE difference in this scenario
-import Prelude hiding (id, (.))
-import Control.Category
+import Prelude hiding (id, (.)); import Control.Category
 import System.Random.Stateful
 import qualified Data.ByteString as BS
 import Data.Vector.Generic.Sized (Vector)
@@ -17,25 +16,20 @@ import Data.Word
 newtype a :-> b = D { (#) :: a -> (b, b -> a) }
 
 instance Category (:->) where
-  id = D $ \a -> (a, id)
-  g . f = D $ \a -> -- chain rule
-    let (b, f') = f # a; (c, g') = g # b
-     in (c, f' . g')
+  id    = D $ \a -> (a, id)
+  g . f = D $ \a -> let (b, f') = f # a; (c, g') = g # b in (c, f' . g')
+                                                                   -- chain rule
 
-f × g = D $ \(a,b) ->
-  let (c, f') = f # a; (d, g') = g # b
-   in ((c,d), \(x,y) -> (f' x, g' y))
+f × g = D $ \(a,b) -> let (c, f') = f # a; (d, g') = g # b
+                       in ((c,d), \(x,y) -> (f' x, g' y))
 
------------------------ Primitive functions ------------------------------------
-mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
-log'     = D $ \x -> (log x, (*(1/x)))                         -- new primitive!
+----------------------- Primitive/Vec functions --------------------------------
 f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
-
-------------------------- Vec primitives ---------------------------------------
+mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
+log'     = D $ \x -> (log x, (*(1/x)))
 rep'     = D $ \x -> (VG.replicate x, VG.sum)                -- repeat/replicate
 sum'     = D $ \xs -> (UV.sum xs, UV.replicate)
 zip'     = D $ \(xs,ys) -> (VG.zipWith (,) xs ys, (VG.unzip))
-max'     = D $ \v -> (UV.maximum v, UV.replicate)
 dot'     = D $ \case (a,b) | r <- UV.sum (UV.zipWith (*) a b) -- MUST bind for perf
                          -> (r, \d -> (UV.map (*d) b, UV.map (*d) a))
 map' f   = D $ \as ->
@@ -48,16 +42,11 @@ cross fs = D $ \as ->
       , (\dfs -> VS.generate (\i -> snd (VS.index pairs i) (UV.index dfs i))) )
 
 ------------------------- Neural Network ---------------------------------------
-relu = D $ \v -> (max v 0, if v > 0 then id else const 0)            -- max(x,0)
--- softmax  :: _ => UV.Vector (n + 1) b :-> VG.Vector v (n + 1) b
-softmax = D $ \v -> let -- stable softmax
-     m = UV.maximum v; exps = VG.generate (\i -> exp (UV.index v i - m))
-     t = UV.sum exps; sx = VG.map (/ t) exps
-     s = VG.index sx; ds j i = s i * ((if i == j then 1 else 0) - s j)
-  in (sx, \dv -> UV.generate (\i -> VG.sum (VG.imap (\j -> (ds i j*) {- for forward mode, it'd be `d j i` -}) dv)))
--- softmax = map' (mul . ((rec . sum' . map' exp') × exp')) . (zip' :: _ :-> UV.Vector _ _)
---         . (rep' × id) . dup . map' add . zip' . ((rep' . (mul `at` (-1)) . max') × id) . dup
-  -- https://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/
+relu    = D $ \v -> (max v 0, if v > 0 then id else const 0)         -- max(x,0)
+softmax = D $ \v ->
+  let exps = VG.generate (\i -> exp (UV.index v i - UV.maximum v)); t = UV.sum exps
+      sx = VG.map (/ t) exps; s = VG.index sx; ds j i = s i * ((if i == j then 1 else 0) - s j)
+  in (sx, \dv -> UV.generate (\i -> VG.sum (VG.imap (\j -> (ds i j*)) dv)))
 neuron activ   = activ . dot' {- TODO: ADD BIAS, see e30c40f7da1147617ea39ace29f8c85fa61e076d -} -- φ(W·I+b)
 mnistnet i     = softmax . map' (neuron id) . zip' . ((rep' . map' (neuron relu `at` i)) × id) -- 784x300x10
 crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at` o)
@@ -85,8 +74,8 @@ type BatchSize = 60; type NIn = 784; type NMid = 300; type NOut = 10
 batchSize      = 60; nIn      = 784; nMid      = 300; nExamples = 60000; type NExamples = 60000
 
 main = do
-  examples <- loadSamples @60000 "train-images.idx3-ubyte" "train-labels.idx1-ubyte"
-  testExamples <- loadSamples @10000 "t10k-images.idx3-ubyte" "t10k-labels.idx1-ubyte"
+  examples     <- loadSamples @60000 "train-images.idx3-ubyte" "train-labels.idx1-ubyte"
+  testExamples <- loadSamples @10000 "t10k-images.idx3-ubyte"  "t10k-labels.idx1-ubyte"
 
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
   initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(NIn)  (xavier nIn))
@@ -125,4 +114,5 @@ Notes:
   mode linear map derivative as a Jacobian matrix, is the matrix transpose. In
   per-output-elem terms, that means each row i uses DiS1...DiSn rather than
   D1Si...DnSi (see CoB Notebook)
+     {- for forward mode, it'd be `d j i` (but the accuracy is very similar regardless of which is used...) -}
 -}
