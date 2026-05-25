@@ -3,12 +3,12 @@ import Prelude hiding (id, (.))
 import Control.Category
 import System.Random.Stateful
 import qualified Data.ByteString as BS
-import Data.Finite hiding (add)
 import Data.Vector.Generic.Sized (Vector)
 import qualified Data.Vector.Generic.Sized as VG
 import qualified Data.Vector.Generic as VC
 import qualified Data.Vector.Sized as VS
 import qualified Data.Vector.Unboxed.Sized as UV
+import Data.Finite
 import Data.Maybe
 import GHC.TypeNats
 import Data.Word
@@ -27,11 +27,7 @@ f × g = D $ \(a,b) ->
    in ((c,d), \(x,y) -> (f' x, g' y))
 
 ----------------------- Primitive functions ------------------------------------
-dup      = D $ \x -> ((x,x), uncurry (+))          ; dup :: Num a => a :-> (a,a)
-add      = D $ \(x,y) -> (x + y, \x -> (x,x))
 mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
-rec      = D $ \x -> (1/x, (*(-1 / x^2)))
-exp'     = D $ \x -> let e = exp x in (e, (*e))
 log'     = D $ \x -> (log x, (*(1/x)))                         -- new primitive!
 f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
 
@@ -53,9 +49,15 @@ cross fs = D $ \as ->
 
 ------------------------- Neural Network ---------------------------------------
 relu = D $ \v -> (max v 0, if v > 0 then id else const 0)            -- max(x,0)
+-- softmax  :: _ => UV.Vector (n + 1) b :-> VG.Vector v (n + 1) b
+softmax = D $ \v -> let -- stable softmax
+     t = UV.sum v; m = UV.maximum v; sx = VG.generate (\i -> exp (UV.index v i - m) / t)
+     s = VG.index sx; ds j i = s i * ((if i == j then 1 else 0) - s j)
+  in (sx, \dv -> UV.generate (\i -> VG.sum (VG.imap (\j -> (ds i j*) {- for forward mode, it'd be `d j i` -}) dv)))
+-- softmax = map' (mul . ((rec . sum' . map' exp') × exp')) . (zip' :: _ :-> UV.Vector _ _)
+--         . (rep' × id) . dup . map' add . zip' . ((rep' . (mul `at` (-1)) . max') × id) . dup
+  -- https://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/
 neuron activ   = activ . dot' {- TODO: ADD BIAS, see e30c40f7da1147617ea39ace29f8c85fa61e076d -} -- φ(W·I+b)
-softmax        = map' (mul . ((rec . sum' . map' exp') × exp')) . (zip' :: _ :-> UV.Vector _ _)
-                . (rep' × id) . dup . map' add . zip' . ((rep' . (mul `at` (-1)) . max') × id) . dup
 mnistnet i     = softmax . map' (neuron id) . zip' . ((rep' . map' (neuron relu `at` i)) × id) -- 784x300x10
 crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at` o)
 cost1 (i, o)   = crossEntropy o . mnistnet i
@@ -68,9 +70,7 @@ step i examples weights = do
   putStrLn $ "Cost(" ++ show (getFinite i) ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
 
-loadSamples :: forall n. KnownNat n
-             => FilePath -> FilePath
-             -> IO (VS.Vector n (UV.Vector NIn Double, UV.Vector NOut Double))
+loadSamples :: forall n. KnownNat n => FilePath -> FilePath -> IO (VS.Vector n (UV.Vector NIn Double, UV.Vector NOut Double))
 loadSamples imgPath lblPath = do
   rawImgs <- BS.drop 16 <$> BS.readFile imgPath
   rawLbls <- BS.drop 8  <$> BS.readFile lblPath
@@ -92,21 +92,13 @@ main = do
                         <*> VS.replicateM @NOut (UV.replicateM @(NMid) (xavier nMid))
   finalWeights   <- VS.ifoldM' (\acc i _ -> step i examples acc) initialWeights (VS.enumFromN @150 {-NExamples `div` BatchSize-} 0)
 
-  let loss (e, t) =
-        let (y, _) = mnistnet e # finalWeights
-        in UV.sum $ UV.map (^2) (y - t)
-
-      predict e = UV.maxIndex $ fst (mnistnet e # finalWeights)
+  let predict e = UV.maxIndex $ fst (mnistnet e # finalWeights)
       target  t = UV.maxIndex t
       results   = VS.map (\(e, t) -> (predict e, target t)) testExamples
       correct   = length $ filter (uncurry (==)) (VS.toList results)
-      total     = VS.length results
-      accuracy  = fromIntegral correct / fromIntegral total :: Double
-      totalLoss = VS.sum $ VS.map loss testExamples
-      avgLoss   = totalLoss / fromIntegral total
+      accuracy  = fromIntegral correct / fromIntegral (VS.length results) :: Double
 
   putStrLn $ "Test accuracy: " ++ show accuracy
-  putStrLn $ "Test loss:     " ++ show avgLoss
 
 type Weights nin nmid a = (VS.Vector NMid (UV.Vector nin a), VS.Vector NOut (UV.Vector nmid a))
 instance (KnownNat nin, KnownNat nmid, Num a, UV.Unbox a) => Num (Weights nin nmid a) where
@@ -123,4 +115,13 @@ Notes:
 - Using random weights (rather than e.g. Xavier initialization) results in lots of NaNs very soon.
 - Using "Strict" and let-binding the total result in `dot'` matter a lot for performance.
 - The Num instance for Weights is also important for performance. e.g. using Num (a,b) kills the performance.
+- We could write softmax as a composition of primitives, but it's complex.
+  Follow https://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/ instead.
+  (For reference, the definition as compositions):
+    softmax = map' (mul . ((rec . sum' . map' exp') × exp')) . (zip' :: _ :-> UV.Vector _ _)
+            . (rep' × id) . dup . map' add . zip' . ((rep' . (mul `at` (-1)) . max') × id) . dup
+- The reverse-mode/adjoint derivative of softmax, if we visualize the forward
+  mode linear map derivative as a Jacobian matrix, is the matrix transpose. In
+  per-output-elem terms, that means each row i uses DiS1...DiSn rather than
+  D1Si...DnSi (see CoB Notebook)
 -}
