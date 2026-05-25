@@ -63,8 +63,8 @@ cost1 (i, o)   = crossEntropy o . mnistnet i
 cost ps        = sum' . cross (VS.map cost1 ps) . rep'
 
 step i examples weights = do
-  let start     = (fromIntegral (getFinite i) * batchSize) `mod` (nExamples - batchSize)
-      batch     = VS.generate @BatchSize $ \j -> VS.index examples (finite (fromIntegral (start + fromIntegral (getFinite j))))
+  let start     = getFinite i * batchSize `mod` (nExamples - batchSize)
+      batch     = VS.generate @BatchSize $ \j -> VS.index examples (finite (start + getFinite j))
       (r, grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show (getFinite i) ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
