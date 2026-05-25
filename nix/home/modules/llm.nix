@@ -19,6 +19,7 @@
             To browse a package which is not yet a dependency of the project, use `cabal repl --build-depends=<pkg>`.
             Do not look around with `ghc-pkg` nor directly for interface files
           - In a GHC source-tree, use `./hadrian/ghci` to typecheck GHC
+          - Use --no-ext-diff when viewing git diffs
         '';
             # use `hu build-root init <name> --flavour=<flavour>` and `hu run -d <name> -j8` for full build
     in
