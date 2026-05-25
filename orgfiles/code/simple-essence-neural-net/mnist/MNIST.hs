@@ -51,7 +51,8 @@ cross fs = D $ \as ->
 relu = D $ \v -> (max v 0, if v > 0 then id else const 0)            -- max(x,0)
 -- softmax  :: _ => UV.Vector (n + 1) b :-> VG.Vector v (n + 1) b
 softmax = D $ \v -> let -- stable softmax
-     t = UV.sum v; m = UV.maximum v; sx = VG.generate (\i -> exp (UV.index v i - m) / t)
+     m = UV.maximum v; exps = VG.generate (\i -> exp (UV.index v i - m))
+     t = UV.sum exps; sx = VG.map (/ t) exps
      s = VG.index sx; ds j i = s i * ((if i == j then 1 else 0) - s j)
   in (sx, \dv -> UV.generate (\i -> VG.sum (VG.imap (\j -> (ds i j*) {- for forward mode, it'd be `d j i` -}) dv)))
 -- softmax = map' (mul . ((rec . sum' . map' exp') × exp')) . (zip' :: _ :-> UV.Vector _ _)
