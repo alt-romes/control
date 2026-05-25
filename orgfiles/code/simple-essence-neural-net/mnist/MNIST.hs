@@ -23,9 +23,11 @@ f × g = D $ \(a,b) -> let (c, f') = f # a; (d, g') = g # b
                        in ((c,d), \(x,y) -> (f' x, g' y))
 
 ----------------------- Primitive/Vec functions --------------------------------
-f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
 mul      = D $ \(x,y) -> (x*y, \df -> (df*y,df*x))
+add'     = D $ \(x,y) -> (x+y, \d -> (d,d))
 log'     = D $ \x -> (log x, (*(1/x)))
+reassoc  = D $ \(a,(b,c)) -> (((a,b),c), \((da,db),dc) -> (da,(db,dc)))
+f `at` a = D $ \b -> let (c, d) = f # (a, b) in (c, snd . d)  -- papp static val
 rep'     = D $ \x -> (VG.replicate x, VG.sum)                -- repeat/replicate
 sum'     = D $ \xs -> (UV.sum xs, UV.replicate)
 zip'     = D $ \(xs,ys) -> (VG.zipWith (,) xs ys, (VG.unzip))
@@ -46,7 +48,7 @@ softmax = D $ \v ->
   let exps = VG.generate (\i -> exp (UV.index v i - UV.maximum v)); t = UV.sum exps
       sx = VG.map (/ t) exps; s = VG.index sx; ds j i = s i * ((if i == j then 1 else 0) - s j)
   in (sx, \dv -> UV.generate (\i -> VG.sum (VG.imap (\j -> (ds i j*)) dv)))
-neuron activ   = activ . dot' {- TODO: ADD BIAS, see e30c40f7da1147617ea39ace29f8c85fa61e076d -} -- φ(W·I+b)
+neuron activ   = activ . add' . (dot' × id) . reassoc                -- φ(W·I+b)
 mnistnet i     = softmax . map' (neuron id) . zip' . ((rep' . map' (neuron relu `at` i)) × id) -- 784x300x10
 crossEntropy o = (mul `at` (-1)) . sum' . map' (mul . (id × log')) . (zip' `at` o)
 cost1 (i, o)   = crossEntropy o . mnistnet i
@@ -77,9 +79,9 @@ main = do
   testExamples <- loadSamples @10000 "t10k-images.idx3-ubyte"  "t10k-labels.idx1-ubyte"
 
   let xavier n = (\r -> (2*r - 1) / sqrt (fromIntegral n)) <$> randomM globalStdGen
-  initialWeights <- (,) <$> VS.replicateM @NMid (UV.replicateM @(NIn)  (xavier nIn))
-                        <*> VS.replicateM @NOut (UV.replicateM @(NMid) (xavier nMid))
-  finalWeights   <- VS.ifoldM' (\acc i _ -> step i examples acc) initialWeights (VS.enumFromN @150 {-NExamples `div` BatchSize-} 0)
+  initialWeights <- (,) <$> VS.replicateM @NMid ((,) <$> UV.replicateM @NIn  (xavier nIn)  <*> randomM globalStdGen)
+                        <*> VS.replicateM @NOut ((,) <$> UV.replicateM @NMid (xavier nMid) <*> randomM globalStdGen)
+  finalWeights   <- VS.ifoldM' (\acc i _ -> step i examples acc) initialWeights (VS.enumFromN @150 {-@(NExamples `Div` BatchSize)-} 0)
 
   let predict e = UV.maxIndex $ fst (mnistnet e # finalWeights)
       target  t = UV.maxIndex t
@@ -89,9 +91,10 @@ main = do
 
   putStrLn $ "Test accuracy: " ++ show accuracy
 
-instance (KnownNat nin, KnownNat nmid, Num a, UV.Unbox a) => Num (VS.Vector NMid (UV.Vector nin a), VS.Vector NOut (UV.Vector nmid a)) where
-  fromInteger x' = (VS.replicate @NMid (UV.replicate @nin x), VS.replicate @NOut (UV.replicate @nmid x)) where x = fromInteger x'
-  (w1, w2) + (w3, w4) = (VS.zipWith (UV.zipWith(+)) w1 w3, VS.zipWith (UV.zipWith(+)) w2 w4)
+instance (KnownNat nin, KnownNat nmid, Num a, UV.Unbox a) => Num (VS.Vector NMid (UV.Vector nin a, a), VS.Vector NOut (UV.Vector nmid a, a)) where
+  fromInteger x' = (VS.replicate @NMid (UV.replicate @nin x, x), VS.replicate @NOut (UV.replicate @nmid x, x)) where x = fromInteger x'
+  (w1, w2) + (w3, w4) = (VS.zipWith addN w1 w3, VS.zipWith addN w2 w4)
+    where addN (a,b) (c,d) = (UV.zipWith (+) a c, b + d)
 
 {-
 Notes:
