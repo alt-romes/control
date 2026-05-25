@@ -19,7 +19,6 @@ instance Category (:->) where
   id    = D $ \a -> (a, id)
   g . f = D $ \a -> let (b, f') = f # a; (c, g') = g # b in (c, f' . g')
                                                                    -- chain rule
-
 f × g = D $ \(a,b) -> let (c, f') = f # a; (d, g') = g # b
                        in ((c,d), \(x,y) -> (f' x, g' y))
 
@@ -90,8 +89,7 @@ main = do
 
   putStrLn $ "Test accuracy: " ++ show accuracy
 
-type Weights nin nmid a = (VS.Vector NMid (UV.Vector nin a), VS.Vector NOut (UV.Vector nmid a))
-instance (KnownNat nin, KnownNat nmid, Num a, UV.Unbox a) => Num (Weights nin nmid a) where
+instance (KnownNat nin, KnownNat nmid, Num a, UV.Unbox a) => Num (VS.Vector NMid (UV.Vector nin a), VS.Vector NOut (UV.Vector nmid a)) where
   fromInteger x' = (VS.replicate @NMid (UV.replicate @nin x), VS.replicate @NOut (UV.replicate @nmid x)) where x = fromInteger x'
   (w1, w2) + (w3, w4) = (VS.zipWith (UV.zipWith(+)) w1 w3, VS.zipWith (UV.zipWith(+)) w2 w4)
 
