@@ -10,7 +10,6 @@ import qualified Data.Vector.Generic as VC
 import qualified Data.Vector.Sized as VS
 import qualified Data.Vector.Unboxed.Sized as UV
 import Data.Maybe
-import Data.Proxy (Proxy(..))
 import GHC.TypeNats
 import Data.Word
 
@@ -63,8 +62,8 @@ cost1 (i, o)   = crossEntropy o . mnistnet i
 cost ps        = sum' . cross (VS.map cost1 ps) . rep'
 
 step i examples weights = do
-  let start     = getFinite i * batchSize `mod` (nExamples - batchSize)
-      batch     = VS.generate @BatchSize $ \j -> VS.index examples (finite (start + getFinite j))
+  let start     = fromIntegral (getFinite i) * batchSize `mod` (nExamples - batchSize)
+      batch     = fromJust $ VS.toSized @BatchSize (VC.slice start batchSize (VS.fromSized examples))
       (r, grad) = cost batch # weights
   putStrLn $ "Cost(" ++ show (getFinite i) ++ "): " ++ show r
   pure $ weights + grad (-0.0075)
