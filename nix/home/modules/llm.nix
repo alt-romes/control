@@ -2,13 +2,6 @@
 {
   flake.homeModules.llm = { config, lib, pkgs, ... }:
     let
-      mkSkillEntry =
-        name: content:
-        lib.nameValuePair ".codex/skills/${name}" {
-          source = pkgs.writeTextDir "SKILL.md" (if lib.isPath content then builtins.readFile content else content);
-          recursive = true;
-        };
-    
       aiContext =
         ''
           - When a dependency is not available, use `nix` to temporarily make it available.
@@ -18,10 +11,8 @@
           - To browse Haskell dependencies use `cabal repl` to enter a REPL with the project packages.
             To browse a package which is not yet a dependency of the project, use `cabal repl --build-depends=<pkg>`.
             Do not look around with `ghc-pkg` nor directly for interface files
-          - In a GHC source-tree, use `./hadrian/ghci` to typecheck GHC
           - Use --no-ext-diff when viewing git diffs
         '';
-            # use `hu build-root init <name> --flavour=<flavour>` and `hu run -d <name> -j8` for full build
     in
     {
     
@@ -29,28 +20,42 @@
         enable = true;
         package = inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
         context = aiContext;
+        hooks.ghc-session-start = ''
+          #!/usr/bin/env bash
+          if [ -f "./hadrian/hadrian.cabal" ] && [ -d "./compiler" ]; then
+            cat <<'EOF'
+          This is a **GHC source tree** (the Glasgow Haskell Compiler).
+          - **Typecheck only:** `./hadrian/ghci -j8`
+          - **Full build:** one-time configure with `hu build-root init debug --flavour=perf+no_profiled_libs+debug_ghc+debug_info`, then `hu run -d debug --freeze1 -j8`
+          - **Investigate a failing test:** build first, then `hu run -d debug -j8 --freeze1 test --only="<test-name>" --keep-test-files -VVV`
+          EOF
+          fi
+        '';
+        settings = {
+          permissions.defaultMode = "auto";
+          effortLevel = "medium";
+          tui = "fullscreen";
+          theme = "auto";
+          skipAutoPermissionPrompt = true;
+          model = "opus[1m]";
+          hooks.SessionStart =
+          [
+            {
+              hooks = [
+                {
+                  type = "command";
+                  command = "bash ${config.home.homeDirectory}/.claude/hooks/ghc-session-start";
+                }
+              ];
+            }
+          ];
+        };
       };
-    
-      # Write to .codex/skills additionally, because programs.codex.skills are only
-      # written to .agents/skills which codex cli still doesn't recognize
-      home.file = lib.mapAttrs' mkSkillEntry config.programs.codex.skills;
     
       programs.codex = {
         enable = true;
         package = inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
-    
         context = aiContext;
-    
-        settings = {
-          model = "gpt-5.4";
-          model_reasoning_effort = "medium";
-    
-          projects = {
-            "/Users/romes/Developer/ghc-debugger".trust_level = "trusted";
-            "/Users/romes/ghc-dev/ghc".trust_level = "trusted";
-            "/Users/romes/control".trust_level = "trusted";
-          };
-        };
       };
     };
 }
