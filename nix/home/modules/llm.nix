@@ -28,6 +28,7 @@
           - **Typecheck only:** `./hadrian/ghci -j8`
           - **Full build:** one-time configure with `hu build-root init debug --flavour=perf+no_profiled_libs+debug_ghc+debug_info`, then `hu run -d debug --freeze1 -j8`
           - **Investigate a failing test:** build first, then `hu run -d debug -j8 --freeze1 test --only="<test-name>" --keep-test-files -VVV`
+          If you're given commands using a different build-root, use it instead of `debug`
           EOF
           fi
         '';
