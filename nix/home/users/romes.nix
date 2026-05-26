@@ -114,6 +114,7 @@
 
       programs.tmux = {
         enable = true;
+        shell = "${pkgs.zsh}/bin/zsh";
         focusEvents = true;
         keyMode = "vi";
         escapeTime = 0;
