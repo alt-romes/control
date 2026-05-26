@@ -42,6 +42,10 @@
           ghostty = "GeistMono Nerd Font";
           package = pkgs.nerd-fonts.geist-mono;
         };
+        geist-mono-plain = {
+          ghostty = "Geist Mono";
+          package = pkgs.geist-font;
+        };
         zed-mono = {
           ghostty = "ZedMono Nerd Font";
           package = pkgs.nerd-fonts.zed-mono;
