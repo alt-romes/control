@@ -8,3 +8,6 @@
 [submodule "nix/private"]
 	path = nix/private
 	url = git@github.com:alt-romes/private-dots
+[submodule "satisago"]
+	path = satisago
+	url = git@github.com:alt-romes/satisago.git
