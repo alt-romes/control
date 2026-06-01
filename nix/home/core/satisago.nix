@@ -31,6 +31,14 @@
       config = lib.mkIf cfg.enable {
         programs.nixvim.extraPlugins = [ satisago-plugin ];
         programs.nixvim.globals.satisago_root = cfg.root;
+        programs.nixvim.keymaps = [
+          {
+            mode = "n";
+            key = "<leader>so";
+            action = "<cmd>edit ${cfg.root}/projects/current/<cr>";
+            options.desc = "satisago: open projects list";
+          }
+        ];
       };
     };
 }

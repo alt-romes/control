@@ -70,7 +70,6 @@
 
         # Tree keymaps
         { mode = "n"; key = "<leader>t"; action = "<cmd>NvimTreeOpen<cr>"; }
-        { mode = "n"; key = "<leader>q"; action = "<cmd>edit ~/control/satisago/projects/current/<cr>"; }
         { mode = "n"; key = "<leader>o";
           # Open file selector in the directory of the current file
           action.__raw = "function() require(\"nvim-tree.api\").tree.open({ path = vim.fn.expand('%:p:h'), find_file = true }) end"; }
