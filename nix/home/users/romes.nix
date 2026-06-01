@@ -1,7 +1,7 @@
 # romes home configuration
 { self, inputs, ... }:
 {
-  flake.homeModules.romes = { pkgs, osConfig, ... }:
+  flake.homeModules.romes = { config, pkgs, osConfig, ... }:
     let
       hs-comp = pkgs.haskell.compiler.ghc914;
       hs-pkgs = pkgs.haskell.packages.ghc914;
@@ -14,6 +14,7 @@
 
         # Core
         self.homeModules.vim
+        self.homeModules.satisago
         self.homeModules.git
         self.homeModules.zsh
 
@@ -48,6 +49,11 @@
 
       # Enable kimai only when agenix secrets are available (skipped in VMs like fukusuke)
       programs.kimai.enable = osConfig ? age && osConfig.age.secrets ? kimai;
+
+      programs.satisago = {
+        enable = true;
+        root = "${config.home.homeDirectory}/control/satisago";
+      };
 
       haskell.env.STATIC_HASKELL_CABAL_OPTS = false; # cabal build $(echo $STATIC_HASKELL_CABAL_OPTS)
 
