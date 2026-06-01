@@ -26,6 +26,54 @@ function _G.satisago_foldtext()
   return ('%s… See %d completed to-do%s'):format(indent, n, n == 1 and '' or 's')
 end
 
+local function satisago_root()
+  local r = vim.g.satisago_root
+  if type(r) ~= 'string' or r == '' then
+    vim.notify('satisago: g:satisago_root not set', vim.log.levels.ERROR)
+    return nil
+  end
+  return r
+end
+
+local subcommands = {
+  open = function()
+    local r = satisago_root(); if not r then return end
+    vim.cmd.edit(vim.fn.fnameescape(r .. '/projects/current/'))
+  end,
+  pull = function()
+    local r = satisago_root(); if not r then return end
+    vim.notify('satisago: git pull...')
+    vim.system(
+      { 'git', 'pull' },
+      { cwd = r, text = true },
+      vim.schedule_wrap(function(obj)
+        local msg = (obj.stdout or '') .. (obj.stderr or '')
+        local lvl = obj.code == 0 and vim.log.levels.INFO or vim.log.levels.ERROR
+        vim.notify('satisago git pull:\n' .. msg, lvl)
+      end)
+    )
+  end,
+}
+
+vim.api.nvim_create_user_command('Satisago', function(opts)
+  local sub = opts.fargs[1] or 'open'
+  local fn = subcommands[sub]
+  if not fn then
+    vim.notify('satisago: unknown subcommand: ' .. sub, vim.log.levels.ERROR)
+    return
+  end
+  fn()
+end, {
+  nargs = '?',
+  complete = function(arglead)
+    local out = {}
+    for name in pairs(subcommands) do
+      if name:sub(1, #arglead) == arglead then table.insert(out, name) end
+    end
+    return out
+  end,
+})
+
 vim.api.nvim_create_autocmd('BufWinEnter', {
   group = vim.api.nvim_create_augroup('Satisago', { clear = true }),
   pattern = '*.md',

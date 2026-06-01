@@ -35,8 +35,14 @@
           {
             mode = "n";
             key = "<leader>so";
-            action = "<cmd>edit ${cfg.root}/projects/current/<cr>";
+            action = "<cmd>Satisago open<cr>";
             options.desc = "satisago: open projects list";
+          }
+          {
+            mode = "n";
+            key = "<leader>sp";
+            action = "<cmd>Satisago pull<cr>";
+            options.desc = "satisago: git pull (async)";
           }
         ];
       };
