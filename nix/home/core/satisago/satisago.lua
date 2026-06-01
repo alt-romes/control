@@ -38,7 +38,7 @@ end
 local subcommands = {
   open = function()
     local r = satisago_root(); if not r then return end
-    vim.cmd.edit(vim.fn.fnameescape(r .. '/projects/current/'))
+    vim.cmd('Oil ' .. vim.fn.fnameescape(r .. '/projects/current/'))
   end,
   pull = function()
     local r = satisago_root(); if not r then return end

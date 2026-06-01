@@ -14,6 +14,10 @@
         version = "0.1.0";
         src = pluginSrc;
       };
+
+      satisago-script = pkgs.writeShellScriptBin "satisago" ''
+        exec nvim "${cfg.root}/projects/current/" "$@"
+      '';
     in
     {
       options.programs.satisago = {
@@ -21,30 +25,35 @@
         root = lib.mkOption {
           type = lib.types.str;
           description = ''
-            Full path to the satisago root directory. Files within this root
-            get satisago-specific nvim behaviour (currently: .md files have
-            completed todo lines concealed).
+            Full path to the satisago root directory.
+            Files within this root get satisago-specific nvim behaviour.
           '';
         };
       };
 
       config = lib.mkIf cfg.enable {
-        programs.nixvim.extraPlugins = [ satisago-plugin ];
-        programs.nixvim.globals.satisago_root = cfg.root;
-        programs.nixvim.keymaps = [
-          {
-            mode = "n";
-            key = "<leader>so";
-            action = "<cmd>Satisago open<cr>";
-            options.desc = "satisago: open projects list";
-          }
-          {
-            mode = "n";
-            key = "<leader>sp";
-            action = "<cmd>Satisago pull<cr>";
-            options.desc = "satisago: git pull (async)";
-          }
-        ];
+
+        home.packages = [ satisago-script ];
+        programs.zsh.shellAliases.sg = "satisago";
+
+        programs.nixvim = {
+          extraPlugins = [ satisago-plugin ];
+          globals.satisago_root = cfg.root;
+          keymaps = [
+            {
+              mode = "n";
+              key = "<leader>sg";
+              action = "<cmd>Satisago open<cr>";
+              options.desc = "satisago: open projects list";
+            }
+            {
+              mode = "n";
+              key = "<leader>sp";
+              action = "<cmd>Satisago pull<cr>";
+              options.desc = "satisago: git pull (async)";
+            }
+          ];
+        };
       };
     };
 }
