@@ -40,11 +40,6 @@ local subcommands = {
     local r = satisago_root(); if not r then return end
     vim.cmd('Oil ' .. vim.fn.fnameescape(r .. '/projects/current/'))
   end,
-  pull = function()
-    local r = satisago_root(); if not r then return end
-    vim.cmd('botright 15new | setlocal buftype=nofile bufhidden=wipe nowrap')
-    vim.cmd('terminal git -C ' .. vim.fn.fnameescape(r) .. ' pull --verbose')
-  end,
 }
 
 vim.api.nvim_create_user_command('Satisago', function(opts)

@@ -49,8 +49,8 @@
             {
               mode = "n";
               key = "<leader>sp";
-              action = "<cmd>Satisago pull<cr>";
-              options.desc = "satisago: git pull (async)";
+              action = "<cmd>Git pull<cr>";
+              options.desc = "satisago: git pull";
             }
           ];
         };
