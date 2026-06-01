@@ -42,16 +42,8 @@ local subcommands = {
   end,
   pull = function()
     local r = satisago_root(); if not r then return end
-    vim.notify('satisago: git pull...')
-    vim.system(
-      { 'git', 'pull' },
-      { cwd = r, text = true },
-      vim.schedule_wrap(function(obj)
-        local msg = (obj.stdout or '') .. (obj.stderr or '')
-        local lvl = obj.code == 0 and vim.log.levels.INFO or vim.log.levels.ERROR
-        vim.notify('satisago git pull:\n' .. msg, lvl)
-      end)
-    )
+    vim.cmd('botright 15new | setlocal buftype=nofile bufhidden=wipe nowrap')
+    vim.cmd('terminal git -C ' .. vim.fn.fnameescape(r) .. ' pull --verbose')
   end,
 }
 
