@@ -77,6 +77,7 @@
         nixos-rebuild-ng # better version?
 
         gh # github cli
+        glab # gitlab cli (configured for gitlab.haskell.org below)
 
         # imhex
 
@@ -176,6 +177,7 @@
       ];
 
       home.shell.enableZshIntegration = true;
+
 
       # --------------------------------------------------------------------------------
       # Meta

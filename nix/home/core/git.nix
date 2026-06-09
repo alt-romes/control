@@ -28,6 +28,7 @@
 
         url."git@github.com:".insteadOf = "https://github.com";
         url."git@gitlab.com:".insteadOf = "https://gitlab.com";
+        url."git@gitlab.haskell.org:".insteadOf = "https://gitlab.haskell.org";
 
         # Frequent workflow shortcuts
         alias.ap = "add -p";
@@ -35,6 +36,7 @@
         alias.cm = "commit -m";
         alias.d = "diff";
         alias.ds = "diff --staged";
+        alias.dx = "diff --no-ext-diff";
         alias.pfwl = "push --force-with-lease";
         alias.s = "status";
         alias.rp = "restore -p";
