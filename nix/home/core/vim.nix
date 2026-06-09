@@ -61,6 +61,10 @@
         # Tag jumping
         { mode = "n"; key = "<C-j>"; action = "<C-]>"; }
 
+        # Live grep (<leader>g) starting with the word under the cursor
+        { mode = "n"; key = "<leader>*";
+          action.__raw = "function() require('fzf-lua').live_grep({ query = vim.fn.expand('<cword>') }) end"; }
+
         # Insert 80 `-` characters to make a line like:
         # --------------------------------------------
         { mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
