@@ -31,6 +31,12 @@
       # Pass --cleanup --zap to bundle, so everything not referenced is uninstalled.
       onActivation.cleanup = "zap";
 
+      # Homebrew >=5.1 refuses `brew bundle --cleanup` non-interactively unless
+      # one of --force/--force-cleanup/$HOMEBREW_ASK is given. nix-darwin doesn't
+      # pass any, so add --force-cleanup (forces only the cleanup, not install
+      # --overwrite) to keep activation non-interactive.
+      onActivation.extraFlags = [ "--force-cleanup" ];
+
       # Update brew packages on activation. No point in trying to have
       # reproducibility / idempotence of brew formulas and casks, as they're not
       # pinned in any meaningful way. This applies mostly to Casks anyway :)
