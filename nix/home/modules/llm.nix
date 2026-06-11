@@ -32,6 +32,19 @@
           EOF
           fi
         '';
+        hooks.control-nix-session-start = ''
+          #!/usr/bin/env bash
+          case "$PWD" in
+            "$HOME"/control|"$HOME"/control/*)
+              cat <<'EOF'
+          This is the system and home nix configuration repository.
+          - To run nix derivations in-tree you must append `?submodules=1` to the flake reference
+            (e.g. `nix run '/Users/romes/control/.?submodules=1#foo'`), otherwise submodules are
+            not included and the build will fail.
+          EOF
+              ;;
+          esac
+        '';
         settings = {
           permissions.defaultMode = "auto";
           effortLevel = "medium";
@@ -46,6 +59,10 @@
                 {
                   type = "command";
                   command = "bash ${config.home.homeDirectory}/.claude/hooks/ghc-session-start";
+                }
+                {
+                  type = "command";
+                  command = "bash ${config.home.homeDirectory}/.claude/hooks/control-nix-session-start";
                 }
               ];
             }

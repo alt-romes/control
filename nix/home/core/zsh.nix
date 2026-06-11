@@ -9,6 +9,9 @@
         shellAliases = {
           g = "git";
 
+          ".." = "cd ../";
+          "..." = "cd ../..";
+
           mv = "mv -i";
           cp = "cp -i";
           ls = "eza";
