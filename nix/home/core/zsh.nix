@@ -28,35 +28,6 @@
 
           ghc-shell = "nix-shell -p haskell.compiler.ghc914 haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
 
-          run-linux-vm = ''
-            IP_FILE=/Users/romes/control/vms/fukusuke/ip
-            if [ -e "$IP_FILE" ]; then
-              PREV_MTIME=$(stat -f %m "$IP_FILE")
-            else
-              PREV_MTIME=0
-            fi
-
-            ${pkgs.tmux}/bin/tmux new -s microvm -d
-            ${pkgs.tmux}/bin/tmux new-window -t microvm: -n vm-console "exec nix run '/Users/romes/control/.?submodules=1#fukusuke-vm'"
-
-            echo "The VM is now running in a tmux session:"
-            echo "  tmux attach -t microvm                "
-
-            echo "Waiting for VM to update IP at $IP_FILE..."
-            while true; do
-              if [ -e "$IP_FILE" ]; then
-                MTIME=$(stat -f %m "$IP_FILE")
-                  if [ "$MTIME" -gt "$PREV_MTIME" ]; then
-                    break
-                  fi
-              fi
-              sleep 0.2
-            done
-
-            echo "Connect to VM with agent forwarding (-A):"
-            echo "  ssh -A $(cat $IP_FILE)"
-          '';
-
         };
 
         initContent = ''
@@ -69,6 +40,53 @@
           # Very important to usefully do Alt+backspace and friends.
           autoload -U select-word-style
           select-word-style bash
+
+          # Build and launch the fukusuke Linux microVM.
+          #
+          # The build runs in the FOREGROUND so its (often long and
+          # error-prone) nix output is visible -- if evaluation or the build
+          # fails, you see exactly why and we bail out instead of hanging.
+          # Only the actual VM run is sent to a detached tmux window; since the
+          # runner is already built by then, `nix run` starts instantly.
+          run-linux-vm() {
+            local flake='/Users/romes/control/.?submodules=1#fukusuke-vm'
+            local ip_file=/Users/romes/control/vms/fukusuke/ip
+
+            local prev_mtime=0
+            [ -e "$ip_file" ] && prev_mtime=$(stat -f %m "$ip_file")
+
+            echo "==> Building VM runner (nix output below)..."
+            if ! nom build "$flake" --no-link; then
+              echo "==> VM build FAILED -- see the nix output above." >&2
+              return 1
+            fi
+
+            echo "==> Build OK. Launching VM in tmux session 'microvm'..."
+            ${pkgs.tmux}/bin/tmux new -s microvm -d 2>/dev/null
+            ${pkgs.tmux}/bin/tmux new-window -t microvm: -n vm-console "exec nix run '$flake'"
+
+            echo "    Attach to the console with: tmux attach -t microvm"
+
+            echo "==> Waiting for VM to update IP at $ip_file..."
+            local waited=0
+            while true; do
+              if [ -e "$ip_file" ]; then
+                local mtime=$(stat -f %m "$ip_file")
+                [ "$mtime" -gt "$prev_mtime" ] && break
+              fi
+              sleep 0.2
+              waited=$((waited + 1))
+              if [ "$waited" -ge 600 ]; then
+                echo "==> Timed out (120s) waiting for the VM IP." >&2
+                echo "    The VM likely failed to boot -- inspect the console:" >&2
+                echo "      tmux attach -t microvm" >&2
+                return 1
+              fi
+            done
+
+            echo "==> VM is up. Connect with agent forwarding (-A):"
+            echo "  ssh -A $(cat "$ip_file")"
+          }
         '';
 
         localVariables = {
