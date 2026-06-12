@@ -1,0 +1,38 @@
+cabal-version:      3.0
+name:               gitlab-index
+version:            0.1.0
+synopsis:           Local searchable index of GitLab issues & merge requests
+build-type:         Simple
+
+common warnings
+  ghc-options: -Wall
+
+executable gitlab-index
+  import:           warnings
+  main-is:          Main.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  hs-source-dirs:   app, src
+  other-modules:
+    GitLabIndex.Config
+    GitLabIndex.Types
+    GitLabIndex.Glab
+    GitLabIndex.Store
+    GitLabIndex.Sync
+    GitLabIndex.Render
+    GitLabIndex.Search
+  build-depends:
+      async
+    , base
+    , aeson
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , optparse-applicative
+    , process
+    , text
+    , time
+  default-language: GHC2021
+  default-extensions:
+    OverloadedStrings
+    LambdaCase

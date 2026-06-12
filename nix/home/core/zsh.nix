@@ -1,5 +1,5 @@
 {
-  flake.homeModules.zsh = { pkgs, ... }:
+  flake.homeModules.zsh = { config, pkgs, ... }:
     {
       programs.zsh = {
         enable = true; # will use the same zsh as the one in nixpkgs shared with nix-darwin
@@ -8,6 +8,10 @@
         autosuggestion.enable = true;
         shellAliases = {
           g = "git";
+
+          # Local fzf index of GHC's GitLab issues/MRs. The preview --style
+          # follows the active color theme's background (see home/modules/colors.nix).
+          ghc-index = "gitlab-index --project ghc/ghc --style ${config.style.colors.background}";
 
           ".." = "cd ../";
           "..." = "cd ../..";

@@ -165,9 +165,16 @@
         description = "Color theme name";
       };
 
+      options.style.colors.background = lib.mkOption {
+        type = lib.types.enum [ "light" "dark" ];
+        readOnly = true;
+        description = "Whether the selected theme has a light or dark background. Derived from the theme.";
+      };
+
       config = lib.mkMerge (
         lib.attrValues (lib.mapAttrs theme simpleThemes) ++
         [
+          { style.colors.background = simpleThemes.${config.style.colors.theme}.background; }
         ]
         );
     };

@@ -78,6 +78,7 @@
 
         gh # github cli
         glab # gitlab cli (configured for gitlab.haskell.org below)
+        self.packages.${pkgs.stdenv.hostPlatform.system}.gitlab-index # local fzf index of issues/MRs
 
         # imhex
 
