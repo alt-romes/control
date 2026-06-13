@@ -7,6 +7,7 @@
       self.darwinModules.agenix
       self.darwinModules.linux-builder
       self.darwinModules.caddy # Localhost reverse proxy
+      self.darwinModules.dashboards
     ];
 
     homebrew = {

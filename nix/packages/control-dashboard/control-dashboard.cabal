@@ -1,0 +1,26 @@
+cabal-version:      3.0
+name:               control-dashboard
+version:            0.1.0
+synopsis:           Trivially simple HTML dashboard server
+build-type:         Simple
+
+common warnings
+  ghc-options: -Wall
+
+executable control-dashboard
+  import:           warnings
+  main-is:          Main.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  hs-source-dirs:   app
+  build-depends:
+      base
+    , blaze-html
+    , optparse-applicative
+    , servant-blaze
+    , servant-server
+    , warp
+  default-language: GHC2021
+  default-extensions:
+    OverloadedStrings
+    DataKinds
+    TypeOperators
