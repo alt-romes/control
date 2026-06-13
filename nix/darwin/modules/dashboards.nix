@@ -8,11 +8,13 @@
       # section (and queries hledger) when finances are enabled on this host.
       financesEnabled = config.finances.enable or false;
 
-      # One --journal NAME=PATH per configured journal, so the dashboard reports
+      # When finances are enabled, pass the --finances switch and one
+      # --journal NAME=PATH per configured journal, so the dashboard reports
       # each journal's last reconciled date.
-      journalArgs = lib.optionalString financesEnabled (lib.concatMapStringsSep " "
-        (j: "--journal ${lib.escapeShellArg "${j.name}=${j.path}"}")
-        config.finances.journals);
+      financesArgs = lib.optionalString financesEnabled (lib.concatStringsSep " "
+        ([ "--finances" ] ++ map
+          (j: "--journal ${lib.escapeShellArg "${j.name}=${j.path}"}")
+          config.finances.journals));
     in
     {
       # User daemon serving the control dashboard
@@ -23,8 +25,7 @@
 
             exec ${lib.getExe self-pkgs.control-dashboard} \
               --port 5001 \
-              --host 127.0.0.1 \
-              --finances ${if financesEnabled then "True" else "False"} ${journalArgs}
+              --host 127.0.0.1 ${financesArgs}
           '';
 
           serviceConfig = {

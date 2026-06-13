@@ -5,12 +5,13 @@ import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isDigit, isSpace)
 import Data.List (foldl', stripPrefix, tails)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.String (fromString)
 import Data.Time (Day, diffDays, getCurrentTime, utctDay)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import GHC.Generics (Generic)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
-import Options.Applicative
+import Options.Generic (ParseRecord, getRecord)
 import Servant
 import Servant.HTML.Blaze (HTML)
 import System.Exit (ExitCode (..))
@@ -26,53 +27,23 @@ data Journal = Journal
   , jPath :: FilePath
   }
 
--- | CLI options.
+-- | CLI options, parsed generically from the field names:
+-- @--host@, @--port@, @--finances@ (a switch) and repeatable @--journal@.
 data Options = Options
-  { optHost :: String
-  , optPort :: Int
-  , optFinances :: Bool
-  , optJournals :: [Journal]
+  { host :: Maybe String
+  , port :: Maybe Int
+  , finances :: Bool
+  , journal :: [String]
   }
+  deriving (Generic)
 
-options :: Parser Options
-options =
-  Options
-    <$> strOption
-      ( long "host"
-          <> metavar "HOST"
-          <> value "127.0.0.1"
-          <> showDefault
-          <> help "Host to bind to"
-      )
-    <*> option
-      auto
-      ( long "port"
-          <> metavar "PORT"
-          <> value 8080
-          <> showDefault
-          <> help "Port to listen on"
-      )
-    <*> option
-      auto
-      ( long "finances"
-          <> metavar "BOOL"
-          <> value False
-          <> showDefault
-          <> help "Show the finances section (link + per-journal reconciliation)"
-      )
-    <*> many
-      ( option
-          journalReader
-          ( long "journal"
-              <> metavar "NAME=PATH"
-              <> help "A journal to report the last reconciliation date for (repeatable)"
-          )
-      )
+instance ParseRecord Options
 
-journalReader :: ReadM Journal
-journalReader = eitherReader $ \s -> case break (== '=') s of
-  (name, '=' : path) -> Right (Journal (trim name) path)
-  _ -> Left "expected NAME=PATH"
+-- | Parse a @NAME=PATH@ journal argument; a missing @=@ leaves the path empty.
+parseJournal :: String -> Journal
+parseJournal s = case break (== '=') s of
+  (name, '=' : path) -> Journal (trim name) path
+  (name, _) -> Journal (trim name) ""
 
 -- | The API: the instant-loading index page, plus the finances fragment that
 -- htmx fetches lazily once the page has loaded.
@@ -189,13 +160,10 @@ trim = f . f where f = reverse . dropWhile isSpace
 
 main :: IO ()
 main = do
-  Options {optHost, optPort, optFinances, optJournals} <-
-    execParser $
-      info
-        (options <**> helper)
-        (fullDesc <> progDesc "A trivially simple HTML dashboard server")
-  let settings =
-        setHost (fromString optHost) $
-          setPort optPort defaultSettings
-  putStrLn $ "Serving on http://" <> optHost <> ":" <> show optPort
-  runSettings settings (serve (Proxy :: Proxy API) (server optFinances optJournals))
+  opts <- getRecord "A trivially simple HTML dashboard server"
+  let theHost = fromMaybe "127.0.0.1" (host opts)
+      thePort = fromMaybe 8080 (port opts)
+      journals = map parseJournal (journal opts)
+      settings = setHost (fromString theHost) (setPort thePort defaultSettings)
+  putStrLn $ "Serving on http://" <> theHost <> ":" <> show thePort
+  runSettings settings (serve (Proxy :: Proxy API) (server (finances opts) journals))

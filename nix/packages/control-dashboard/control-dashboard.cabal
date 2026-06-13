@@ -16,7 +16,7 @@ executable control-dashboard
       base
     , blaze-html
     , blaze-markup
-    , optparse-applicative
+    , optparse-generic
     , process
     , servant-blaze
     , servant-server
