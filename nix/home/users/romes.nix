@@ -1,11 +1,11 @@
 # romes home configuration
-{ self, inputs, ... }:
+{ self, inputs, ghcVersion, ... }:
 {
   flake.homeModules.romes = { config, lib, pkgs, osConfig, ... }:
     let
       self-pkgs = self.packages.${pkgs.stdenv.hostPlatform.system};
-      hs-comp = pkgs.haskell.compiler.ghc914;
-      hs-pkgs = pkgs.haskell.packages.ghc914;
+      hs-comp = pkgs.haskell.compiler.${ghcVersion};
+      hs-pkgs = pkgs.haskell.packages.${ghcVersion};
     in
     {
       imports = [

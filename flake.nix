@@ -64,5 +64,15 @@
   };
 
   outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; }
-    (inputs.import-tree [./nix ./finances/nix]);
+    {
+      imports = [
+        (inputs.import-tree [./nix ./finances/nix])
+      ];
+
+      # Flake-wide constants shared with every module as an extra module arg.
+      _module.args = {
+        # Default GHC across the flake.
+        ghcVersion = "ghc914";
+      };
+    };
 }

@@ -1,9 +1,9 @@
-{ inputs, ... }:
+{ inputs, ghcVersion, ... }:
 {
   perSystem = { pkgs, lib, ... }: {
     packages.gitlab-index =
     let
-      hpkgs = pkgs.haskellPackages;
+      hpkgs = pkgs.haskell.packages.${ghcVersion};
 
       # cabal2nix derivation; justStaticExecutables keeps GHC out of the runtime
       # closure (so this is a small leaf package, not a Haskell dev env).

@@ -1,3 +1,4 @@
+{ ghcVersion, ... }:
 {
   flake.homeModules.zsh = { config, pkgs, ... }:
     {
@@ -26,7 +27,7 @@
           nix-shell = "nom-shell";
           nix-build = "nom-build";
 
-          ghc-shell = "nix-shell -p haskell.compiler.ghc914 haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
+          ghc-shell = "nix-shell -p haskell.compiler.${ghcVersion} haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
 
         };
 
