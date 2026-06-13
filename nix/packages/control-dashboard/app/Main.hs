@@ -15,6 +15,7 @@ import Servant
 import Servant.HTML.Blaze (HTML)
 import System.Exit (ExitCode (..))
 import System.Process (readProcessWithExitCode)
+import Text.Blaze (customAttribute)
 import Text.Blaze.Html5 (Html, (!))
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -73,30 +74,48 @@ journalReader = eitherReader $ \s -> case break (== '=') s of
   (name, '=' : path) -> Right (Journal (trim name) path)
   _ -> Left "expected NAME=PATH"
 
--- | The whole API: a single page served at the root.
-type API = Get '[HTML] Html
+-- | The API: the instant-loading index page, plus the finances fragment that
+-- htmx fetches lazily once the page has loaded.
+type API =
+  Get '[HTML] Html
+    :<|> "finances" :> Get '[HTML] Html
 
 server :: Bool -> [Journal] -> Server API
-server finances journals = do
-  statuses <-
-    liftIO $
-      if finances
-        then do
-          today <- utctDay <$> getCurrentTime
-          mapM (journalStatus today) journals
-        else pure []
-  pure (page finances statuses)
+server finances journals = pure (indexPage finances) :<|> financesHandler
+  where
+    financesHandler = liftIO $ do
+      today <- utctDay <$> getCurrentTime
+      financesFragment <$> mapM (journalStatus today) journals
 
-page :: Bool -> [(String, Maybe Integer)] -> Html
-page finances statuses = H.docTypeHtml $ do
-  H.head $ H.title "control-dashboard"
+-- | The index page. It does no slow work, so it loads instantly. When finances
+-- are enabled it embeds htmx and a placeholder that fetches @\/finances@ on
+-- load, swapping itself out for the rendered fragment as soon as it arrives.
+indexPage :: Bool -> Html
+indexPage finances = H.docTypeHtml $ do
+  H.head $ do
+    H.title "control-dashboard"
+    H.script
+      ! A.src "https://cdn.jsdelivr.net/npm/htmx.org@4.0.0-beta4"
+      ! customAttribute "integrity" "sha384-aWZK1NtOs/aWb/+YZdTM8q2JkWEshlMc9mgZ189numT9bwFhyAyYEoO4nO/2dTXt"
+      ! customAttribute "crossorigin" "anonymous"
+      $ mempty
   H.body $ do
     H.h1 "control-dashboard"
     H.p "It works."
-    when finances $ do
-      H.p $ H.a ! A.href "http://ledger.localhost" $ "Finances"
-      H.ul $ forM_ statuses $ \(name, days) ->
-        H.li $ H.toHtml $ name <> ": " <> describe days
+    when finances $
+      H.div
+        ! customAttribute "hx-get" "/finances"
+        ! customAttribute "hx-trigger" "load"
+        ! customAttribute "hx-swap" "outerHTML"
+        $ "Loading finances…"
+
+-- | The lazily-loaded finances fragment: a link to finances plus the last
+-- reconciliation date of each journal.
+financesFragment :: [(String, Maybe Integer)] -> Html
+financesFragment statuses = H.div $ do
+  H.p $ H.a ! A.href "http://ledger.localhost" $ "Finances"
+  H.ul $ forM_ statuses $ \(name, days) ->
+    H.li $ H.toHtml $ name <> ": " <> describe days
   where
     describe (Just d) = show d <> " days since last reconciled"
     describe Nothing = "last reconciled date unknown"

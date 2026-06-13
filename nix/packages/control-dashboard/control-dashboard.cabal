@@ -15,6 +15,7 @@ executable control-dashboard
   build-depends:
       base
     , blaze-html
+    , blaze-markup
     , optparse-applicative
     , process
     , servant-blaze
