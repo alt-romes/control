@@ -16,8 +16,10 @@ executable control-dashboard
       base
     , blaze-html
     , optparse-applicative
+    , process
     , servant-blaze
     , servant-server
+    , time
     , warp
   default-language: GHC2021
   default-extensions:

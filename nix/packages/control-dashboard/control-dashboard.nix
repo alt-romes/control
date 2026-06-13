@@ -9,8 +9,17 @@
       unwrapped = pkgs.haskell.lib.justStaticExecutables
         (hpkgs.callCabal2nix "control-dashboard" ./. { });
 
-    in unwrapped // {
-      meta = unwrapped.meta // { mainProgram = "control-dashboard"; };
-    };
+      # The --finances section shells out to hledger to read the journal.
+      runtimeDeps = [ pkgs.hledger ];
+
+    in pkgs.runCommand "control-dashboard"
+      {
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+        meta = unwrapped.meta // { mainProgram = "control-dashboard"; };
+      } ''
+      mkdir -p $out/bin
+      makeWrapper ${unwrapped}/bin/control-dashboard $out/bin/control-dashboard \
+        --prefix PATH : ${lib.makeBinPath runtimeDeps}
+    '';
   };
 }
