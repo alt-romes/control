@@ -18,6 +18,8 @@
       # `nix flake update kimai-client` manually fixes it
     hadrian-util.url    = "git+https://gitlab.haskell.org/bgamari/hadrian-util";
     mercury-cli.url     = "github:MercuryTechnologies/mercury-cli";
+    activobank-hs.url   = "github:alt-romes/activobank-hs";
+    activobank-hs.flake = false;
     codex-cli-nix.url   = "github:sadjow/codex-cli-nix";
     claude-code-nix.url = "github:sadjow/claude-code-nix";
     nix-doom-emacs-unstraightened.url = "github:marienz/nix-doom-emacs-unstraightened";

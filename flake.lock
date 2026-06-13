@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "activobank-hs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1781339984,
+        "narHash": "sha256-GiREK2anrXXd8Vhlqs98jSHyxxjwEydpq9PrwpuTpDI=",
+        "owner": "alt-romes",
+        "repo": "activobank-hs",
+        "rev": "39b84a2e6f29b5156e0556a3582daf4fdc499ea4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "alt-romes",
+        "repo": "activobank-hs",
+        "type": "github"
+      }
+    },
     "agenix": {
       "inputs": {
         "darwin": [
@@ -368,6 +384,7 @@
     },
     "root": {
       "inputs": {
+        "activobank-hs": "activobank-hs",
         "agenix": "agenix",
         "claude-code-nix": "claude-code-nix",
         "codex-cli-nix": "codex-cli-nix",
