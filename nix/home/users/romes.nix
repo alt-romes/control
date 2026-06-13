@@ -1,8 +1,9 @@
 # romes home configuration
 { self, inputs, ... }:
 {
-  flake.homeModules.romes = { config, pkgs, osConfig, ... }:
+  flake.homeModules.romes = { config, lib, pkgs, osConfig, ... }:
     let
+      self-pkgs = self.packages.${pkgs.stdenv.hostPlatform.system};
       hs-comp = pkgs.haskell.compiler.ghc914;
       hs-pkgs = pkgs.haskell.packages.ghc914;
     in
@@ -76,17 +77,15 @@
         # nixos-rebuild # to deploy to remote nixos machines directly
         nixos-rebuild-ng # better version?
 
-        gh # github cli
-        glab # gitlab cli (configured for gitlab.haskell.org below)
-        self.packages.${pkgs.stdenv.hostPlatform.system}.gitlab-index # local fzf index of issues/MRs
+        gh glab # github/gitlab cli
+        self-pkgs.gitlab-index # local fzf index of issues/MRs
 
         # imhex
 
         # For (building) GHC
         alex happy autoconf automake
 
-        (python3.withPackages(ps: [ps.jupyter]))
-          # required by GHC and org +jupyter
+        (python3.withPackages(ps: [ps.jupyter])) # required by GHC and org +jupyter
 
         # Make this available by default
         pkgs.pkg-config
@@ -96,6 +95,11 @@
 
         # Fonts
         nerd-fonts.symbols-only # emacs uses it
+
+      ] ++ lib.optionals pkgs.stdenv.isDarwin [
+
+        # macOS only
+        caffeine
       ];
       fonts.fontconfig.enable = true;
 
@@ -178,7 +182,6 @@
       ];
 
       home.shell.enableZshIntegration = true;
-
 
       # --------------------------------------------------------------------------------
       # Meta
