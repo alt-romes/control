@@ -37,6 +37,7 @@
         alias.d = "diff";
         alias.ds = "diff --staged";
         alias.dx = "diff --no-ext-diff";
+        alias.dsx = "diff --staged --no-ext-diff";
         alias.pfwl = "push --force-with-lease";
         alias.s = "status";
         alias.rp = "restore -p";
