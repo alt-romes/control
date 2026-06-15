@@ -3,26 +3,24 @@ module Main (main) where
 import Control.Exception (IOException, try)
 import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (liftIO)
-import Data.Char (isDigit, isSpace)
-import Data.List (foldl', stripPrefix, tails)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Char (isSpace)
+import Data.List (isSuffixOf)
+import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Data.Time (Day, diffDays, getCurrentTime, utctDay)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import GHC.Generics (Generic)
+import Hledger (Journal, definputopts, jtxns, pbalanceassertion, pdate, readJournalFile, runExceptT, tdate, tpostings)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Options.Generic (ParseRecord, getRecord)
 import Servant
 import Servant.HTML.Blaze (HTML)
-import System.Exit (ExitCode (..))
-import System.Process (readProcessWithExitCode)
 import Text.Blaze (customAttribute)
 import Text.Blaze.Html5 (Html, (!))
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
 -- | A named hledger journal to report on.
-data Journal = Journal
+data JournalSpec = JournalSpec
   { jName :: String
   , jPath :: FilePath
   }
@@ -40,27 +38,23 @@ data Options = Options
 instance ParseRecord Options
 
 -- | Parse a @NAME=PATH@ journal argument; a missing @=@ leaves the path empty.
-parseJournal :: String -> Journal
+parseJournal :: String -> JournalSpec
 parseJournal s = case break (== '=') s of
-  (name, '=' : path) -> Journal (trim name) path
-  (name, _) -> Journal (trim name) ""
+  (name, '=' : path) -> JournalSpec (trim name) path
+  (name, _) -> JournalSpec (trim name) ""
 
--- | The API: the instant-loading index page, plus the finances fragment that
--- htmx fetches lazily once the page has loaded.
-type API =
-  Get '[HTML] Html
-    :<|> "finances" :> Get '[HTML] Html
+type API =               Get '[HTML] Html
+      :<|> "finances" :> Get '[HTML] Html
 
-server :: Bool -> [Journal] -> Server API
+server :: Bool -> [JournalSpec] -> Server API
 server finances journals = pure (indexPage finances) :<|> financesHandler
   where
     financesHandler = liftIO $ do
       today <- utctDay <$> getCurrentTime
       financesFragment <$> mapM (journalStatus today) journals
 
--- | The index page. It does no slow work, so it loads instantly. When finances
--- are enabled it embeds htmx and a placeholder that fetches @\/finances@ on
--- load, swapping itself out for the rendered fragment as soon as it arrives.
+-- | The index page loads fast. Htmx fetches slower pieces like @\/finances@,
+-- swapping itself out for the rendered fragment as soon as it arrives.
 indexPage :: Bool -> Html
 indexPage finances = H.docTypeHtml $ do
   H.head $ do
@@ -73,12 +67,33 @@ indexPage finances = H.docTypeHtml $ do
   H.body $ do
     H.h1 "control-dashboard"
     H.p "It works."
+    linksSection
     when finances $
       H.div
         ! customAttribute "hx-get" "/finances"
         ! customAttribute "hx-trigger" "load"
         ! customAttribute "hx-swap" "outerHTML"
         $ "Loading finances…"
+
+-- | A static list of links to the things this dashboard fronts. Bare hostnames
+-- are turned into clickable links; @.localhost@ hosts use @http@, the rest
+-- @https@.
+linksSection :: Html
+linksSection = do
+  H.h2 "Links"
+  H.ul $ forM_ links $ \host' ->
+    H.li $ H.a ! A.href (fromString (scheme host' <> host')) $ H.toHtml host'
+  where
+    links =
+      [ "alt-romes.github.io"
+      , "analytics.mogbit.com"
+      , "dashboard.stripe.com"
+      , "ledger.localhost"
+      , "satisago.localhost"
+      ]
+    scheme h
+      | ".localhost" `isSuffixOf` h = "http://"
+      | otherwise = "https://"
 
 -- | The lazily-loaded finances fragment: a link to finances plus the last
 -- reconciliation date of each journal.
@@ -92,68 +107,34 @@ financesFragment statuses = H.div $ do
     describe Nothing = "last reconciled date unknown"
 
 -- | Days between today and a journal's most recent balance assertion.
-journalStatus :: Day -> Journal -> IO (String, Maybe Integer)
-journalStatus today (Journal name path) = do
+journalStatus :: Day -> JournalSpec -> IO (String, Maybe Integer)
+journalStatus today (JournalSpec name path) = do
   mlast <- latestAssertionDate path
   pure (name, diffDays today <$> mlast)
 
--- | Latest balance-assertion date in a journal, or 'Nothing' if hledger is
--- unavailable, errors, or the journal has no assertions. Reconciliation is
--- recorded as balance assertions, so the last reconciliation is the latest
--- date among postings carrying one. We let @hledger@ parse the journal (it
--- resolves @include@s) and scan its normalized @print@ output.
+-- | Reconciliation is recorded as balance assertions, so the last
+-- reconciliation is the latest date among postings carrying one. We let
+-- @hledger@ parse the journal (it resolves @include@s) and inspect the
+-- resulting transactions.
 latestAssertionDate :: FilePath -> IO (Maybe Day)
 latestAssertionDate path = do
-  res <- try (readProcessWithExitCode "hledger" ["print", "-f", path] "")
-    :: IO (Either IOException (ExitCode, String, String))
+  res <- try (runExceptT (readJournalFile definputopts path))
+    :: IO (Either IOException (Either String Journal))
   pure $ case res of
-    Right (ExitSuccess, out, _) -> scanJournal (lines out)
+    Right (Right j) -> latestAssertion j
     _ -> Nothing
 
--- | Scan normalized journal lines for the latest assertion date. Tracks the
--- current transaction date; a posting carrying a balance assertion (@=@) counts
--- at its @date:@ tag if present, else the transaction date.
-scanJournal :: [String] -> Maybe Day
-scanJournal = snd . foldl' step (Nothing, Nothing)
+latestAssertion :: Journal -> Maybe Day
+latestAssertion j = case dates of
+  [] -> Nothing
+  ds -> Just (maximum ds)
   where
-    step (cur, maxD) line
-      | startsTransaction line =
-          (parseDay (takeWhile (\c -> isDigit c || c == '-') line), maxD)
-      | isPosting line && hasAssertion line =
-          (cur, max maxD (tagDate line `orElse` cur))
-      | otherwise = (cur, maxD)
-
--- | A line beginning with a digit starts a transaction (its date).
-startsTransaction :: String -> Bool
-startsTransaction (c : _) = isDigit c
-startsTransaction _ = False
-
--- | A posting line is indented and non-blank.
-isPosting :: String -> Bool
-isPosting line = case line of
-  (c : _) -> isSpace c && not (all isSpace line)
-  _ -> False
-
--- | True when the posting (ignoring its comment) contains a balance assertion.
-hasAssertion :: String -> Bool
-hasAssertion = elem '=' . takeWhile (/= ';')
-
--- | The @date:@ posting tag, if present in the line's comment.
-tagDate :: String -> Maybe Day
-tagDate line = listToMaybe
-  [ d
-  | t <- tails line
-  , Just rest <- [stripPrefix "date:" t]
-  , let val = takeWhile (\c -> isDigit c || c == '-') (dropWhile isSpace rest)
-  , Just d <- [parseDay val]
-  ]
-
-parseDay :: String -> Maybe Day
-parseDay = parseTimeM True defaultTimeLocale "%Y-%m-%d"
-
-orElse :: Maybe a -> Maybe a -> Maybe a
-orElse (Just x) _ = Just x
-orElse Nothing y = y
+    dates =
+      [ fromMaybe (tdate t) (pdate p)
+      | t <- jtxns j
+      , p <- tpostings t
+      , Just _ <- [pbalanceassertion p]
+      ]
 
 trim :: String -> String
 trim = f . f where f = reverse . dropWhile isSpace

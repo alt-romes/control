@@ -16,8 +16,8 @@ executable control-dashboard
       base
     , blaze-html
     , blaze-markup
+    , hledger-lib
     , optparse-generic
-    , process
     , servant-blaze
     , servant-server
     , time
