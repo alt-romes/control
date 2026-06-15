@@ -68,7 +68,7 @@
   outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; }
     {
       imports = [
-        (inputs.import-tree [./nix ./finances/nix])
+        (inputs.import-tree [./nix ./finances/nix ./satisago/satisago])
       ];
 
       # Flake-wide constants shared with every module as an extra module arg.
