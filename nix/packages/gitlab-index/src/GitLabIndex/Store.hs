@@ -117,9 +117,9 @@ flatten = T.map (\c -> if c `elem` ("\t\n\r" :: String) then ' ' else c)
 -- > 3 iid      (preview placeholder {3})
 -- > 4 extra    body + comments, for full-text mode  (fzf --with-nth '1,4')
 --
--- fzf 0.73 ties search scope to @--with-nth@, so everything searchable in a
--- given mode must live in the presented columns: title mode shows/searches
--- column 1; full mode adds column 4.
+-- Title mode shows column 1 but fzf searches the whole line; full mode greps
+-- the whole line with ripgrep. Either way, anything searchable (bodies,
+-- comments) must live on the line — hence column 4.
 -- | Issues are @#<iid>@, merge requests @!<iid>@.
 refText :: ItemType -> Meta -> Text
 refText t m = (case t of Issue -> "#"; MR -> "!") <> T.pack (show (mIid m))

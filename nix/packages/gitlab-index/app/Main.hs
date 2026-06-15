@@ -21,6 +21,7 @@ data Opts = Opts
   { oHost    :: String
   , oProject :: Maybe String
   , oDataDir :: Maybe FilePath
+  , oRepo    :: Maybe FilePath
   , oJobs    :: Int
   , oStyle   :: String
   , oCmd     :: Cmd
@@ -33,6 +34,7 @@ data Cmd
   | Open String Int
   | Edit String Int
   | Comment String Int
+  | Diff String Int
   | Reindex
 
 optsP :: Parser Opts
@@ -46,6 +48,9 @@ optsP = Opts
   <*> optional (strOption
         ( long "data-dir" <> metavar "DIR"
        <> help "Base data directory (default: $XDG_DATA_HOME/gitlab-index)" ))
+  <*> optional (strOption
+        ( long "repo" <> metavar "DIR"
+       <> help "Local clone to open Fugitive diffs in; defaults to $GITLAB_INDEX_REPO" ))
   <*> option auto
         ( long "jobs" <> short 'j' <> metavar "N" <> value 8 <> showDefault
        <> help "Max concurrent note fetches during sync" )
@@ -75,6 +80,9 @@ cmdP = hsubparser
  <> command "comment" (info (Comment <$> argument str (metavar "TYPE")
                                      <*> argument auto (metavar "IID"))
       (progDesc "Compose a comment in $EDITOR (vim) and post it via glab"))
+ <> command "diff" (info (Diff <$> argument str (metavar "TYPE")
+                               <*> argument auto (metavar "IID"))
+      (progDesc "Open a vim Fugitive diff of an MR's branch against its base (needs --repo)"))
  <> command "reindex" (info (pure Reindex)
       (progDesc "Rebuild index.tsv from stored items"))
   )
@@ -88,10 +96,12 @@ main = do
     Just p  -> pure p
     Nothing -> die "No project given. Use --project PATH|ID or set $GITLAB_INDEX_PROJECT."
   (base, dir) <- resolveDataDir (oHost opts) project (oDataDir opts)
+  envRepo <- lookupEnv "GITLAB_INDEX_REPO"
   let cfg = Config
         { cfgHost = oHost opts, cfgProject = project
         , cfgDataBase = base <$ oDataDir opts, cfgDataDir = dir
-        , cfgJobs = max 1 (oJobs opts), cfgStyle = oStyle opts }
+        , cfgJobs = max 1 (oJobs opts), cfgStyle = oStyle opts
+        , cfgRepo = oRepo opts `orElse` envRepo }
   case oCmd opts of
     Sync                   -> sync cfg
     Search full            -> runSearch cfg full
@@ -100,6 +110,7 @@ main = do
     Open tslug iid         -> withType tslug (\t -> runOpen cfg t iid)
     Edit tslug iid         -> withType tslug (\t -> runEdit cfg t iid)
     Comment tslug iid      -> withType tslug (\t -> runComment cfg t iid)
+    Diff tslug iid         -> withType tslug (\t -> runDiff cfg t iid)
   where
     orElse a b = maybe b Just a
     withType tslug k = case parseTypeSlug tslug of

@@ -24,6 +24,7 @@ data Config = Config
   , cfgDataDir  :: FilePath      -- ^ Resolved @<base>/<host>/<project>@ directory.
   , cfgJobs     :: Int           -- ^ Max concurrent note fetches during sync.
   , cfgStyle    :: String        -- ^ glow style for previews (@auto@/@light@/@dark@/…).
+  , cfgRepo     :: Maybe FilePath -- ^ Local clone to run @git@/Fugitive diffs in (@--repo@/@$GITLAB_INDEX_REPO@).
   }
 
 -- | The project identifier as it must appear in a REST path: a bare number,

@@ -5,6 +5,7 @@ module GitLabIndex.Search
   , runOpen
   , runEdit
   , runComment
+  , runDiff
   ) where
 
 import Control.Exception (finally)
@@ -70,11 +71,18 @@ runSearch cfg full = do
 
           args =
             [ "--delimiter", "\t"
+            -- Show only column 1, but search the whole line (default --nth), so
+            -- title mode still matches bodies/comments in column 4.
             , "--with-nth", "1"
+            -- Rank by where the match starts. Column 1 begins each line with the
+            -- padded ref (#/!<iid>), so an item that *is* #16188 (match at the
+            -- very start) beats one that merely mentions it mid-line. No
+            -- --no-sort, so title mode ranks by score; grep mode keeps ripgrep's
+            -- order because its fzf search is disabled (nothing to score).
+            , "--tiebreak", "begin"
             , "--ansi"
-            , "--no-sort"
             , "--prompt", promptArg
-            , "--header", "ctrl-t: title/grep · enter: read · ctrl-v: vim · ctrl-o: browser · ctrl-r: comment · ctrl-s: sync"
+            , "--header", "ctrl-t: title/grep · enter: read · ctrl-v: vim · ctrl-d: diff · ctrl-o: browser · ctrl-r: comment · ctrl-s: sync"
             , "--preview", previewCmd <> " preview {2} {3}"
             , "--preview-window", "right,55%,wrap"
             , "--bind", "change:reload(" <> rg <> ")"
@@ -82,6 +90,7 @@ runSearch cfg full = do
             , "--bind", toggle
             , "--bind", "enter:execute(" <> previewCmd <> " preview {2} {3} --page)"
             , "--bind", "ctrl-v:execute(" <> previewCmd <> " edit {2} {3})"
+            , "--bind", "ctrl-d:execute(" <> previewCmd <> " diff {2} {3})"
             , "--bind", "ctrl-o:execute-silent(" <> previewCmd <> " open {2} {3})"
             , "--bind", "ctrl-r:execute(" <> previewCmd <> " comment {2} {3})"
             , "--bind", syncBind
@@ -165,6 +174,50 @@ runComment cfg t iid = do
           ExitSuccess   -> putStrLn ("Comment posted to " <> typeSlug t <> " #" <> show iid <> ".")
           ExitFailure _ -> putStrLn ("Failed to post comment:\n" <> err)
 
+-- | Open a vim Fugitive diff of an MR's source branch against its base branch,
+-- in the local clone given by @--repo@ / @$GITLAB_INDEX_REPO@.
+--
+-- GitLab exposes an MR's head commit as the special ref
+-- @refs\/merge-requests\/<iid>\/head@. We fetch that and the current tip of the
+-- target branch into private @refs\/gitlab-index\/*@ refs (so we never touch
+-- the user's own branches), then open Fugitive on @base...mr@ — the three-dot
+-- form shows exactly what the MR introduces since it diverged from its base.
+runDiff :: Config -> ItemType -> Int -> IO ()
+runDiff _   Issue _   = putStrLn "Diffs only apply to merge requests."
+runDiff cfg MR    iid =
+  case cfgRepo cfg of
+    Nothing   -> putStrLn "No repo configured. Pass --repo DIR or set $GITLAB_INDEX_REPO."
+    Just repo -> do
+      ms <- readStored cfg MR iid
+      case ms >>= parseMaybe parseJSON . sItem of
+        Nothing -> putStrLn ("Not found: mr !" <> show iid)
+        Just m  -> case mTargetBranch m of
+          Nothing     -> putStrLn ("MR !" <> show iid <> " has no target branch recorded; re-run sync.")
+          Just target -> do
+            let mrRef   = "refs/gitlab-index/mr-" <> show iid
+                baseRef = "refs/gitlab-index/base-" <> show iid
+                refSpecs =
+                  [ "+refs/merge-requests/" <> show iid <> "/head:" <> mrRef
+                  , "+" <> T.unpack target <> ":" <> baseRef ]
+            (ec, _, err) <- readProcessWithExitCode "git"
+              (["-C", repo, "fetch", "origin"] <> refSpecs) ""
+            case ec of
+              ExitFailure _ -> putStrLn ("git fetch failed:\n" <> err)
+              ExitSuccess   -> do
+                vim <- pickVim
+                (_, _, _, ph) <- createProcess
+                  (proc vim ["-c", "Git diff --no-ext-diff " <> baseRef <> "..." <> mrRef])
+                    { cwd = Just repo }  -- so Fugitive runs git in the clone
+                _ <- waitForProcess ph
+                pure ()
+
+-- | First available vim that Fugitive can run in: nvim, then vim, then vi.
+pickVim :: IO String
+pickVim = go ["nvim", "vim", "vi"]
+  where
+    go []       = pure "vim"
+    go (c : cs) = maybe (go cs) (const (pure c)) =<< findExecutable c
+
 -- | First available of @$VISUAL@, @$EDITOR@, then nvim/vim/vi.
 pickEditor :: IO String
 pickEditor = do
@@ -192,6 +245,7 @@ mkPreviewCmd cfg = do
   let base = [ shq self, "--host", shq (cfgHost cfg), "--project", shq (cfgProject cfg)
              , "--style", shq (cfgStyle cfg) ]
            ++ maybe [] (\d -> ["--data-dir", shq d]) (cfgDataBase cfg)
+           ++ maybe [] (\r -> ["--repo", shq r]) (cfgRepo cfg)
   pure (unwords base)
 
 -- | Single-quote a string for safe interpolation into a shell command.

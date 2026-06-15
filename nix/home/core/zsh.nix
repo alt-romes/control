@@ -12,7 +12,8 @@
 
           # Local fzf index of GHC's GitLab issues/MRs. The preview --style
           # follows the active color theme's background (see home/modules/colors.nix).
-          ghc-index = "gitlab-index --project ghc/ghc --style ${config.style.colors.background}";
+          # --repo points at a local clone so ctrl-d opens a vim Fugitive diff of an MR.
+          ghc-index = "gitlab-index --project ghc/ghc --style ${config.style.colors.background} --repo ${config.home.homeDirectory}/ghc-dev/ghc";
 
           ".." = "cd ../";
           "..." = "cd ../..";

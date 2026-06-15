@@ -54,6 +54,8 @@ data Meta = Meta
   , mUrl        :: Text
   , mBody       :: Text
   , mNotesCount :: Int     -- ^ @user_notes_count@; lets us skip note fetches.
+  , mSourceBranch :: Maybe Text -- ^ MR source branch (absent on issues).
+  , mTargetBranch :: Maybe Text -- ^ MR target/base branch (absent on issues).
   } deriving Show
 
 instance FromJSON Meta where
@@ -69,6 +71,8 @@ instance FromJSON Meta where
       <*> o .:  "web_url"
       <*> o .:? "description"      .!= ""
       <*> o .:? "user_notes_count" .!= 0
+      <*> o .:? "source_branch"
+      <*> o .:? "target_branch"
 
 data Note = Note
   { nAuthor  :: Text

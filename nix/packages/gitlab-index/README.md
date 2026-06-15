@@ -25,13 +25,17 @@ gitlab-index --project ghc/ghc search --full
 ```
 
 `--host` defaults to `gitlab.haskell.org`. `--project` can also come from
-`$GITLAB_INDEX_PROJECT`. In `search`:
+`$GITLAB_INDEX_PROJECT`. `ctrl-d`'s diff needs a local clone of the project:
+point at one with `--repo DIR` or `$GITLAB_INDEX_REPO` (it fetches the MR head
+ref and the target branch into private `refs/gitlab-index/*` refs, leaving your
+own branches untouched). In `search`:
 
 | key      | action                                             |
 |----------|----------------------------------------------------|
 | `ctrl-t` | toggle title ⇄ grep mode (live)                    |
 | `enter`  | read the full item locally (glow's pager)          |
 | `ctrl-v` | open the rendered item in `$EDITOR` (vim)          |
+| `ctrl-d` | (MRs) open a vim [Fugitive](https://github.com/tpope/vim-fugitive) diff of the MR branch vs. its base |
 | `ctrl-o` | open the item in the browser                       |
 | `ctrl-r` | compose a comment in `$EDITOR` and post it via glab |
 | `ctrl-s` | sync (fetch new/changed items), then reload the list  |
@@ -52,7 +56,7 @@ Previews are rendered with [glow](https://github.com/charmbracelet/glow).
 glow can't probe the terminal background, so pass `--style light` or
 `--style dark` if `auto` gives you an unreadable theme.
 
-A zsh alias is provided: `ghc-index` = `gitlab-index --project ghc/ghc --style light`.
+A zsh alias is provided: `ghc-index` = `gitlab-index --project ghc/ghc --style light --repo ~/ghc-dev/ghc`.
 
 ## How sync works
 
