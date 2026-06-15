@@ -4,6 +4,8 @@
   inputs = {
     # Structural deps
     nixpkgs.url      = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # QEMU was broken on head. Pin older version.
+    nixpkgs-qemu.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-parts.url  = "github:hercules-ci/flake-parts";
     import-tree.url  = "github:vic/import-tree";
     nix-darwin.url   = "github:LnL7/nix-darwin";

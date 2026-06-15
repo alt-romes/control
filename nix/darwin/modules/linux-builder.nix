@@ -5,6 +5,7 @@
 #  nix run nixpkgs#darwin.linux-builder
 #
 # Another recent write up (2026): https://abhinavsarkar.net/notes/2026-microvm-nix/#cb2-10
+{ inputs, ... }:
 {
   flake.darwinModules.linux-builder = { pkgs, lib, config, ... }: {
 
@@ -22,6 +23,13 @@
           virtualisation.diskSize = lib.mkForce 51200; # 50GB instead of default 20GB
         };
       };
+
+      # QEMU on head was broken; pin older version
+      nixpkgs.overlays = lib.mkIf config.process.linux-builder.enable [
+        (final: prev: {
+          qemu_kvm = inputs.nixpkgs-qemu.legacyPackages.${prev.stdenv.hostPlatform.system}.qemu_kvm;
+        })
+      ];
     };
   };
 }
