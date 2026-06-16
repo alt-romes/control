@@ -25,6 +25,7 @@
     codex-cli-nix.url   = "github:sadjow/codex-cli-nix";
     claude-code-nix.url = "github:sadjow/claude-code-nix";
     nix-doom-emacs-unstraightened.url = "github:marienz/nix-doom-emacs-unstraightened";
+    cob-cli.url         = "github:alt-romes/cob-cli";
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";
@@ -38,6 +39,7 @@
     codex-cli-nix.inputs.nixpkgs.follows   = "nixpkgs";
     claude-code-nix.inputs.nixpkgs.follows = "nixpkgs";
     nix-doom-emacs-unstraightened.inputs.nixpkgs.follows = "nixpkgs";
+    cob-cli.inputs.nixpkgs.follows         = "nixpkgs";
 
     # Follow flake-utils (we don't use it, flake-parts is much better, but many deps do)
     flake-utils.url = "github:numtide/flake-utils";
@@ -49,6 +51,7 @@
     # Follow flake-parts
     nixvim.inputs.flake-parts.follows       = "flake-parts";
     kimai-client.inputs.flake-parts.follows = "flake-parts";
+    cob-cli.inputs.flake-parts.follows      = "flake-parts";
 
     # Follow systems (many deps pull it in independently)
     systems.url = "github:nix-systems/default";

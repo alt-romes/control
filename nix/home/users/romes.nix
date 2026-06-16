@@ -96,6 +96,8 @@
         # Fonts
         nerd-fonts.symbols-only # emacs uses it
 
+        # Other
+        inputs.cob-cli.packages.${pkgs.system}.default
       ] ++ lib.optionals pkgs.stdenv.isDarwin [
 
         # macOS only

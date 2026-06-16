@@ -68,6 +68,29 @@
         "type": "github"
       }
     },
+    "cob-cli": {
+      "inputs": {
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1781641348,
+        "narHash": "sha256-QKgZYTXZsJY/UgX468uCJddn5KVGc7w1rh9xeNi/pFM=",
+        "owner": "alt-romes",
+        "repo": "cob-cli",
+        "rev": "07592ad5511ec0b8efe2bad373546d0ae55cc41d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "alt-romes",
+        "repo": "cob-cli",
+        "type": "github"
+      }
+    },
     "codex-cli-nix": {
       "inputs": {
         "flake-utils": [
@@ -420,6 +443,7 @@
         "activobank-hs": "activobank-hs",
         "agenix": "agenix",
         "claude-code-nix": "claude-code-nix",
+        "cob-cli": "cob-cli",
         "codex-cli-nix": "codex-cli-nix",
         "flake-parts": "flake-parts",
         "flake-utils": "flake-utils",
