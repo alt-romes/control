@@ -80,11 +80,11 @@
     };
 
     # Add an SSH alias
-    home-manager.users.romes.programs.ssh.matchBlocks = {
+    home-manager.users.romes.programs.ssh.settings = {
       "macmini" = {
-        hostname = "10.0.0.1";
-        extraOptions = { SetEnv = "TERM=xterm-256color"; };
-        forwardAgent = true; # Forward Agent authentication to mbp (basically allowing auth with local 1Pass)
+        HostName = "10.0.0.1";
+        SetEnv = { TERM = "xterm-256color"; };
+        ForwardAgent = true; # Forward Agent authentication to mbp (basically allowing auth with local 1Pass)
       };
     };
   };
