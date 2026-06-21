@@ -153,6 +153,9 @@
           bind C-j select-pane -D
           bind j   select-pane -D
 
+          # Split into a new vertical pane in the same CWD as the current pane
+          bind | split-window -h -c "#{pane_current_path}"
+
           # For shift+enter
           set -g allow-passthrough on
           set -s extended-keys on
