@@ -152,6 +152,11 @@
             publicKey = "wtZ6//+e+aoNCL4bbAnDHnevgFQ4cVD7PhTyMY9Wuw8=";
             allowedIPs = [ "10.0.0.4/32" ];
           }
+          # iPhone
+          {
+            publicKey = "L6GrOV6+CC/ghkmj5z8C6AKArkIb4LoB31QK4jb4cx0=";
+            allowedIPs = [ "10.0.0.5/32" ];
+          }
         ];
       };
     };
