@@ -10,6 +10,7 @@ let
   romes-mbp = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBuBXaTD+KVCC3+9xOL42MImerdQ6xEE4CCTJMwi4zr/";
   romes-mercury-mbp = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOIvfvvTeRi9U8Le+u0unZ+0sN2lUgSNK9bRiR8XR+7R";
   romes-machines = [ romes-macmini romes-mbp romes-mercury-mbp ];
+    # use romes-machines always, we want any machine to be able to decode all secrets because it's much more convenient
 in
 {
   # To create or edit a secret file, run
@@ -26,5 +27,6 @@ in
   "kimai.age".publicKeys = romes-machines;
   "duckdns.age".publicKeys = romes-machines;
   "wireguard-macmini.age".publicKeys = [ romes-macmini ]; # private key for macmini
-  "wireguard-mbp.age".publicKeys = [ romes-mbp romes-mercury-mbp ]; # private key for mbps
+  "wireguard-mbp.age".publicKeys = [ romes-mbp ]; # private key for mbp
+  "wireguard-mercury.age".publicKeys = romes-machines;
 }

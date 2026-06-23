@@ -45,7 +45,7 @@
 
     # --- Secrets ----------------------------------------------------------------
 
-    age.secrets.wireguard-mbp.file = ../modules/_agenix/wireguard-mbp.age;
+    age.secrets.wireguard-mercury.file = ../modules/_agenix/wireguard-mercury.age;
 
     # --- Networking -------------------------------------------------------------
 
@@ -60,7 +60,7 @@
       wg1 = {
         autostart = true;
         address = [ "10.0.0.4/32" ];
-        privateKeyFile = config.age.secrets.wireguard-mbp.path; # for ?
+        privateKeyFile = config.age.secrets.wireguard-mercury.path;
         peers = [
           # wireguard-macmini
           {

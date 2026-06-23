@@ -147,6 +147,11 @@
             # use mail subdomain bc it is not proxied
             endpoint = "mail.mogbit.com:55820";
           }
+          # wireguard-mercury
+          {
+            publicKey = "wtZ6//+e+aoNCL4bbAnDHnevgFQ4cVD7PhTyMY9Wuw8=";
+            allowedIPs = [ "10.0.0.4/32" ];
+          }
         ];
       };
     };
