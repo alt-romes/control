@@ -73,8 +73,7 @@
   
     homebrew = {
       brews = [
-          "qwen-code"
-          "gemini-cli"
+          "claude"
       ];
       casks = [
           # Creative
