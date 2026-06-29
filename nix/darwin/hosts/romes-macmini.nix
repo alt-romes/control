@@ -73,7 +73,6 @@
   
     homebrew = {
       brews = [
-          "claude"
       ];
       casks = [
           # Creative
@@ -93,6 +92,7 @@
           "vorta" # borgbackup gui
   
           # Xperiments
+          "claude"
           "antigravity"
           "codex-app"
       ];
