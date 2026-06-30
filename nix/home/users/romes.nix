@@ -98,12 +98,40 @@
 
         # Other
         inputs.cob-cli.packages.${pkgs.system}.default
+
       ] ++ lib.optionals pkgs.stdenv.isDarwin [
 
         # macOS only
         caffeine
       ];
       fonts.fontconfig.enable = true;
+
+      programs.w3m = {
+        enable = true;
+
+        # Open the current page (Shift-M / EXTERN) in the system default browser
+        # via `open`, instead of a hardcoded Safari path.
+        settings.extbrowser = "open";
+
+        bindings = {
+          # vim-style scrolling
+          "C-f" = "NEXT_PAGE";       # full page forward
+          "C-b" = "PREV_PAGE";       # full page back
+          "C-d" = "NEXT_HALF_PAGE";  # half page down
+          "C-u" = "PREV_HALF_PAGE";  # half page up
+
+          # Activate the thing under the cursor, like Enter: edits the text
+          # when on a form field (and follows the link when on a hyperlink).
+          "i" = "GOTO_LINK";
+          "a" = "GOTO_LINK";
+          "o" = "GOTO_LINK";
+
+          # Relocate the defaults displaced above:
+          "O" = "OPTIONS";      # was o: option setting panel
+          "M-i" = "PEEK_IMG";   # was i: show the image address
+          "A" = "ADD_BOOKMARK"; # was a: add current page to bookmarks
+        };
+      };
 
       programs.ghostty = {
         enable = true;
