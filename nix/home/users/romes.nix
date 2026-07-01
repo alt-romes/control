@@ -80,6 +80,8 @@
         gh glab # github/gitlab cli
         self-pkgs.gitlab-index # local fzf index of issues/MRs
 
+        mosh
+
         # imhex
 
         # For (building) GHC
@@ -98,6 +100,7 @@
 
         # Other
         inputs.cob-cli.packages.${pkgs.system}.default
+        pkgs.programmer-calculator
 
       ] ++ lib.optionals pkgs.stdenv.isDarwin [
 
