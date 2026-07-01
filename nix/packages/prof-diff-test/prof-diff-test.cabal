@@ -1,0 +1,25 @@
+cabal-version:      3.0
+name:               prof-diff-test
+version:            0.1.0
+synopsis:           Differential GHC compiler profiles across two build trees
+build-type:         Simple
+
+common warnings
+  ghc-options: -Wall
+
+executable prof-diff-test
+  import:           warnings
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:
+      base
+    , aeson
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , process
+    , time
+  default-language: GHC2021
+  default-extensions:
+    OverloadedStrings
