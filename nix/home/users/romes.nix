@@ -123,6 +123,13 @@
           "C-b" = "PREV_PAGE";       # full page back
           "C-d" = "NEXT_HALF_PAGE";  # half page down
           "C-u" = "PREV_HALF_PAGE";  # half page up
+          "C-e" = "DOWN";            # scroll down one line
+          "C-y" = "UP";              # scroll up one line
+
+          # vim-style motions
+          "0" = "LINE_BEGIN";
+          "b" = "PREV_WORD";
+          "/" = "SEARCH";
 
           # Activate the thing under the cursor, like Enter: edits the text
           # when on a form field (and follows the link when on a hyperlink).
@@ -185,8 +192,9 @@
           bind C-j select-pane -D
           bind j   select-pane -D
 
-          # Split into a new vertical pane in the same CWD as the current pane
-          bind | split-window -h -c "#{pane_current_path}"
+          # Split into a new pane in the same CWD as the current pane
+          bind % split-window -h -c "#{pane_current_path}"
+          bind '"' split-window -v -c "#{pane_current_path}"
 
           # For shift+enter
           set -g allow-passthrough on
