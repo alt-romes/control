@@ -23,9 +23,8 @@
 -- Usage:
 --   prof-diff-test <baseA> <rootA> <baseB> <rootB> <test>...
 --
--- Runtime CLIs (hadrian-util, flamegraph.pl, difffolded.pl) are put on PATH by
--- the Nix wrapper; when run outside it, the flame-graph tools are reached via
--- `nix-shell -p flamegraph`.
+-- Runtime CLIs (hadrian-util, flamegraph.pl, difffolded.pl) must be on PATH:
+-- the Nix wrapper puts them there, so set up the nix environment before running.
 
 module Main (main) where
 
@@ -33,15 +32,15 @@ import Control.Monad (forM_, unless, when)
 import Data.Aeson (FromJSON (..), decode, withObject, (.!=), (.:), (.:?))
 import qualified Data.ByteString.Lazy as BL
 import Data.List (isInfixOf, isPrefixOf)
-import Data.Maybe (isJust)
 import qualified Data.Map.Strict as Map
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Numeric (showFFloat)
 import System.Directory
 import System.Environment (getArgs, getEnvironment, getProgName)
 import System.Exit (ExitCode (..), exitFailure, exitSuccess)
 import System.FilePath ((<.>), (</>))
 import System.IO
-import System.Process (callCommand, callProcess, createProcess, cwd, env, proc, waitForProcess)
+import System.Process (callCommand, createProcess, cwd, env, proc, waitForProcess)
 
 -- ---------------------------------------------------------------------------
 -- Profile model (subset of GHC's -pj JSON; unknown fields are ignored)
@@ -83,13 +82,23 @@ instance FromJSON Node where
       <*> (o .:? "children" .!= [])
 
 data Profile = Profile
-  { pCostCentres :: ![CostCentre]
+  { pTotalAlloc :: !Integer
+  , pTotalTicks :: !Integer
+  , pCostCentres :: ![CostCentre]
   , pTree :: !Node
   }
 
 instance FromJSON Profile where
   parseJSON = withObject "Profile" $ \o ->
-    Profile <$> o .: "cost_centres" <*> o .: "profile"
+    Profile
+      <$> (o .:? "total_alloc" .!= 0)
+      <*> (o .:? "total_ticks" .!= 0)
+      <*> o .: "cost_centres"
+      <*> o .: "profile"
+
+profileTotal :: Measure -> Profile -> Integer
+profileTotal Alloc = pTotalAlloc
+profileTotal Ticks = pTotalTicks
 
 -- Fold a profile to Brendan Gregg folded stacks: one (stack, self-cost) per node.
 foldProfile :: Measure -> Profile -> [(String, Integer)]
@@ -247,8 +256,9 @@ runTree opts label base root test stem = do
   unless ok $
     die ("[" ++ label ++ "] no profile at " ++ prof ++ " — is the compiler built with +profiled_ghc, and did '" ++ test ++ "' actually compile something?")
 
--- Fold a single JSON profile file to a folded-stacks file.
-foldProf :: Measure -> FilePath -> FilePath -> IO ()
+-- Fold a single JSON profile file to a folded-stacks file, returning the
+-- profile's total measure.
+foldProf :: Measure -> FilePath -> FilePath -> IO Integer
 foldProf measure prof outFold = do
   bs <- BL.readFile prof
   case decode bs of
@@ -257,12 +267,10 @@ foldProf measure prof outFold = do
       let folded = foldProfile measure p
       when (null folded) $ die ("folded output empty for " ++ prof ++ " (no cost centres with >0 " ++ measureFlag measure ++ "?)")
       writeFile outFold (renderFolded folded)
+      pure (profileTotal measure p)
 
 -- ---------------------------------------------------------------------------
--- flamegraph.pl / difffolded.pl, via PATH or a nix-shell fallback
-
-hasExe :: String -> IO Bool
-hasExe = fmap isJust . findExecutable
+-- flamegraph.pl / difffolded.pl (expected on PATH; set up the nix env first)
 
 -- Single-quote a string for safe embedding in a /bin/sh command.
 shq :: String -> String
@@ -270,11 +278,6 @@ shq s = "'" ++ concatMap esc s ++ "'"
   where
     esc '\'' = "'\\''"
     esc c = [c]
-
-runShell :: Bool -> String -> IO ()
-runShell flameAvail cmd
-  | flameAvail = callCommand cmd
-  | otherwise = callProcess "nix-shell" ["-p", "flamegraph", "--run", cmd]
 
 flamegraphCmd :: Measure -> String -> FilePath -> FilePath -> String
 flamegraphCmd measure title folded out =
@@ -293,30 +296,44 @@ diffCmd measure title foldedBefore foldedAfter out =
 
 -- ---------------------------------------------------------------------------
 
+-- Human summary of the A->B change in the total measure.
+reportTotal :: Measure -> String -> Integer -> Integer -> IO ()
+reportTotal measure test a b =
+  note (test ++ ": total " ++ measureFlag measure ++ " " ++ show a ++ " -> " ++ show b ++ "  (" ++ signed (b - a) ++ ", " ++ pct ++ ")")
+  where
+    signed n = (if n >= 0 then "+" else "") ++ show n
+    pct
+      | a == 0 = "n/a"
+      | otherwise =
+          let p = fromIntegral (b - a) / fromIntegral a * 100 :: Double
+           in (if p >= 0 then "+" else "") ++ showFFloat (Just 1) p "%"
+
 -- Process one test: run both trees, fold, render -- everything lands in tout.
-processTest :: Opts -> Measure -> Bool -> (FilePath, String) -> (FilePath, String) -> FilePath -> String -> IO ()
-processTest opts measure flameAvail (baseA, rootA) (baseB, rootB) tout test = do
+processTest :: Opts -> (FilePath, String) -> (FilePath, String) -> FilePath -> String -> IO ()
+processTest opts (baseA, rootA) (baseB, rootB) tout test = do
   createDirectoryIfMissing True tout
-  let stemA = tout </> "treeA"
+  let measure = optMeasure opts
+      stemA = tout </> "treeA"
       stemB = tout </> "treeB"
-      -- run the test under one tree and fold its profile to <stem>.folded
+      -- run the test under one tree and fold its profile to <stem>.folded,
+      -- returning the tree's total measure.
       profileTree label base root stem = do
         runTree opts label base root test stem
         foldProf measure (stem <.> "prof") (stem <.> "folded")
-  profileTree "A" baseA rootA stemA
-  profileTree "B" baseB rootB stemB
+  totalA <- profileTree "A" baseA rootA stemA
+  totalB <- profileTree "B" baseB rootB stemB
+  reportTotal measure test totalA totalB
 
-  let run = runShell flameAvail
-      foldedA = stemA <.> "folded"
+  let foldedA = stemA <.> "folded"
       foldedB = stemB <.> "folded"
       -- difffolded before->after: width = after; red = more in after.
       diffTitle before after =
         test ++ " diff: " ++ before ++ " -> " ++ after
           ++ "  (width=" ++ after ++ "; red=more in " ++ after ++ ", blue=less)"
-  run (flamegraphCmd measure (test ++ " - tree A (" ++ rootA ++ ")") foldedA (stemA <.> "svg"))
-  run (flamegraphCmd measure (test ++ " - tree B (" ++ rootB ++ ")") foldedB (stemB <.> "svg"))
-  run (diffCmd measure (diffTitle rootA rootB) foldedA foldedB (tout </> "diff.svg"))
-  run (diffCmd measure (diffTitle rootB rootA) foldedB foldedA (tout </> "diff-reverse.svg"))
+  callCommand (flamegraphCmd measure (test ++ " - tree A (" ++ rootA ++ ")") foldedA (stemA <.> "svg"))
+  callCommand (flamegraphCmd measure (test ++ " - tree B (" ++ rootB ++ ")") foldedB (stemB <.> "svg"))
+  callCommand (diffCmd measure (diffTitle rootA rootB) foldedA foldedB (tout </> "diff.svg"))
+  callCommand (diffCmd measure (diffTitle rootB rootA) foldedB foldedA (tout </> "diff-reverse.svg"))
 
 main :: IO ()
 main = do
@@ -337,14 +354,13 @@ main = do
       makeAbsolute d
   note ("work dir: " ++ out)
 
-  flameAvail <- (&&) <$> hasExe "flamegraph.pl" <*> hasExe "difffolded.pl"
   let measure = optMeasure opts
 
   -- Per-test artifacts land in <out>/<test>/ (one hadrian run per tree per test).
   note ("tests: " ++ unwords tests)
   forM_ tests $ \test -> do
     note ("==== " ++ test ++ " ====")
-    processTest opts measure flameAvail (baseA, rootA) (baseB, rootB) (out </> test) test
+    processTest opts (baseA, rootA) (baseB, rootB) (out </> test) test
 
   pn <- getProgName
   hPutStr stderr $

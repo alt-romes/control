@@ -79,6 +79,7 @@
 
         gh glab # github/gitlab cli
         self-pkgs.gitlab-index # local fzf index of issues/MRs
+        self-pkgs.prof-diff-test # differential GHC compiler flamegraphs across two trees
 
         mosh
 
