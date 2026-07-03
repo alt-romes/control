@@ -20,18 +20,27 @@
 -- file: if a test invokes GHC more than once they all write the same file (last
 -- wins) — intentional, we don't separate or merge invocations.
 --
+-- Heap profiles: if the test declares a residency metric in its all.T
+-- (collect_compiler_residency => peak_megabytes_allocated + max_bytes_used),
+-- -hc is added to the RTS options so each tree also writes a heap profile to
+-- <stem>.hp (the -po stem covers .hp too), plus -l-agu -ol<stem>-heap.eventlog
+-- for an eventlog carrying the same heap samples.  The peaks are compared and
+-- the profiles rendered with hp2pretty (.hp -> SVG) and eventlog2html
+-- (.eventlog -> interactive HTML).  Override with --heap / --no-heap.
+--
 -- Usage:
 --   prof-diff-test <baseA> <rootA> <baseB> <rootB> <test>...
 --
--- Runtime CLIs (hadrian-util, flamegraph.pl, difffolded.pl) must be on PATH:
--- the Nix wrapper puts them there, so set up the nix environment before running.
+-- Runtime CLIs (hadrian-util, flamegraph.pl, difffolded.pl, hp2pretty,
+-- eventlog2html) must be on PATH: the Nix wrapper puts them there, so set up
+-- the nix environment before running.
 
 module Main (main) where
 
-import Control.Monad (forM_, unless, when)
+import Control.Monad (forM, unless, when)
 import Data.Aeson (FromJSON (..), decode, withObject, (.!=), (.:), (.:?))
 import qualified Data.ByteString.Lazy as BL
-import Data.List (isInfixOf, isPrefixOf)
+import Data.List (find, isInfixOf, isPrefixOf, tails)
 import qualified Data.Map.Strict as Map
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Numeric (showFFloat)
@@ -40,7 +49,7 @@ import System.Environment (getArgs, getEnvironment, getProgName)
 import System.Exit (ExitCode (..), exitFailure, exitSuccess)
 import System.FilePath ((<.>), (</>))
 import System.IO
-import System.Process (callCommand, createProcess, cwd, env, proc, waitForProcess)
+import System.Process (callCommand, createProcess, cwd, env, proc, readProcessWithExitCode, waitForProcess)
 
 -- ---------------------------------------------------------------------------
 -- Profile model (subset of GHC's -pj JSON; unknown fields are ignored)
@@ -123,10 +132,11 @@ data Opts = Opts
   , optJ :: Int
   , optMeasure :: Measure
   , optFlavourCheck :: Bool
+  , optHeap :: Maybe Bool -- Nothing = auto-detect from the test's declared metrics
   }
 
 defOpts :: Opts
-defOpts = Opts {optOut = Nothing, optJ = 8, optMeasure = Alloc, optFlavourCheck = True}
+defOpts = Opts {optOut = Nothing, optJ = 8, optMeasure = Alloc, optFlavourCheck = True, optHeap = Nothing}
 
 usageText :: String
 usageText =
@@ -144,6 +154,9 @@ usageText =
     , "  -o DIR    output/work directory (default: a temp dir)"
     , "  -j N      hadrian parallelism (default: 8)"
     , "  -m M      measurement: alloc (bytes, default) or ticks (time)"
+    , "  --heap / --no-heap   force/disable heap profiling (+RTS -hc). Default:"
+    , "                    auto — on iff the test declares a residency metric"
+    , "                    (peak_megabytes_allocated / max_bytes_used) in its all.T"
     , "  --no-flavour-check   don't require +profiled_ghc in the flavour"
     , "  -h        this help"
     ]
@@ -167,6 +180,8 @@ parseArgs = go defOpts []
       "-o" -> need as $ \v rest -> go o {optOut = Just v} pos rest
       "-j" -> need as $ \v rest -> case reads v of [(n, "")] -> go o {optJ = n} pos rest; _ -> die ("-j expects an integer, got '" ++ v ++ "'")
       "-m" -> need as $ \v rest -> do m <- parseMeasure v; go o {optMeasure = m} pos rest
+      "--heap" -> go o {optHeap = Just True} pos as
+      "--no-heap" -> go o {optHeap = Just False} pos as
       "--no-flavour-check" -> go o {optFlavourCheck = False} pos as
       "-h" -> putStr usageText >> exitSuccess
       "--help" -> putStr usageText >> exitSuccess
@@ -231,10 +246,65 @@ checkTree opts label base root = do
   note (label ++ ": " ++ dir ++ "  (flavour=" ++ (if null flav then "<default>" else flav) ++ ")")
 
 -- ---------------------------------------------------------------------------
+-- Heap-measurement detection
+
+-- Metric names that mean a test measures heap rather than total allocations.
+-- collect_compiler_residency / collect_residency expand to
+-- peak_megabytes_allocated + max_bytes_used, so "residency" catches those.
+heapMetricKeywords :: [String]
+heapMetricKeywords = ["residency", "peak_megabytes_allocated", "max_bytes_used"]
+
+-- Does <test> declare a residency metric?  Greps <base>/testsuite for the
+-- test('<test>' declaration, extracts the (possibly multi-line) test(...) call
+-- by paren balance, and looks for the keywords.  False if nothing is found.
+testMeasuresHeap :: FilePath -> String -> IO Bool
+testMeasuresHeap base test = do
+  let dir = base </> "testsuite"
+      escRe c = if c `elem` ("\\^$.[]|()*+?{}" :: String) then ['\\', c] else [c]
+      pat = "test\\(['\"]" ++ concatMap escRe test ++ "['\"]"
+  (ec, outp, _) <- readProcessWithExitCode "grep" ["-rlE", "--include=*.T", pat, dir] ""
+  case ec of
+    ExitSuccess -> do
+      decls <- mapM (fmap (testDecl test) . readFile) (lines outp)
+      pure (any (\d -> any (`isInfixOf` d) heapMetricKeywords) decls)
+    _ -> do
+      note ("could not find a test('" ++ test ++ "' declaration under " ++ dir ++ "; assuming no heap measurement (--heap overrides)")
+      pure False
+
+-- The test(...) call for <test> in an all.T's contents, up to the balancing
+-- close paren ("" if not present).  Parens in embedded strings/comments would
+-- fool the balance, which is fine for a keyword search.
+testDecl :: String -> String -> String
+testDecl test contents =
+  maybe "" balanced (find opens (tails contents))
+  where
+    opens s = any (`isPrefixOf` s) ["test('" ++ test ++ "'", "test(\"" ++ test ++ "\""]
+    balanced = go (0 :: Int)
+      where
+        go _ [] = []
+        go d (c : cs)
+          | c == '(' = c : go (d + 1) cs
+          | c == ')' = if d == 1 then [c] else c : go (d - 1) cs
+          | otherwise = c : go d cs
+
+-- Peak heap of a .hp profile: the largest per-sample sum of the cost-centre
+-- byte counts (header lines and non-numeric words fall through the reads).
+hpPeak :: FilePath -> IO Integer
+hpPeak f = go 0 0 . lines <$> readFile f
+  where
+    go peak _ [] = peak
+    go peak cur (l : ls)
+      | "BEGIN_SAMPLE" `isPrefixOf` l = go peak 0 ls
+      | "END_SAMPLE" `isPrefixOf` l = go (max peak cur) 0 ls
+      | otherwise = case reverse (words l) of
+          (w : _) | [(v, "")] <- reads w -> go peak (cur + v) ls
+          _ -> go peak cur ls
+
+-- ---------------------------------------------------------------------------
 -- Running one test in one tree, writing a single JSON profile to <stem>.prof
 
-runTree :: Opts -> String -> FilePath -> String -> String -> FilePath -> IO ()
-runTree opts label base root test stem = do
+runTree :: Opts -> String -> FilePath -> String -> String -> FilePath -> Bool -> IO ()
+runTree opts label base root test stem heap = do
   -- The default build root is selected by omitting -d; a named root with -d.
   let dargs = if root `elem` ["", "default", "_build"] then [] else ["-d", root]
       args =
@@ -243,9 +313,19 @@ runTree opts label base root test stem = do
   -- EXTRA_HC_OPTS is folded by hadrian into ghc_compiler_always_flags, so every
   -- test compile runs the profiled GHC with these RTS options; -pj writes JSON
   -- to <stem>.prof.  A fixed stem => a single file (last invocation wins).
+  -- For heap-measured tests, -hc additionally writes <stem>.hp (the -po stem
+  -- covers it); -i0.01 because test compiles are short and the default 0.1s
+  -- sampling gives too coarse a picture of the peak.  -l-agu mirrors the heap
+  -- samples into an eventlog (other event classes suppressed to keep it small,
+  -- per eventlog2html's recommendation); -ol pins it to our heap stem so
+  -- nothing lands in the test dirs.
+  let rts =
+        "+RTS -pj -po" ++ stem
+          ++ (if heap then " -hc -i0.01 -l-agu -ol" ++ (heapStem stem <.> "eventlog") else "")
+          ++ " -RTS"
   baseEnv <- getEnvironment
-  let procEnv = ("EXTRA_HC_OPTS", "+RTS -pj -po" ++ stem ++ " -RTS") : filter ((/= "EXTRA_HC_OPTS") . fst) baseEnv
-  note ("[" ++ label ++ "] running '" ++ test ++ "' with +RTS -pj  (-> " ++ stem ++ ".prof)")
+  let procEnv = ("EXTRA_HC_OPTS", rts) : filter ((/= "EXTRA_HC_OPTS") . fst) baseEnv
+  note ("[" ++ label ++ "] running '" ++ test ++ "' with +RTS -pj" ++ (if heap then " -hc -l" else "") ++ "  (-> " ++ stem ++ ".prof" ++ (if heap then " + .hp + .eventlog" else "") ++ ")")
   (_, _, _, ph) <- createProcess (proc "hadrian-util" args) {cwd = Just base, env = Just procEnv}
   ec <- waitForProcess ph
   case ec of
@@ -255,6 +335,23 @@ runTree opts label base root test stem = do
   ok <- doesFileExist prof
   unless ok $
     die ("[" ++ label ++ "] no profile at " ++ prof ++ " — is the compiler built with +profiled_ghc, and did '" ++ test ++ "' actually compile something?")
+  when heap $ do
+    let hp = stem <.> "hp"
+        ev = heapStem stem <.> "eventlog"
+    hpOk <- doesFileExist hp
+    unless hpOk $
+      die ("[" ++ label ++ "] no heap profile at " ++ hp ++ " despite -hc (pass --no-heap to skip heap profiling)")
+    -- <stem>.svg is the flame graph, and hp2pretty renders <x>.hp to <x>.svg,
+    -- so move the heap profile to its own stem (the eventlog is already there
+    -- via -ol).
+    renameFile hp (heapStem stem <.> "hp")
+    evOk <- doesFileExist ev
+    unless evOk $
+      die ("[" ++ label ++ "] no eventlog at " ++ ev ++ " despite -l (pass --no-heap to skip heap profiling)")
+
+-- Stem for heap-profile artifacts (<stem>-heap.hp / <stem>-heap.svg).
+heapStem :: FilePath -> FilePath
+heapStem stem = stem ++ "-heap"
 
 -- Fold a single JSON profile file to a folded-stacks file, returning the
 -- profile's total measure.
@@ -296,10 +393,10 @@ diffCmd measure title foldedBefore foldedAfter out =
 
 -- ---------------------------------------------------------------------------
 
--- Human summary of the A->B change in the total measure.
-reportTotal :: Measure -> String -> Integer -> Integer -> IO ()
-reportTotal measure test a b =
-  note (test ++ ": total " ++ measureFlag measure ++ " " ++ show a ++ " -> " ++ show b ++ "  (" ++ signed (b - a) ++ ", " ++ pct ++ ")")
+-- Human summary of an A->B change in some quantity.
+reportDelta :: String -> String -> Integer -> Integer -> IO ()
+reportDelta what test a b =
+  note (test ++ ": " ++ what ++ " " ++ show a ++ " -> " ++ show b ++ "  (" ++ signed (b - a) ++ ", " ++ pct ++ ")")
   where
     signed n = (if n >= 0 then "+" else "") ++ show n
     pct
@@ -309,20 +406,25 @@ reportTotal measure test a b =
            in (if p >= 0 then "+" else "") ++ showFFloat (Just 1) p "%"
 
 -- Process one test: run both trees, fold, render -- everything lands in tout.
-processTest :: Opts -> (FilePath, String) -> (FilePath, String) -> FilePath -> String -> IO ()
+-- Returns whether heap profiles were taken.
+processTest :: Opts -> (FilePath, String) -> (FilePath, String) -> FilePath -> String -> IO Bool
 processTest opts (baseA, rootA) (baseB, rootB) tout test = do
   createDirectoryIfMissing True tout
+  heap <- case optHeap opts of
+    Just b -> pure b
+    Nothing -> testMeasuresHeap baseA test
+  when heap $ note (test ++ ": measures heap (residency) -> also taking heap profiles (+RTS -hc)")
   let measure = optMeasure opts
       stemA = tout </> "treeA"
       stemB = tout </> "treeB"
       -- run the test under one tree and fold its profile to <stem>.folded,
       -- returning the tree's total measure.
       profileTree label base root stem = do
-        runTree opts label base root test stem
+        runTree opts label base root test stem heap
         foldProf measure (stem <.> "prof") (stem <.> "folded")
   totalA <- profileTree "A" baseA rootA stemA
   totalB <- profileTree "B" baseB rootB stemB
-  reportTotal measure test totalA totalB
+  reportDelta ("total " ++ measureFlag measure) test totalA totalB
 
   let foldedA = stemA <.> "folded"
       foldedB = stemB <.> "folded"
@@ -334,6 +436,29 @@ processTest opts (baseA, rootA) (baseB, rootB) tout test = do
   callCommand (flamegraphCmd measure (test ++ " - tree B (" ++ rootB ++ ")") foldedB (stemB <.> "svg"))
   callCommand (diffCmd measure (diffTitle rootA rootB) foldedA foldedB (tout </> "diff.svg"))
   callCommand (diffCmd measure (diffTitle rootB rootA) foldedB foldedA (tout </> "diff-reverse.svg"))
+
+  when heap $ do
+    let hpA = heapStem stemA <.> "hp"
+        hpB = heapStem stemB <.> "hp"
+    peakA <- hpPeak hpA
+    peakB <- hpPeak hpB
+    reportDelta "peak heap bytes (profiled)" test peakA peakB
+    -- hp2pretty renders <x>.hp to <x>.svg next to it; eventlog2html renders
+    -- <x>.eventlog to <x>.eventlog.html next to it.
+    withTool "hp2pretty" ".hp files kept" $ \render -> do
+      render hpA
+      render hpB
+    withTool "eventlog2html" ".eventlog files kept" $ \render -> do
+      render (heapStem stemA <.> "eventlog")
+      render (heapStem stemB <.> "eventlog")
+  pure heap
+  where
+    -- Run body with "<tool> <file>" if tool is on PATH, else note and skip.
+    withTool tool kept body = do
+      found <- findExecutable tool
+      case found of
+        Nothing -> note (tool ++ " not on PATH; skipping its rendering (" ++ kept ++ ")")
+        Just _ -> body (\f -> callCommand (tool ++ " " ++ shq f))
 
 main :: IO ()
 main = do
@@ -358,7 +483,7 @@ main = do
 
   -- Per-test artifacts land in <out>/<test>/ (one hadrian run per tree per test).
   note ("tests: " ++ unwords tests)
-  forM_ tests $ \test -> do
+  heaps <- forM tests $ \test -> do
     note ("==== " ++ test ++ " ====")
     processTest opts (baseA, rootA) (baseB, rootB) (out </> test) test
 
@@ -373,5 +498,11 @@ main = do
       , "    diff.svg                  " ++ rootA ++ " -> " ++ rootB ++ "  (width=" ++ rootB ++ "; red=more in " ++ rootB ++ ")"
       , "    diff-reverse.svg          " ++ rootB ++ " -> " ++ rootA ++ "  (width=" ++ rootA ++ "; red=more in " ++ rootA ++ ")"
       ]
+        ++ [ "    tree{A,B}-heap.hp/.svg            heap profiles (-hc; heap-measured tests only)"
+           | or heaps
+           ]
+        ++ [ "    tree{A,B}-heap.eventlog(.html)    same heap samples as eventlog / eventlog2html render"
+           | or heaps
+           ]
         ++ ["  " ++ (out </> test </> "diff.svg") | test <- tests]
   putStrLn out

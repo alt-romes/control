@@ -10,11 +10,14 @@
       unwrapped = pkgs.haskell.lib.justStaticExecutables
         (hpkgs.callCabal2nix "prof-diff-test" ./. { });
 
-      # Runtime CLIs the tool shells out to: hadrian-util to run the tests, and
-      # flamegraph (flamegraph.pl / difffolded.pl) to render the graphs.
+      # Runtime CLIs the tool shells out to: hadrian-util to run the tests,
+      # flamegraph (flamegraph.pl / difffolded.pl) to render the graphs, and
+      # hp2pretty / eventlog2html to render heap profiles of heap-measured tests.
       runtimeDeps = [
         inputs.hadrian-util.packages.${pkgs.stdenv.hostPlatform.system}.default
         pkgs.flamegraph
+        (pkgs.haskell.lib.justStaticExecutables hpkgs.hp2pretty)
+        (pkgs.haskell.lib.justStaticExecutables hpkgs.eventlog2html)
       ];
 
       prof-diff-test = pkgs.runCommand "prof-diff-test"

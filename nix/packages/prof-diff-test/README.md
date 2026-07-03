@@ -10,6 +10,15 @@ Runs one or more testsuite tests under two GHC build trees (each built with a
 - a [differential flame graph](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)
   A → B (`difffolded.pl | flamegraph.pl`).
 
+If a test measures heap rather than total allocations — i.e. its `all.T`
+declaration uses a residency metric (`collect_compiler_residency`, i.e.
+`peak_megabytes_allocated` / `max_bytes_used`) — heap profiles are also taken
+(`+RTS -hc`): each tree additionally gets a `<tree>-heap.hp` (rendered to SVG
+with `hp2pretty`) and a `<tree>-heap.eventlog` carrying the same heap samples
+(`-l-agu`, written to a script-controlled path with `-ol`; rendered to
+interactive HTML with `eventlog2html`), and the peak-heap A → B delta is
+reported. Auto-detection can be overridden with `--heap` / `--no-heap`.
+
 The raw `<tree>.prof` files are JSON and load directly into
 [speedscope](https://www.speedscope.app/) for per-tree inspection.
 
@@ -27,7 +36,8 @@ prof-diff-test [options] <baseA> <rootA> <baseB> <rootB> <test>...
   per test; artifacts land in `<out>/<test>/`.
 
 Options: `-o DIR` (work dir), `-j N` (hadrian parallelism), `-m alloc|ticks`
-(measurement), `--no-flavour-check`, `-h`.
+(measurement), `--heap`/`--no-heap` (force/disable heap profiling; default
+auto-detects from the test's declared metrics), `--no-flavour-check`, `-h`.
 
 ## How it works
 
@@ -37,5 +47,5 @@ those RTS options and `-pj` writes a JSON profile to `<stem>.prof`. A fixed
 `<stem>` per tree per test yields a single file (if a test invokes GHC more than
 once they all write the same file, last wins — intentional).
 
-`hadrian-util`, `flamegraph.pl` and `difffolded.pl` are put on `PATH` by the Nix
-wrapper.
+`hadrian-util`, `flamegraph.pl`, `difffolded.pl`, `hp2pretty` and
+`eventlog2html` are put on `PATH` by the Nix wrapper.
