@@ -12,12 +12,21 @@ Runs one or more testsuite tests under two GHC build trees (each built with a
 
 If a test measures heap rather than total allocations — i.e. its `all.T`
 declaration uses a residency metric (`collect_compiler_residency`, i.e.
-`peak_megabytes_allocated` / `max_bytes_used`) — heap profiles are also taken
-(`+RTS -hc`): each tree additionally gets a `<tree>-heap.hp` (rendered to SVG
-with `hp2pretty`) and a `<tree>-heap.eventlog` carrying the same heap samples
+`peak_megabytes_allocated` / `max_bytes_used`) — heap profiles are also taken:
+each tree additionally gets a `<tree>-heap.hp` (rendered to SVG with
+`hp2pretty`) and a `<tree>-heap.eventlog` carrying the same heap samples
 (`-l-agu`, written to a script-controlled path with `-ol`; rendered to
 interactive HTML with `eventlog2html`), and the peak-heap A → B delta is
-reported. Auto-detection can be overridden with `--heap` / `--no-heap`.
+reported. For residency tests the `.hp` comes from the `-hT` that the
+testsuite driver itself adds (`RESIDENCY_OPTS`; a second heap-profile flag
+would be an RTS error), so `-hc` is only passed when `--heap` forces heap
+profiling on a non-residency test. Auto-detection can be overridden with
+`--heap` / `--no-heap`.
+
+A failure in one test (or one tree) doesn't abort the run: whatever artifacts
+can be produced are, everything missing is reported at the end (with exit code
+1), and the run closes with a per-test summary table of the A/B totals and
+heap peaks.
 
 The raw `<tree>.prof` files are JSON and load directly into
 [speedscope](https://www.speedscope.app/) for per-tree inspection.

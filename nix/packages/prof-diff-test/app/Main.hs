@@ -22,11 +22,19 @@
 --
 -- Heap profiles: if the test declares a residency metric in its all.T
 -- (collect_compiler_residency => peak_megabytes_allocated + max_bytes_used),
--- -hc is added to the RTS options so each tree also writes a heap profile to
--- <stem>.hp (the -po stem covers .hp too), plus -l-agu -ol<stem>-heap.eventlog
--- for an eventlog carrying the same heap samples.  The peaks are compared and
--- the profiles rendered with hp2pretty (.hp -> SVG) and eventlog2html
--- (.eventlog -> interactive HTML).  Override with --heap / --no-heap.
+-- the testsuite driver itself compiles with "+RTS -A256k -i0 -hT -RTS"
+-- (RESIDENCY_OPTS in testlib.py), which thanks to -po already writes the heap
+-- profile to <stem>.hp — adding our own -hc would abort the RTS with
+-- "multiple heap profile options" — so for those tests we only add
+-- -l-agu -ol<stem>-heap.eventlog to mirror the heap samples into an eventlog.
+-- Only for --heap forced on a non-residency test do we pass -hc ourselves.
+-- The peaks are compared and the profiles rendered with hp2pretty (.hp -> SVG)
+-- and eventlog2html (.eventlog -> interactive HTML).  --heap / --no-heap
+-- force/disable.
+--
+-- A failure in one test (or one tree) doesn't abort the run: the artifacts
+-- that could be produced are, everything missing is reported at the end, and
+-- a summary table of all tests closes the run.
 --
 -- Usage:
 --   prof-diff-test <baseA> <rootA> <baseB> <rootB> <test>...
@@ -39,12 +47,13 @@
 
 module Main (main) where
 
-import Control.Monad (forM, unless, when)
+import Control.Exception (SomeException, displayException, try)
+import Control.Monad (filterM, forM, forM_, unless, when)
 import Data.Aeson (FromJSON (..), decode, withObject, (.!=), (.:), (.:?))
 import qualified Data.ByteString.Lazy as BL
-import Data.List (find, isInfixOf, isPrefixOf, tails)
+import Data.List (find, intercalate, isInfixOf, isPrefixOf, tails, transpose)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Numeric (showFFloat)
 import Options.Applicative (eitherReader)
@@ -312,7 +321,24 @@ hpPeak f = go 0 0 . lines <$> readFile f
 -- ---------------------------------------------------------------------------
 -- Running one test in one tree, writing a single JSON profile to <stem>.prof
 
-runTree :: Opts -> String -> FilePath -> String -> String -> FilePath -> Bool -> IO ()
+-- Extra RTS flags for heap profiling.  Residency tests already compile with
+-- "+RTS -A256k -i0 -hT -RTS" from the testsuite driver (RESIDENCY_OPTS), and
+-- a second heap profile flag aborts the RTS ("multiple heap profile options"),
+-- so there we add only the eventlog flags and let their -hT write <stem>.hp;
+-- otherwise (--heap forced on a non-residency test) we pass -hc ourselves,
+-- with -i0.01 because test compiles are short and the default 0.1s sampling
+-- gives too coarse a picture of the peak.  -l-agu mirrors the heap samples
+-- into an eventlog (other event classes suppressed to keep it small, per
+-- eventlog2html's recommendation); -ol pins it to our heap stem so nothing
+-- lands in the test dirs.
+heapRtsFlags :: Bool -> FilePath -> String
+heapRtsFlags residency stem =
+  (if residency then "" else " -hc -i0.01")
+    ++ " -l-agu -ol" ++ (heapStem stem <.> "eventlog")
+
+-- Run the test; returns what went wrong (missing artifacts) rather than dying.
+-- heap: Nothing = no heap profiling, Just residency = heap profiling on.
+runTree :: Opts -> String -> FilePath -> String -> String -> FilePath -> Maybe Bool -> IO [String]
 runTree opts label base root test stem heap = do
   -- The default build root is selected by omitting -d; a named root with -d.
   let dargs = if root `elem` ["", "default", "_build"] then [] else ["-d", root]
@@ -322,58 +348,56 @@ runTree opts label base root test stem heap = do
   -- EXTRA_HC_OPTS is folded by hadrian into ghc_compiler_always_flags, so every
   -- test compile runs the profiled GHC with these RTS options; -pj writes JSON
   -- to <stem>.prof.  A fixed stem => a single file (last invocation wins).
-  -- For heap-measured tests, -hc additionally writes <stem>.hp (the -po stem
-  -- covers it); -i0.01 because test compiles are short and the default 0.1s
-  -- sampling gives too coarse a picture of the peak.  -l-agu mirrors the heap
-  -- samples into an eventlog (other event classes suppressed to keep it small,
-  -- per eventlog2html's recommendation); -ol pins it to our heap stem so
-  -- nothing lands in the test dirs.
-  let rts =
-        "+RTS -pj -po" ++ stem
-          ++ (if heap then " -hc -i0.01 -l-agu -ol" ++ (heapStem stem <.> "eventlog") else "")
-          ++ " -RTS"
+  let rts = "+RTS -pj -po" ++ stem ++ maybe "" (`heapRtsFlags` stem) heap ++ " -RTS"
   baseEnv <- getEnvironment
   let procEnv = ("EXTRA_HC_OPTS", rts) : filter ((/= "EXTRA_HC_OPTS") . fst) baseEnv
-  note ("[" ++ label ++ "] running '" ++ test ++ "' with +RTS -pj" ++ (if heap then " -hc -l" else "") ++ "  (-> " ++ stem ++ ".prof" ++ (if heap then " + .hp + .eventlog" else "") ++ ")")
+  note ("[" ++ label ++ "] running '" ++ test ++ "' with EXTRA_HC_OPTS=\"" ++ rts ++ "\"")
   (_, _, _, ph) <- createProcess (proc "hadrian-util" args) {cwd = Just base, env = Just procEnv}
   ec <- waitForProcess ph
   case ec of
     ExitSuccess -> pure ()
     _ -> note ("[" ++ label ++ "] hadrian-util exited non-zero (test may have failed); checking for a profile anyway")
-  let prof = stem ++ ".prof"
-  ok <- doesFileExist prof
-  unless ok $
-    die ("[" ++ label ++ "] no profile at " ++ prof ++ " — is the compiler built with +profiled_ghc, and did '" ++ test ++ "' actually compile something?")
-  when heap $ do
-    let hp = stem <.> "hp"
-        ev = heapStem stem <.> "eventlog"
-    hpOk <- doesFileExist hp
-    unless hpOk $
-      die ("[" ++ label ++ "] no heap profile at " ++ hp ++ " despite -hc (pass --no-heap to skip heap profiling)")
-    -- <stem>.svg is the flame graph, and hp2pretty renders <x>.hp to <x>.svg,
-    -- so move the heap profile to its own stem (the eventlog is already there
-    -- via -ol).
-    renameFile hp (heapStem stem <.> "hp")
-    evOk <- doesFileExist ev
-    unless evOk $
-      die ("[" ++ label ++ "] no eventlog at " ++ ev ++ " despite -l (pass --no-heap to skip heap profiling)")
+  let prof = stem <.> "prof"
+  profOk <- doesFileExist prof
+  heapErrs <- case heap of
+    Nothing -> pure []
+    Just _ -> do
+      let hp = stem <.> "hp"
+          ev = heapStem stem <.> "eventlog"
+      hpOk <- doesFileExist hp
+      -- <stem>.svg is the flame graph, and hp2pretty renders <x>.hp to <x>.svg,
+      -- so move the heap profile to its own stem (the eventlog is already
+      -- there via -ol).
+      when hpOk $ renameFile hp (heapStem stem <.> "hp")
+      evOk <- doesFileExist ev
+      pure $
+        [label ++ ": no heap profile at " ++ hp | not hpOk]
+          ++ [label ++ ": no eventlog at " ++ ev | not evOk]
+  pure $
+    [ label ++ ": no profile at " ++ prof
+        ++ " — is the compiler built with +profiled_ghc, and did '" ++ test ++ "' actually compile something?"
+    | not profOk
+    ]
+      ++ heapErrs
 
 -- Stem for heap-profile artifacts (<stem>-heap.hp / <stem>-heap.svg).
 heapStem :: FilePath -> FilePath
 heapStem stem = stem ++ "-heap"
 
 -- Fold a single JSON profile file to a folded-stacks file, returning the
--- profile's total measure.
-foldProf :: Measure -> FilePath -> FilePath -> IO Integer
+-- profile's total measure (or what went wrong).
+foldProf :: Measure -> FilePath -> FilePath -> IO (Either String Integer)
 foldProf measure prof outFold = do
   bs <- BL.readFile prof
   case decode bs of
-    Nothing -> die ("invalid/empty JSON profile: " ++ prof)
+    Nothing -> pure (Left ("invalid/empty JSON profile: " ++ prof))
     Just p -> do
       let folded = foldProfile measure p
-      when (null folded) $ die ("folded output empty for " ++ prof ++ " (no cost centres with >0 " ++ measureFlag measure ++ "?)")
-      writeFile outFold (renderFolded folded)
-      pure (profileTotal measure p)
+      if null folded
+        then pure (Left ("folded output empty for " ++ prof ++ " (no cost centres with >0 " ++ measureFlag measure ++ "?)"))
+        else do
+          writeFile outFold (renderFolded folded)
+          pure (Right (profileTotal measure p))
 
 -- ---------------------------------------------------------------------------
 -- flamegraph.pl / difffolded.pl (expected on PATH; set up the nix env first)
@@ -402,38 +426,94 @@ diffCmd measure title foldedBefore foldedAfter out =
 
 -- ---------------------------------------------------------------------------
 
+-- A->B percentage change ("n/a" when A is 0).
+pctStr :: Integer -> Integer -> String
+pctStr a b
+  | a == 0 = "n/a"
+  | otherwise =
+      let p = fromIntegral (b - a) / fromIntegral a * 100 :: Double
+       in (if p >= 0 then "+" else "") ++ showFFloat (Just 1) p "%"
+
 -- Human summary of an A->B change in some quantity.
 reportDelta :: String -> String -> Integer -> Integer -> IO ()
 reportDelta what test a b =
-  note (test ++ ": " ++ what ++ " " ++ show a ++ " -> " ++ show b ++ "  (" ++ signed (b - a) ++ ", " ++ pct ++ ")")
+  note (test ++ ": " ++ what ++ " " ++ show a ++ " -> " ++ show b ++ "  (" ++ signed (b - a) ++ ", " ++ pctStr a b ++ ")")
   where
     signed n = (if n >= 0 then "+" else "") ++ show n
-    pct
-      | a == 0 = "n/a"
-      | otherwise =
-          let p = fromIntegral (b - a) / fromIntegral a * 100 :: Double
-           in (if p >= 0 then "+" else "") ++ showFFloat (Just 1) p "%"
+
+-- 1234567 -> "1,234,567"
+grouped :: Integer -> String
+grouped n
+  | n < 0 = '-' : grouped (negate n)
+  | otherwise = reverse (go (reverse (show n)))
+  where
+    go s = case splitAt 3 s of
+      (a, []) -> a
+      (a, rest) -> a ++ "," ++ go rest
+
+-- Per-test outcome, for the end-of-run summary.
+data TestSummary = TestSummary
+  { tsTest :: String
+  , tsHeap :: Bool
+  , tsTotals :: Maybe (Integer, Integer) -- total measure A/B (Nothing if a tree failed)
+  , tsPeaks :: Maybe (Integer, Integer) -- peak heap bytes A/B, when heap-profiled
+  , tsErrors :: [String]
+  }
+
+-- Aligned summary table; "-" for missing values, peak columns only if any.
+summaryTable :: Measure -> [TestSummary] -> String
+summaryTable measure rs = unlines (map renderRow rows)
+  where
+    anyPeaks = any (isJust . tsPeaks) rs
+    rows = header : map row rs
+    header =
+      ["test", "A " ++ measureFlag measure, "B " ++ measureFlag measure, "Δ%"]
+        ++ (if anyPeaks then ["A peak", "B peak", "Δpeak%"] else [])
+    row r = tsTest r : pair (tsTotals r) ++ (if anyPeaks then pair (tsPeaks r) else [])
+    pair (Just (a, b)) = [grouped a, grouped b, pctStr a b]
+    pair Nothing = ["-", "-", "-"]
+    widths = map (maximum . map length) (transpose rows)
+    -- first column left-aligned, the rest right-aligned
+    renderRow cols = intercalate "   " (zipWith3 pad [0 :: Int ..] widths cols)
+    pad i w s
+      | i == 0 = s ++ replicate (w - length s) ' '
+      | otherwise = replicate (w - length s) ' ' ++ s
 
 -- Process one test: run both trees, fold, render -- everything lands in tout.
--- Returns whether heap profiles were taken.
-processTest :: Opts -> (FilePath, String) -> (FilePath, String) -> FilePath -> String -> IO Bool
+-- Produces whatever artifacts it can; failures end up in tsErrors.
+processTest :: Opts -> (FilePath, String) -> (FilePath, String) -> FilePath -> String -> IO TestSummary
 processTest opts (baseA, rootA) (baseB, rootB) tout test = do
   createDirectoryIfMissing True tout
+  -- heap: Nothing = off, Just residency = on (residency decides -hT vs -hc,
+  -- see heapRtsFlags).
   heap <- case optHeap opts of
-    Just b -> pure b
-    Nothing -> testMeasuresHeap baseA test
-  when heap $ note (test ++ ": measures heap (residency) -> also taking heap profiles (+RTS -hc)")
+    Just False -> pure Nothing
+    Just True -> Just <$> testMeasuresHeap baseA test
+    Nothing -> do
+      residency <- testMeasuresHeap baseA test
+      pure (if residency then Just True else Nothing)
+  forM_ heap $ \residency ->
+    note (test ++ ": taking heap profiles (" ++ (if residency then "residency test, testsuite adds -hT" else "+RTS -hc") ++ ")")
   let measure = optMeasure opts
       stemA = tout </> "treeA"
       stemB = tout </> "treeB"
       -- run the test under one tree and fold its profile to <stem>.folded,
-      -- returning the tree's total measure.
+      -- returning the tree's total measure if everything worked.
       profileTree label base root stem = do
-        runTree opts label base root test stem heap
-        foldProf measure (stem <.> "prof") (stem <.> "folded")
-  totalA <- profileTree "A" baseA rootA stemA
-  totalB <- profileTree "B" baseB rootB stemB
-  reportDelta ("total " ++ measureFlag measure) test totalA totalB
+        runErrs <- runTree opts label base root test stem heap
+        profOk <- doesFileExist (stem <.> "prof")
+        if not profOk
+          then pure (runErrs, Nothing)
+          else do
+            r <- foldProf measure (stem <.> "prof") (stem <.> "folded")
+            pure $ case r of
+              Left e -> (runErrs ++ [label ++ ": " ++ e], Nothing)
+              Right t -> (runErrs, Just t)
+  (errsA, mTotalA) <- profileTree "A" baseA rootA stemA
+  (errsB, mTotalB) <- profileTree "B" baseB rootB stemB
+  case (mTotalA, mTotalB) of
+    (Just a, Just b) -> reportDelta ("total " ++ measureFlag measure) test a b
+    _ -> pure ()
 
   let foldedA = stemA <.> "folded"
       foldedB = stemB <.> "folded"
@@ -441,33 +521,46 @@ processTest opts (baseA, rootA) (baseB, rootB) tout test = do
       diffTitle before after =
         test ++ " diff: " ++ before ++ " -> " ++ after
           ++ "  (width=" ++ after ++ "; red=more in " ++ after ++ ", blue=less)"
-  callCommand (flamegraphCmd measure (test ++ " - tree A (" ++ rootA ++ ")") foldedA (stemA <.> "svg"))
-  callCommand (flamegraphCmd measure (test ++ " - tree B (" ++ rootB ++ ")") foldedB (stemB <.> "svg"))
-  callCommand (diffCmd measure (diffTitle rootA rootB) foldedA foldedB (tout </> "diff.svg"))
-  callCommand (diffCmd measure (diffTitle rootB rootA) foldedB foldedA (tout </> "diff-reverse.svg"))
+  when (isJust mTotalA) $ callCommand (flamegraphCmd measure (test ++ " - tree A (" ++ rootA ++ ")") foldedA (stemA <.> "svg"))
+  when (isJust mTotalB) $ callCommand (flamegraphCmd measure (test ++ " - tree B (" ++ rootB ++ ")") foldedB (stemB <.> "svg"))
+  when (isJust mTotalA && isJust mTotalB) $ do
+    callCommand (diffCmd measure (diffTitle rootA rootB) foldedA foldedB (tout </> "diff.svg"))
+    callCommand (diffCmd measure (diffTitle rootB rootA) foldedB foldedA (tout </> "diff-reverse.svg"))
 
-  when heap $ do
-    let hpA = heapStem stemA <.> "hp"
-        hpB = heapStem stemB <.> "hp"
-    peakA <- hpPeak hpA
-    peakB <- hpPeak hpB
-    reportDelta "peak heap bytes (profiled)" test peakA peakB
-    -- hp2pretty renders <x>.hp to <x>.svg next to it; eventlog2html renders
-    -- <x>.eventlog to <x>.eventlog.html next to it.
-    withTool "hp2pretty" ".hp files kept" $ \render -> do
-      render hpA
-      render hpB
-    withTool "eventlog2html" ".eventlog files kept" $ \render -> do
-      render (heapStem stemA <.> "eventlog")
-      render (heapStem stemB <.> "eventlog")
-  pure heap
+  peaks <- case heap of
+    Nothing -> pure Nothing
+    Just _ -> do
+      -- hp2pretty renders <x>.hp to <x>.svg next to it; eventlog2html renders
+      -- <x>.eventlog to <x>.eventlog.html next to it.  Render what exists.
+      renderExisting "hp2pretty" [heapStem s <.> "hp" | s <- [stemA, stemB]]
+      renderExisting "eventlog2html" [heapStem s <.> "eventlog" | s <- [stemA, stemB]]
+      mpA <- peakOf (heapStem stemA <.> "hp")
+      mpB <- peakOf (heapStem stemB <.> "hp")
+      case (mpA, mpB) of
+        (Just a, Just b) -> do
+          reportDelta "peak heap bytes (profiled)" test a b
+          pure (Just (a, b))
+        _ -> pure Nothing
+  pure
+    TestSummary
+      { tsTest = test
+      , tsHeap = isJust heap
+      , tsTotals = (,) <$> mTotalA <*> mTotalB
+      , tsPeaks = peaks
+      , tsErrors = errsA ++ errsB
+      }
   where
-    -- Run body with "<tool> <file>" if tool is on PATH, else note and skip.
-    withTool tool kept body = do
+    peakOf hp = do
+      ok <- doesFileExist hp
+      if ok then Just <$> hpPeak hp else pure Nothing
+    -- Run "<tool> <file>" on each existing file, if tool is on PATH.
+    renderExisting tool files = do
       found <- findExecutable tool
       case found of
-        Nothing -> note (tool ++ " not on PATH; skipping its rendering (" ++ kept ++ ")")
-        Just _ -> body (\f -> callCommand (tool ++ " " ++ shq f))
+        Nothing -> note (tool ++ " not on PATH; skipping its rendering (raw files kept)")
+        Just _ -> do
+          existing <- filterM doesFileExist files
+          forM_ existing $ \f -> callCommand (tool ++ " " ++ shq f)
 
 main :: IO ()
 main = do
@@ -492,12 +585,20 @@ main = do
 
   let measure = optMeasure opts
 
-  -- Per-test artifacts land in <out>/<test>/ (one hadrian run per tree per test).
+  -- Per-test artifacts land in <out>/<test>/ (one hadrian run per tree per
+  -- test).  One test failing (even by exception) doesn't stop the others.
   note ("tests: " ++ unwords tests)
-  heaps <- forM tests $ \test -> do
+  results <- forM tests $ \test -> do
     note ("==== " ++ test ++ " ====")
-    processTest opts (baseA, rootA) (baseB, rootB) (out </> test) test
+    r <- try (processTest opts (baseA, rootA) (baseB, rootB) (out </> test) test)
+    case r of
+      Right s -> pure s
+      Left (e :: SomeException) -> do
+        note (test ++ ": failed: " ++ displayException e)
+        pure TestSummary {tsTest = test, tsHeap = False, tsTotals = Nothing, tsPeaks = Nothing, tsErrors = [displayException e]}
 
+  let anyHeap = any tsHeap results
+      failed = [r | r <- results, not (null (tsErrors r))]
   pn <- getProgName
   hPutStr stderr $
     unlines $
@@ -509,11 +610,18 @@ main = do
       , "    diff.svg                  " ++ rootA ++ " -> " ++ rootB ++ "  (width=" ++ rootB ++ "; red=more in " ++ rootB ++ ")"
       , "    diff-reverse.svg          " ++ rootB ++ " -> " ++ rootA ++ "  (width=" ++ rootA ++ "; red=more in " ++ rootA ++ ")"
       ]
-        ++ [ "    tree{A,B}-heap.hp/.svg            heap profiles (-hc; heap-measured tests only)"
-           | or heaps
+        ++ [ "    tree{A,B}-heap.hp/.svg            heap profiles (heap-measured tests only)"
+           | anyHeap
            ]
         ++ [ "    tree{A,B}-heap.eventlog(.html)    same heap samples as eventlog / eventlog2html render"
-           | or heaps
+           | anyHeap
            ]
         ++ ["  " ++ (out </> test </> "diff.svg") | test <- tests]
+        ++ ["", "==== summary (A = " ++ rootA ++ ", B = " ++ rootB ++ ") ===="]
+  hPutStr stderr (summaryTable measure results)
+  unless (null failed) $ do
+    note (show (length failed) ++ " of " ++ show (length results) ++ " test(s) incomplete:")
+    forM_ failed $ \r ->
+      forM_ (tsErrors r) $ \e -> hPutStrLn stderr ("  " ++ tsTest r ++ ": " ++ e)
   putStrLn out
+  unless (null failed) exitFailure
