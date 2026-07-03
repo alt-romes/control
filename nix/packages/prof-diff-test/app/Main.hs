@@ -35,6 +35,8 @@
 -- eventlog2html) must be on PATH: the Nix wrapper puts them there, so set up
 -- the nix environment before running.
 
+{-# LANGUAGE DataKinds #-}
+
 module Main (main) where
 
 import Control.Monad (forM, unless, when)
@@ -42,11 +44,14 @@ import Data.Aeson (FromJSON (..), decode, withObject, (.!=), (.:), (.:?))
 import qualified Data.ByteString.Lazy as BL
 import Data.List (find, isInfixOf, isPrefixOf, tails)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Numeric (showFFloat)
+import Options.Applicative (eitherReader)
+import Options.Generic
 import System.Directory
-import System.Environment (getArgs, getEnvironment, getProgName)
-import System.Exit (ExitCode (..), exitFailure, exitSuccess)
+import System.Environment (getEnvironment, getProgName)
+import System.Exit (ExitCode (..), exitFailure)
 import System.FilePath ((<.>), (</>))
 import System.IO
 import System.Process (callCommand, createProcess, cwd, env, proc, readProcessWithExitCode, waitForProcess)
@@ -55,6 +60,13 @@ import System.Process (callCommand, createProcess, cwd, env, proc, readProcessWi
 -- Profile model (subset of GHC's -pj JSON; unknown fields are ignored)
 
 data Measure = Alloc | Ticks
+
+instance ParseField Measure where
+  readField = eitherReader $ \s -> case s of
+    "alloc" -> Right Alloc
+    "ticks" -> Right Ticks
+    _ -> Left ("expected 'alloc' or 'ticks', got '" ++ s ++ "'")
+  metavar _ = "alloc|ticks"
 
 measureFlag :: Measure -> String
 measureFlag Alloc = "alloc"
@@ -127,6 +139,7 @@ renderFolded = unlines . map (\(s, v) -> s ++ " " ++ show v)
 -- ---------------------------------------------------------------------------
 -- Options
 
+-- Internal options record, assembled from the parsed CLI.
 data Opts = Opts
   { optOut :: Maybe FilePath
   , optJ :: Int
@@ -135,31 +148,58 @@ data Opts = Opts
   , optHeap :: Maybe Bool -- Nothing = auto-detect from the test's declared metrics
   }
 
-defOpts :: Opts
-defOpts = Opts {optOut = Nothing, optJ = 8, optMeasure = Alloc, optFlavourCheck = True, optHeap = Nothing}
+-- Command line, parsed with optparse-generic: named options come from CLI's
+-- field names (cli prefix stripped, then lisp-cased), positional arguments
+-- from Positional's unnamed fields; Args's hand-written ParseRecord instance
+-- combines the two generically-derived parsers.
+data CLI = CLI
+  { cliOut :: Maybe FilePath <?> "Output/work directory (default: a temp dir)"
+  , cliJ :: Maybe Int <?> "Hadrian parallelism (default: 8)"
+  , cliMeasure :: Maybe Measure <?> "Measurement: alloc (bytes, default) or ticks (time)"
+  , cliHeap :: Bool <?> "Force heap profiling on (default: auto — on iff the test declares a residency metric in its all.T)"
+  , cliNoHeap :: Bool <?> "Disable heap profiling"
+  , cliNoFlavourCheck :: Bool <?> "Don't require +profiled_ghc in the flavour"
+  }
+  deriving (Generic)
 
-usageText :: String
-usageText =
-  unlines
-    [ "Usage: prof-diff-test [options] <baseA> <rootA> <baseB> <rootB> <test>..."
-    , ""
-    , "  <baseA>/<baseB>   path to each GHC source worktree"
-    , "  <rootA>/<rootB>   hadrian-util build-root *name* (\"\"/default => _build,"
-    , "                    \"debug\" => _build-debug, ...)"
-    , "  <test>...         one or more testsuite tests (each --only=); accepts"
-    , "                    several args and/or a space-separated string. One"
-    , "                    hadrian run per tree per test; artifacts in <out>/<test>/."
-    , ""
-    , "Options:"
-    , "  -o DIR    output/work directory (default: a temp dir)"
-    , "  -j N      hadrian parallelism (default: 8)"
-    , "  -m M      measurement: alloc (bytes, default) or ticks (time)"
-    , "  --heap / --no-heap   force/disable heap profiling (+RTS -hc). Default:"
-    , "                    auto — on iff the test declares a residency metric"
-    , "                    (peak_megabytes_allocated / max_bytes_used) in its all.T"
-    , "  --no-flavour-check   don't require +profiled_ghc in the flavour"
-    , "  -h        this help"
-    ]
+data Positional = Positional
+  (FilePath <?> "Path to GHC source worktree A")
+  (String <?> "hadrian-util build-root name for A (\"\"/default => _build, debug => _build-debug, ...)")
+  (FilePath <?> "Path to GHC source worktree B")
+  (String <?> "hadrian-util build-root name for B")
+  ([String] <?> "Testsuite tests (each --only=); space-separated strings are split")
+  deriving (Generic)
+
+instance ParseRecord Positional
+
+data Args = Args CLI Positional
+
+instance ParseRecord Args where
+  parseRecord = Args <$> parseRecordWithModifiers cliMods <*> parseRecord
+    where
+      cliMods =
+        lispCaseModifiers
+          { fieldNameModifier = fieldNameModifier lispCaseModifiers . drop (length ("cli" :: String))
+          , shortNameModifier = \f -> lookup f [("cliOut", 'o'), ("cliJ", 'j'), ("cliMeasure", 'm')]
+          }
+
+-- Interpret the CLI: apply defaults and split each test spec on whitespace so
+-- both `... rootB "T1 T2 T3"` and `... rootB T1 T2 T3` work.
+interpretArgs :: Args -> (Opts, (FilePath, String, FilePath, String, [String]))
+interpretArgs (Args cli (Positional (Helpful baseA) (Helpful rootA) (Helpful baseB) (Helpful rootB) (Helpful testArgs))) =
+  (opts, (baseA, rootA, baseB, rootB, concatMap words testArgs))
+  where
+    opts =
+      Opts
+        { optOut = unHelpful (cliOut cli)
+        , optJ = fromMaybe 8 (unHelpful (cliJ cli))
+        , optMeasure = fromMaybe Alloc (unHelpful (cliMeasure cli))
+        , optFlavourCheck = not (unHelpful (cliNoFlavourCheck cli))
+        , optHeap = case (unHelpful (cliHeap cli), unHelpful (cliNoHeap cli)) of
+            (True, _) -> Just True
+            (_, True) -> Just False
+            _ -> Nothing
+        }
 
 die :: String -> IO a
 die msg = do
@@ -171,37 +211,6 @@ note :: String -> IO ()
 note msg = do
   pn <- getProgName
   hPutStrLn stderr (pn ++ ": " ++ msg)
-
-parseArgs :: [String] -> IO (Opts, (FilePath, String, FilePath, String, [String]))
-parseArgs = go defOpts []
-  where
-    go o pos [] = finish o (reverse pos)
-    go o pos (a : as) = case a of
-      "-o" -> need as $ \v rest -> go o {optOut = Just v} pos rest
-      "-j" -> need as $ \v rest -> case reads v of [(n, "")] -> go o {optJ = n} pos rest; _ -> die ("-j expects an integer, got '" ++ v ++ "'")
-      "-m" -> need as $ \v rest -> do m <- parseMeasure v; go o {optMeasure = m} pos rest
-      "--heap" -> go o {optHeap = Just True} pos as
-      "--no-heap" -> go o {optHeap = Just False} pos as
-      "--no-flavour-check" -> go o {optFlavourCheck = False} pos as
-      "-h" -> putStr usageText >> exitSuccess
-      "--help" -> putStr usageText >> exitSuccess
-      "--" -> finish o (reverse pos ++ as)
-      _
-        | "-" `isPrefixOf` a -> die ("unknown option: " ++ a ++ " (try -h)")
-        | otherwise -> go o (a : pos) as
-    need as k = case as of (v : rest) -> k v rest; [] -> die "missing option argument"
-    parseMeasure "alloc" = pure Alloc
-    parseMeasure "ticks" = pure Ticks
-    parseMeasure x = die ("-m must be 'alloc' or 'ticks', got '" ++ x ++ "'")
-    -- Positions 5.. are test specs; split each on whitespace so both
-    --   ... rootB "T1 T2 T3"   and   ... rootB T1 T2 T3   work.
-    finish o pos = case pos of
-      (ba : ra : bb : rb : rest@(_ : _)) -> case concatMap words rest of
-        [] -> bad "no test names given"
-        tests -> pure (o, (ba, ra, bb, rb, tests))
-      _ -> bad ("expected at least 5 positional args, got " ++ show (length pos))
-      where
-        bad msg = do note msg; hPutStr stderr usageText; exitFailure
 
 -- ---------------------------------------------------------------------------
 -- Build-root resolution and validation
@@ -463,7 +472,9 @@ processTest opts (baseA, rootA) (baseB, rootB) tout test = do
 main :: IO ()
 main = do
   hSetBuffering stderr LineBuffering
-  (opts, (baseA, rootA, baseB, rootB, tests)) <- parseArgs =<< getArgs
+  args <- getRecord "prof-diff-test - differential GHC compiler profiles across two build trees"
+  let (opts, (baseA, rootA, baseB, rootB, tests)) = interpretArgs args
+  when (null tests) $ die "no test names given"
 
   checkTree opts "tree A" baseA rootA
   checkTree opts "tree B" baseB rootB

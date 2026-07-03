@@ -18,6 +18,8 @@ executable prof-diff-test
     , containers
     , directory
     , filepath
+    , optparse-applicative
+    , optparse-generic
     , process
     , time
   default-language: GHC2021
