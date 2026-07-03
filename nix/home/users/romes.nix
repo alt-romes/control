@@ -174,6 +174,7 @@
         mouse = true;
         plugins = [
           pkgs.tmuxPlugins.extrakto
+          pkgs.tmuxPlugins.resurrect
         ];
         extraConfig = ''
           set -g history-limit 50000
