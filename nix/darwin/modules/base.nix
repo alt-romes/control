@@ -26,6 +26,9 @@
         "visual-studio-code" # experimenting debugger
         "discord"
         "affinity-designer"
+
+        # fonts
+        "font-space-grotesk" # Space Grotesk (btw mogbit logo uses it)
       ];
 
       # Manage brew formulae using nix only:
