@@ -35,39 +35,98 @@ import GitLabIndex.Types
 --
 -- @full@ only chooses which mode it starts in. Enter renders the full item
 -- locally (paged); ctrl-v opens it in the editor; ctrl-o in the browser.
-runSearch :: Config -> Bool -> IO ()
-runSearch cfg full = do
+--
+-- @mbAuthor@/@mbAssignee@ (from @--author@/@--assignee@) restrict the list to
+-- items with that author/assignee for the whole session.
+runSearch :: Config -> Bool -> Maybe String -> Maybe String -> IO ()
+runSearch cfg full mbAuthor mbAssignee = do
   let idx = indexPath cfg
   ex <- doesFileExist idx
   if not ex
     then putStrLn "No index found. Run `gitlab-index sync` first."
     else do
       previewCmd <- mkPreviewCmd cfg
+      -- A tiny state file holding the current open/closed filter (empty | open
+      -- | closed). ctrl-x cycles it; the source command greps on it. It's read
+      -- fresh on every reload, so the filter survives mode switches and syncs.
+      tmpDir <- getTemporaryDirectory
+      (filterFile, fh) <- openTempFile tmpDir "gitlab-index-filter"
+      hClose fh
       let idxq   = shq idx
+          ffq    = shq filterFile
           rg     = "rg --color=never --smart-case --no-filename --no-line-number -e {q} -- "
                 <> idxq <> " || true"
           catAll = "cat " <> idxq
 
-          -- ctrl-t flips between the two modes based on the current prompt.
-          -- grep mode: disable fzf search and (re)bind change->rg reload.
-          -- title mode: re-enable fzf search, unbind change, reload full list.
+          -- The one source command every reload runs. It picks the base list
+          -- from the current mode ($FZF_PROMPT: grep vs title) and pipes it
+          -- through the open/closed filter. Because it keys off live state
+          -- ($FZF_PROMPT and the filter file) rather than a baked-in command,
+          -- the same string serves start, change, toggle, sync and filter.
+          --
+          -- The filter anchors on the display column, which starts with the
+          -- padded ref then the state glyph (○ open, ● closed/merged), so it
+          -- won't match a glyph that happens to appear inside a title.
+          filt = "{ f=$(cat " <> ffq <> " 2>/dev/null);"
+              <> " if [ \"$f\" = open ]; then grep -e '^[#!][0-9]* *○ ';"
+              <> " elif [ \"$f\" = closed ]; then grep -e '^[#!][0-9]* *● ';"
+              <> " else cat; fi; }"
+          -- --author/--assignee: an awk pass over the hidden author (col 5) and
+          -- assignee (col 6) columns. Values go via -v (no shell interpolation);
+          -- author is an exact field match, assignee a whole-word membership in
+          -- the space-joined list. Omitted entirely when neither flag is set.
+          authFilt
+            | Nothing <- mbAuthor, Nothing <- mbAssignee = ""
+            | otherwise = " | awk -F'\\t' -v a=" <> shq (fromMaybe "" mbAuthor)
+                <> " -v s=" <> shq (fromMaybe "" mbAssignee)
+                <> " '{ k=1;"
+                <> " if (a != \"\" && $5 != a) k=0;"
+                <> " if (s != \"\" && index(\" \" $6 \" \", \" \" s \" \") == 0) k=0;"
+                <> " if (k) print }'"
+          src  = "{ if [ \"$FZF_PROMPT\" = \"grep> \" ]; then " <> rg
+              <> "; else " <> catAll <> "; fi; } | " <> filt <> authFilt
+
           dq s   = "\"" <> s <> "\""
-          toGrep  = "change-prompt(grep> )+disable-search+rebind(change)+reload(" <> rg <> ")"
-          toTitle = "change-prompt(title> )+enable-search+unbind(change)+reload(" <> catAll <> ")"
+          headerKeys = "ctrl-t: title/grep · enter: read · ctrl-v: vim · ctrl-d: diff · ctrl-o: browser · ctrl-r: comment · ctrl-s: sync · ctrl-x: open/closed"
+
+          -- Escape a command for literal reproduction inside a double-quoted
+          -- @echo "…"@ in a transform: the transform's own shell must not expand
+          -- @$@/@`@ or eat @"@/@\@ — those have to survive to the reload's shell.
+          esc = concatMap $ \c -> case c of
+            '\\' -> "\\\\"; '"' -> "\\\""; '$' -> "\\$"; '`' -> "\\`"; _ -> [c]
+
+          -- ctrl-t flips between the two modes based on the current prompt.
+          -- grep mode: disable fzf search and (re)bind change->reload.
+          -- title mode: re-enable fzf search, unbind change. The transform must
+          -- use the colon form (it takes the rest of the bind verbatim): fzf's
+          -- paren form mis-parses the '+' that chains the emitted actions. The
+          -- reload runs after change-prompt, so `src` sees the new prompt; it is
+          -- escaped so its $/… reach the reload's shell rather than this one.
+          toGrep  = "change-prompt(grep> )+disable-search+rebind(change)+reload(" <> esc src <> ")"
+          toTitle = "change-prompt(title> )+enable-search+unbind(change)+reload(" <> esc src <> ")"
           toggle = "ctrl-t:transform:[ \"$FZF_PROMPT\" = \"title> \" ]"
                 <> " && echo " <> dq toGrep
                 <> " || echo " <> dq toTitle
 
           -- ctrl-s: run a sync (terminal handed over so progress shows), then
-          -- reload the list from the rebuilt index in the current mode.
-          syncReload = "transform:[ \"$FZF_PROMPT\" = \"title> \" ]"
-                    <> " && echo " <> dq ("reload(" <> catAll <> ")")
-                    <> " || echo " <> dq ("reload(" <> rg <> ")")
-          syncBind = "ctrl-s:execute(" <> previewCmd <> " sync)+" <> syncReload
+          -- reload from the rebuilt index — `src` keeps the current mode/filter.
+          syncBind = "ctrl-s:execute(" <> previewCmd <> " sync)+reload(" <> src <> ")"
+
+          -- ctrl-x: cycle the filter (all → open → closed → all), reload, and
+          -- show the active filter in the header.
+          flipFilter = "f=$(cat " <> ffq <> " 2>/dev/null);"
+                    <> " if [ \"$f\" = open ]; then n=closed;"
+                    <> " elif [ \"$f\" = closed ]; then n=all;"
+                    <> " else n=open; fi;"
+                    <> " printf %s \"$n\" > " <> ffq
+          hdrCmd = "f=$(cat " <> ffq <> " 2>/dev/null);"
+                <> " printf '[showing: %s]  ' \"${f:-all}\"; printf %s " <> dq headerKeys
+          filterBind = "ctrl-x:execute-silent(" <> flipFilter <> ")"
+                    <> "+reload(" <> src <> ")+transform-header(" <> hdrCmd <> ")"
 
           (startBind, promptArg, disabledArgs)
-            | full      = ( "start:reload(" <> rg <> ")", "grep> ", ["--disabled"] )
-            | otherwise = ( "start:reload(" <> catAll <> ")+unbind(change)", "title> ", [] )
+            | full      = ( "start:reload(" <> src <> ")", "grep> ", ["--disabled"] )
+            | otherwise = ( "start:reload(" <> src <> ")+unbind(change)", "title> ", [] )
 
           args =
             [ "--delimiter", "\t"
@@ -82,10 +141,10 @@ runSearch cfg full = do
             , "--tiebreak", "begin"
             , "--ansi"
             , "--prompt", promptArg
-            , "--header", "ctrl-t: title/grep · enter: read · ctrl-v: vim · ctrl-d: diff · ctrl-o: browser · ctrl-r: comment · ctrl-s: sync"
+            , "--header", "[showing: all]  " <> headerKeys
             , "--preview", previewCmd <> " preview {2} {3}"
             , "--preview-window", "right,55%,wrap"
-            , "--bind", "change:reload(" <> rg <> ")"
+            , "--bind", "change:reload(" <> src <> ")"
             , "--bind", startBind
             , "--bind", toggle
             , "--bind", "enter:execute(" <> previewCmd <> " preview {2} {3} --page)"
@@ -94,11 +153,14 @@ runSearch cfg full = do
             , "--bind", "ctrl-o:execute-silent(" <> previewCmd <> " open {2} {3})"
             , "--bind", "ctrl-r:execute(" <> previewCmd <> " comment {2} {3})"
             , "--bind", syncBind
+            , "--bind", filterBind
             ] ++ disabledArgs
       h <- openFile "/dev/null" ReadMode
-      (_, _, _, ph) <- createProcess (proc "fzf" args) { std_in = UseHandle h }
-      _ <- waitForProcess ph
-      hClose h
+      let runFzf = do
+            (_, _, _, ph) <- createProcess (proc "fzf" args) { std_in = UseHandle h }
+            _ <- waitForProcess ph
+            hClose h
+      runFzf `finally` removeFile filterFile
 
 -- | Render one stored item as Markdown to the terminal, via @glow@ when
 -- available. @page@ shows it in glow's pager (used by Enter); otherwise it is

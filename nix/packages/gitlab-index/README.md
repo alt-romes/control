@@ -22,7 +22,15 @@ gitlab-index --project ghc/ghc search
 
 # Live ripgrep full-text search over titles, bodies AND comments.
 gitlab-index --project ghc/ghc search --full
+
+# Restrict the list to an author and/or assignee (exact usernames).
+gitlab-index --project ghc/ghc search --author alice --assignee bob
 ```
+
+`--author`/`--assignee` filter the whole session (composing with the ctrl-x
+open/closed cycle and the title/grep toggle). They read hidden columns added to
+`index.tsv`, so run `gitlab-index reindex` once after upgrading for an existing
+index to pick them up.
 
 `--host` defaults to `gitlab.haskell.org`. `--project` can also come from
 `$GITLAB_INDEX_PROJECT`. `ctrl-d`'s diff needs a local clone of the project:
@@ -39,6 +47,7 @@ own branches untouched). In `search`:
 | `ctrl-o` | open the item in the browser                       |
 | `ctrl-r` | compose a comment in `$EDITOR` and post it via glab |
 | `ctrl-s` | sync (fetch new/changed items), then reload the list  |
+| `ctrl-x` | cycle the list between all → open only → closed/merged only |
 
 Two search modes, switchable live with **ctrl-t** (`--full` only picks the
 starting one): *title* fuzzy-matches the displayed rows (via fzf), and *grep*
@@ -46,7 +55,9 @@ is a live [ripgrep](https://github.com/BurntSushi/ripgrep) search matching
 anywhere in titles, descriptions and comments (regex, smart-case).
 
 Each row is `#<iid>`/`!<iid>` (issue/MR), right-padded so columns line up, with
-a compact state glyph: `○` open · `●` closed/merged.
+a compact state glyph: `○` open · `●` closed/merged. **ctrl-x** cycles the list
+through this state — all → open only → closed/merged only — and the filter
+sticks across mode switches and syncs; the active filter shows in the header.
 
 Inline (diff-positioned) comments are labelled with their `` `path:line` `` so
 it's clear what each comment refers to.

@@ -29,7 +29,7 @@ data Opts = Opts
 
 data Cmd
   = Sync
-  | Search Bool
+  | Search Bool (Maybe String) (Maybe String)  -- ^ full?, --author, --assignee
   | Preview Bool String Int   -- ^ paged?, type, iid
   | Open String Int
   | Edit String Int
@@ -63,8 +63,13 @@ cmdP :: Parser Cmd
 cmdP = hsubparser
   ( command "sync"   (info (pure Sync)
       (progDesc "Fetch new/changed issues, MRs and their comments"))
- <> command "search" (info (Search <$> switch (long "full" <> short 'f'
-                              <> help "Search bodies and comments, not just titles"))
+ <> command "search" (info (Search
+                              <$> switch (long "full" <> short 'f'
+                                    <> help "Search bodies and comments, not just titles")
+                              <*> optional (strOption (long "author" <> metavar "USER"
+                                    <> help "Show only items authored by USER (exact username)"))
+                              <*> optional (strOption (long "assignee" <> metavar "USER"
+                                    <> help "Show only items assigned to USER (exact username)")))
       (progDesc "Fuzzy-search the index with fzf"))
  <> command "preview" (info (Preview <$> switch (long "page"
                                                   <> help "Show in glow's pager (full screen)")
@@ -104,7 +109,7 @@ main = do
         , cfgRepo = oRepo opts `orElse` envRepo }
   case oCmd opts of
     Sync                   -> sync cfg
-    Search full            -> runSearch cfg full
+    Search full aut asg    -> runSearch cfg full aut asg
     Reindex                -> buildIndex cfg
     Preview page tslug iid -> withType tslug (\t -> runPreview cfg page t iid)
     Open tslug iid         -> withType tslug (\t -> runOpen cfg t iid)

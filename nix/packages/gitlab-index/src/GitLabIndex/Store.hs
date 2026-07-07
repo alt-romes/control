@@ -112,20 +112,24 @@ flatten = T.map (\c -> if c `elem` ("\t\n\r" :: String) then ' ' else c)
 
 -- | One index line. Tab-separated columns:
 --
--- > 1 display  human-readable, with title/state/author/labels  (fzf --with-nth 1)
--- > 2 type     issue|mr   (locates the stored file; preview placeholder {2})
--- > 3 iid      (preview placeholder {3})
--- > 4 extra    body + comments, for full-text mode  (fzf --with-nth '1,4')
+-- > 1 display    human-readable, with title/state/author/labels  (fzf --with-nth 1)
+-- > 2 type       issue|mr   (locates the stored file; preview placeholder {2})
+-- > 3 iid        (preview placeholder {3})
+-- > 4 extra      body + comments, for full-text mode
+-- > 5 author     author username, for --author  (exact match)
+-- > 6 assignees  space-joined assignee usernames, for --assignee  (membership)
 --
 -- Title mode shows column 1 but fzf searches the whole line; full mode greps
 -- the whole line with ripgrep. Either way, anything searchable (bodies,
--- comments) must live on the line — hence column 4.
+-- comments) must live on the line — hence column 4. Columns 5-6 exist for the
+-- --author/--assignee filters, which awk over them by field.
 -- | Issues are @#<iid>@, merge requests @!<iid>@.
 refText :: ItemType -> Meta -> Text
 refText t m = (case t of Issue -> "#"; MR -> "!") <> T.pack (show (mIid m))
 
 indexLine :: Int -> ItemType -> Meta -> [Note] -> Text
-indexLine refW t m notes = T.intercalate "\t" [display, T.pack (typeSlug t), tshow (mIid m), extra]
+indexLine refW t m notes = T.intercalate "\t"
+    [display, T.pack (typeSlug t), tshow (mIid m), extra, mAuthor m, T.unwords (mAssignees m)]
   where
     -- Pad the ref to a common width so titles line up across rows.
     ref = T.justifyLeft refW ' ' (refText t m)

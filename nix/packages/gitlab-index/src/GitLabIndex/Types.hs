@@ -49,6 +49,7 @@ data Meta = Meta
   , mState      :: Text
   , mTitle      :: Text
   , mAuthor     :: Text
+  , mAssignees  :: [Text]  -- ^ Assignee usernames (@assignees@, or the single @assignee@).
   , mLabels     :: [Text]
   , mUpdated    :: Text   -- ^ ISO-8601 @updated_at@; bumped when comments change.
   , mUrl        :: Text
@@ -60,12 +61,18 @@ data Meta = Meta
 
 instance FromJSON Meta where
   parseJSON = withObject "item" $ \o -> do
-    mauth <- o .:? "author"
+    mauth      <- o .:? "author"
+    assignees  <- o .:? "assignees" .!= []
+    massignee  <- o .:? "assignee"
+    let assigns = case assignees of
+          [] -> maybe [] (\a -> [authorName a]) massignee
+          xs -> map authorName xs
     Meta
       <$> o .:  "iid"
       <*> o .:  "state"
       <*> o .:  "title"
       <*> pure (maybe "" authorName mauth)
+      <*> pure assigns
       <*> o .:? "labels"           .!= []
       <*> o .:  "updated_at"
       <*> o .:  "web_url"
