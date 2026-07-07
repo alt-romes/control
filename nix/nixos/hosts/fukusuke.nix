@@ -117,7 +117,10 @@
     environment = {
       systemPackages = with pkgs; [
         gdb
-        rr
+        # Stock `rr` is built with `gccMultiStdenv`, which pulls in the i686
+        # (32-bit multilib) package set and errors out on aarch64. There is no
+        # 32-bit multilib on aarch64, so build it with the plain stdenv instead.
+        (rr.override { gccMultiStdenv = stdenv; })
         # lldb clangd llvm
       ];
     };
