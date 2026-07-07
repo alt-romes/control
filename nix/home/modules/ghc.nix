@@ -21,6 +21,8 @@
         shellAliases.hu = "hadrian-util";
         initContent = ''
           compdef _hadrian-util hu=hadrian-util
+
+          diff-iface() { diff <("$GHC" --show-iface "$1") <("$GHC" --show-iface "$2"); }
         '';
       };
     };
