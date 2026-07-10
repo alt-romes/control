@@ -17,8 +17,9 @@
         hadrianUtilZshCompletion
       ];
     
+      home.shellAliases.hu = "hadrian-util";
+
       programs.zsh = {
-        shellAliases.hu = "hadrian-util";
         initContent = ''
           compdef _hadrian-util hu=hadrian-util
 

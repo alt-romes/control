@@ -7,30 +7,6 @@
         enableCompletion = true;
         syntaxHighlighting.enable = true;
         autosuggestion.enable = true;
-        shellAliases = {
-          g = "git";
-
-          # Local fzf index of GHC's GitLab issues/MRs. The preview --style
-          # follows the active color theme's background (see home/modules/colors.nix).
-          # --repo points at a local clone so ctrl-d opens a vim Fugitive diff of an MR.
-          ghc-index = "gitlab-index --project ghc/ghc --style ${config.style.colors.background} --repo ${config.home.homeDirectory}/ghc-dev/ghc";
-
-          ".." = "cd ../";
-          "..." = "cd ../..";
-
-          mv = "mv -i";
-          cp = "cp -i";
-          ls = "eza";
-
-          httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
-
-          # prefer nix-output-monitor
-          nix-shell = "nom-shell";
-          nix-build = "nom-build";
-
-          ghc-shell = "nix-shell -p haskell.compiler.${ghcVersion} haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
-
-        };
 
         initContent = ''
           # Force emacs keymap. Otherwise, when $EDITOR contains "vi" (e.g. "vim"
@@ -107,6 +83,39 @@
             };
           }
         ];
+      };
+
+      # Also configure bash so aliases are available in bash-based shells
+      # (notably `nix-shell`, whose generated rcfile sources ~/.bashrc).
+      programs.bash = {
+        enable = true;
+        enableCompletion = true;
+      };
+
+      # Shell-agnostic aliases: home-manager emits these into every enabled
+      # shell (zsh AND bash), so a single definition works in `nix-shell` too.
+      home.shellAliases = {
+        g = "git";
+
+        # Local fzf index of GHC's GitLab issues/MRs. The preview --style
+        # follows the active color theme's background (see home/modules/colors.nix).
+        # --repo points at a local clone so ctrl-d opens a vim Fugitive diff of an MR.
+        ghc-index = "gitlab-index --project ghc/ghc --style ${config.style.colors.background} --repo ${config.home.homeDirectory}/ghc-dev/ghc";
+
+        ".." = "cd ../";
+        "..." = "cd ../..";
+
+        mv = "mv -i";
+        cp = "cp -i";
+        ls = "eza";
+
+        httpserver = "nix-shell -p python3 --run 'python -m http.server 25565'";
+
+        # prefer nix-output-monitor
+        nix-shell = "nom-shell";
+        nix-build = "nom-build";
+
+        ghc-shell = "nix-shell -p haskell.compiler.${ghcVersion} haskellPackages.alex haskellPackages.happy autoconf automake python3 gmp zlib ncurses";
       };
     };
 }
