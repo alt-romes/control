@@ -17,6 +17,8 @@ executable eventlog-activity
     , containers
     , text
     , ghc-events
+    , aeson
+    , optparse-generic
     , Chart
     , Chart-cairo
     , colour
