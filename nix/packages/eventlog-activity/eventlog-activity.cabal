@@ -1,0 +1,23 @@
+cabal-version:      3.0
+name:               eventlog-activity
+version:            0.1.0
+synopsis:           Render a GHC eventlog as a work-vs-waiting activity timeline
+build-type:         Simple
+
+common warnings
+  ghc-options: -Wall
+
+executable eventlog-activity
+  import:           warnings
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , text
+    , ghc-events
+    , Chart
+    , Chart-cairo
+    , colour
+  default-language: GHC2021
