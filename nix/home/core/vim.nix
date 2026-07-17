@@ -61,6 +61,10 @@
         # Tag jumping
         { mode = "n"; key = "<C-j>"; action = "<C-]>"; }
 
+        # Leap
+        { mode = ["n" "x" "o"]; key = "s"; action = "<Plug>(leap)"; }
+        { mode = "n"; key = "S"; action = "<Plug>(leap-from-window)"; }
+
         # Live grep (<leader>g) starting with the word under the cursor
         { mode = "n"; key = "<leader>*";
           action.__raw = "function() require('fzf-lua').live_grep({ query = vim.fn.expand('<cword>') }) end"; }
@@ -252,6 +256,8 @@
       plugins.fzf-lua.settings.winopts.backdrop = 100;
       plugins.fzf-lua.settings.winopts.fullscreen = true;
       plugins.web-devicons.enable = true; # required by telescope
+
+      plugins.leap.enable = true;
 
       plugins.nvim-surround.enable = true;
       plugins.fugitive.enable = true;
