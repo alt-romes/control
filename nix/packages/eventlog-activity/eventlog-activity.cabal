@@ -15,11 +15,10 @@ executable eventlog-activity
       base
     , bytestring
     , containers
+    , data-interval
     , text
     , ghc-events
     , aeson
+    , aeson-qq
     , optparse-generic
-    , Chart
-    , Chart-cairo
-    , colour
   default-language: GHC2021

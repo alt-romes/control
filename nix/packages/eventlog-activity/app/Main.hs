@@ -1,257 +1,195 @@
--- | Render a GHC eventlog (produced with -ddump-timings +RTS -l -RTS) as a
--- work-vs-waiting activity timeline: a static PNG, or --html for an interactive
--- Vega-Lite webpage. Work takes precedence: any instant with a running mutator
--- thread is "work", never waiting. GC is its own category.
+-- | Render a GHC eventlog (from -ddump-timings +RTS -l) as a work-vs-waiting
+-- activity timeline: an interactive Vega-Lite webpage.
 --
--- See also ghc-events-analyze
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
+-- Extract class-labelled intervals from the events ('intervals'), then show
+-- the highest-priority class at every instant ('overlay'). Waiting inside a
+-- systool span is thereby attributed to that tool, not to the anonymous
+-- foreign calls doing the waiting. See also ghc-events-analyze.
+{-# LANGUAGE QuasiQuotes #-}
 module Main where
 
 import GHC.RTS.Events
-import GHC.RTS.Events.Incremental (readEventLog)
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.Text as T
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as M
-import qualified Data.Aeson as A
-import Data.List (sortBy, foldl', isPrefixOf, find, stripPrefix, maximumBy)
-import Data.Ord (comparing)
+import qualified Data.IntervalMap.Strict as IM
+import Data.Interval (Extended(Finite), (<=..<), lowerBound, upperBound)
+import Data.Aeson (encode)
+import Data.Aeson.QQ (aesonQQ)
+import Control.Monad (mfilter)
+import Data.List (sortOn, isPrefixOf, stripPrefix)
+import qualified Data.List.NonEmpty as NE
+import Data.Ord (Down(..))
 import Data.Maybe (fromMaybe)
-import Data.Colour.SRGB (sRGB24read)
 import System.IO (hPutStrLn, stderr)
-import Text.Printf (printf)
+import Text.Printf (hPrintf)
 import GHC.Generics (Generic)
 import Options.Generic (ParseRecord, getRecord)
-
-import Graphics.Rendering.Chart.Easy
-import Graphics.Rendering.Chart.Backend.Cairo (renderableToFile, FileOptions(..))
 
 data Options = Options
   { input  :: FilePath
   , output :: FilePath
-  , html   :: Bool
-  , width  :: Maybe Int
-  , height :: Maybe Int
   } deriving Generic
 instance ParseRecord Options
 
--- | The three top-level categories.
-data Class = Work | GC | Wait String
-  deriving (Eq, Ord, Show)
+type Seconds = Double
+type Iv      = (Seconds, Seconds, Class)
+
+-- | Timeline categories; the derived 'Ord' is the overlay priority. Foreign
+-- ranks low because housekeeping threads sit in foreign calls all run long.
+data Class = Work | GC | Systool String | Blocked String | Foreign | Idle
+  deriving (Eq, Ord)
 
 className :: Class -> String
-className Work      = "work"
-className GC        = "GC"
-className (Wait s)  = s
+className Work        = "work"
+className GC          = "GC"
+className (Systool s) = s
+className (Blocked s) = s
+className Foreign     = "foreign (non-systool)"
+className Idle        = "idle"
 
-hexOf :: Class -> String
-hexOf Work                       = "#2ca02c"
-hexOf GC                         = "#1f77b4"
-hexOf (Wait "systool:as")        = "#d62728"
-hexOf (Wait "systool:hs-cpp")    = "#ff7f0e"
-hexOf (Wait "systool:linker")    = "#8c564b"
-hexOf (Wait "systool:cc")        = "#9467bd"
-hexOf (Wait s)                   = palette !! (hash s `mod` length palette)
-  where hash = foldl' (\a c -> a * 31 + fromEnum c) 7
-        palette = ["#e377c2","#17becf","#bcbd22","#9edae5","#c49c94","#f7b6d2","#dbdb8d"]
+-- | Why a stopped thread is stopped. Idle spells never show (lowest priority).
+classify :: ThreadStopStatus -> Class
+classify ThreadFinished                = Idle
+classify ThreadYielding                = Idle
+classify HeapOverflow                  = GC
+classify ForeignCall                   = Foreign
+classify BlockedOnBlackHole            = Blocked "blocked on black hole"
+classify (BlockedOnBlackHoleOwnedBy _) = Blocked "blocked on black hole"
+classify other                         = Blocked (showThreadStopStatus other)
 
-colorOf :: Class -> AlphaColour Double
-colorOf = opaque . sRGB24read . hexOf
-
--- | Classify why the machine is idle from the stop reason of the thread whose
--- stop emptied the run queue, plus the active withTiming span stack.
-classify :: ThreadStopStatus -> [String] -> Class
-classify st stack = case showThreadStopStatus st of
-  "heap overflow"         -> GC
-  "making a foreign call" ->
-    Wait (fromMaybe "foreign (non-systool)" (find ("systool:" `isPrefixOf`) stack))
-  other
-    | "blocked on black hole" `isPrefixOf` other -> Wait "blocked on black hole"
-    | otherwise                                  -> Wait other
-
--- | A finished or yielding thread is not actually blocked, so it must not win
--- the "longest blocked" vote for labeling an idle stretch.
-blocking :: Class -> Bool
-blocking (Wait "thread finished") = False
-blocking (Wait "thread yielding") = False
-blocking _                        = True
-
---------------------------------------------------------------------------------
--- Eventlog -> timeline segments
---------------------------------------------------------------------------------
-
--- A capability runs one thread at a time, so "work" = any cap running. Idle
--- stretches (no cap running) are labeled by the blocked capability whose
--- blocking episode (stop -> next run) lasts the longest.
-data P = P
-  { running    :: !(Set.Set Int)              -- caps currently executing a thread
-  , spans      :: !(M.Map Int [String])       -- per-cap withTiming span stacks
-  , stopped    :: !(M.Map Int (Double, Class)) -- blocked caps: (stop time, class)
-  , phaseStart :: !Double
-  , idlePhase  :: !Bool
-  , works      :: ![(Double, Double)]          -- intervals where some cap ran
-  , idles      :: ![(Double, Double)]          -- intervals where no cap ran
-  , eps        :: ![(Int, Double, Double, Class)] -- blocked episodes: cap,stop,resume,class
-  }
-
-secs :: Timestamp -> Double
+secs :: Timestamp -> Seconds
 secs t = fromIntegral t / 1e9
 
-step :: P -> Event -> P
-step p ev = case evSpec ev of
-  UserMarker m ->
-    p { spans = M.insert c (marker (T.unpack m) (M.findWithDefault [] c (spans p))) (spans p) }
-  StopThread _ status ->
-    let cls = classify status (M.findWithDefault [] c (spans p))
-        run = Set.delete c (running p)
-        p1  = p { stopped = M.insert c (t, cls) (stopped p), running = run }
-    in if Set.null run && not (idlePhase p1)
-         then p1 { idlePhase = True, phaseStart = t, works = (phaseStart p1, t) : works p1 }
-         else p1
-  RunThread _ ->
-    let (eps', stopped') = case M.lookup c (stopped p) of
-          Just (ts, cls) -> ((c, ts, t, cls) : eps p, M.delete c (stopped p))
-          Nothing        -> (eps p, stopped p)
-        p1 = p { eps = eps', stopped = stopped', running = Set.insert c (running p) }
-    in if idlePhase p
-         then p1 { idlePhase = False, phaseStart = t, idles = (phaseStart p, t) : idles p }
-         else p1
-  _ -> p
-  where c = fromMaybe (-1) (evCap ev)
-        t = secs (evTime ev)
+--------------------------------------------------------------------------------
+-- Stage 1: eventlog -> class-labelled intervals
+--------------------------------------------------------------------------------
 
-marker :: String -> [String] -> [String]
-marker m st
-  | Just nm <- stripPrefix "GHC:started: "  m = nm : st
-  | Just nm <- stripPrefix "GHC:finished: " m = dropFirst nm st
-  | otherwise                                 = st
-  where dropFirst nm xs = case break (== nm) xs of
-                            (pre, _:post) -> pre ++ post
-                            (pre, [])     -> pre
+-- | An independent source of activity.
+data Source = Running Int | GCing Int | Stopped ThreadId | Tool String
+  deriving (Eq, Ord)
 
-merge :: [(Double, Double, Class)] -> [(Double, Double, Class)]
-merge ((a0,_,ca):(_,b1,cb):rest) | ca == cb = merge ((a0, b1, ca) : rest)
-merge (x:rest) = x : merge rest
-merge []       = []
+-- | The activities an event starts (Just their class) or ends (Nothing).
+changes :: Event -> [(Source, Maybe Class)]
+changes ev = case (evCap ev, evSpec ev) of
+  (Just cap, RunThread tid)      -> [(Running cap, Just Work), (Stopped tid, Nothing)]
+  (Just cap, StopThread tid why) -> [(Running cap, Nothing), (Stopped tid, Just (classify why))]
+  (Just cap, StartGC)            -> [(GCing cap, Just GC)]
+  (Just cap, EndGC)              -> [(GCing cap, Nothing)]
+  (_, UserMarker msg)            -- GHC's withTiming markers around systool calls
+    | Just nm <- timed "GHC:started: "  -> [(Tool nm, Just (Systool nm))]
+    | Just nm <- timed "GHC:finished: " -> [(Tool nm, Nothing)]
+    where timed prefix = mfilter ("systool:" `isPrefixOf`) (stripPrefix prefix (T.unpack msg))
+  _ -> []
 
-timeline :: [Event] -> [(Double, Double, Class)]
-timeline evs = merge (sortBy (comparing (\(a,_,_) -> a)) (workSegs ++ idleSegs))
+-- | All class-labelled intervals. A source is active where its opens (Just)
+-- outnumber its closes (Nothing), so treat opens/closes as brackets and track
+-- the nesting depth, emitting one interval each time the depth returns to zero.
+-- This makes the tricky cases facts rather than coincidences: nested/overlapping
+-- opens (systool spans) merge into a single interval; a close with nothing open
+-- is a no-op ("can't close what isn't open"); a spell still open at the end of
+-- the log ends there.
+intervals :: [Event] -> [Iv]
+intervals evs = concatMap spells (M.elems bySource)
   where
-    t0   = secs (evTime (head evs))
+    bySource = reverse <$> M.fromListWith (++)   -- per source, in time order
+      [ (src, [(secs (evTime ev), c)]) | ev <- evs, (src, c) <- changes ev ]
     tEnd = secs (evTime (last evs))
-    pN   = foldl' step (P Set.empty M.empty M.empty t0 True [] [] []) evs
-    -- flush the final phase and episodes for caps still blocked at the end
-    works'   = [(phaseStart pN, tEnd) | not (idlePhase pN)] ++ works pN
-    idles'   = [(phaseStart pN, tEnd) |      idlePhase pN ] ++ idles pN
-    eps'     = [ (c, ts, tEnd, cls) | (c,(ts,cls)) <- M.toList (stopped pN) ] ++ eps pN
-    workSegs = [ (a, b, Work) | (a,b) <- works', b > a ]
-    blk      = [ e | e@(_,_,_,cls) <- eps', blocking cls ]
-    idleSegs = [ (a, b, cls) | ((a,b), cls) <- labelIdles blk [ i | i@(_,_) <- idles', snd i > fst i ] ]
+    spells = go 0 Nothing   -- depth, and the start/class of the open run (if any)
+      where
+        go :: Int -> Maybe (Seconds, Class) -> [(Seconds, Maybe Class)] -> [Iv]
+        go d open []                           = [ (s, tEnd, c) | d > 0, Just (s, c) <- [open] ]
+        go 0 _    ((_, Nothing) : cs)          = go 0 Nothing cs        -- stray close
+        go 0 _    ((t, Just c)  : cs)          = go 1 (Just (t, c)) cs  -- open a run
+        go d open ((_, Just _)  : cs)          = go (d + 1) open cs     -- nested open
+        go 1 (Just (s, c)) ((e, Nothing) : cs) = (s, e, c) : go 0 Nothing cs  -- close run
+        go d open ((_, Nothing) : cs)          = go (d - 1) open cs     -- close inner
 
--- | Label each idle stretch with the class of the longest blocked episode that
--- covers it (every episode active during an idle stretch fully contains it).
-data Sweep = StartE Int Double Class | EndE Int | QueryE Int
+--------------------------------------------------------------------------------
+-- Stage 2: overlay intervals by priority
+--------------------------------------------------------------------------------
 
-labelIdles :: [(Int, Double, Double, Class)] -> [(Double, Double)] -> [((Double, Double), Class)]
-labelIdles epis idls =
-  [ (idl, M.findWithDefault (Wait "idle") i answers) | (i, idl) <- indexed ]
+-- | At every instant, keep the minimum (= highest-priority) class among the
+-- intervals covering it: an interval map resolving overlaps with 'min'. Its
+-- slices come out ascending and gapless (the Idle background covers the whole
+-- log), so runs of equal-class slices merge, first start to last end.
+overlay :: [Iv] -> [Iv]
+overlay ivs =
+    [ (a, b, c)
+    | run <- NE.groupWith (\(_, _, c) -> c) slices
+    , let (a, _, c) = NE.head run
+          (_, b, _) = NE.last run ]
   where
-    indexed = zip [0 :: Int ..] idls
-    evseq = sortBy (comparing (\(t,pri,_) -> (t, pri :: Int)))
-              (  [ (st, 0, StartE c (en-st) cls) | (c,st,en,cls) <- epis ]
-              ++ [ (is, 1, QueryE i)             | (i,(is,_))   <- indexed ]
-              ++ [ (en, 2, EndE c)               | (c,_,en,_)   <- epis ] )
-    answers = M.fromList (snd (foldl' go (M.empty, []) evseq))
-    go (active, out) (_,_,e) = case e of
-      StartE c dur cls -> (M.insert c (dur, cls) active, out)
-      EndE c           -> (M.delete c active, out)
-      QueryE i
-        | M.null active -> (active, out)
-        | otherwise     -> (active, (i, snd (maximumBy (comparing fst) (M.elems active))) : out)
+    slices = [ (a, b, c)
+             | (iv, c) <- IM.toAscList (IM.fromListWith min
+                            [ (Finite a <=..< Finite b, c) | (a, b, c) <- ivs ])
+             , Finite a <- [lowerBound iv], Finite b <- [upperBound iv] ]
 
---------------------------------------------------------------------------------
--- PNG (Chart + cairo)
---------------------------------------------------------------------------------
-
-catPlot :: Class -> [(Double, Double)] -> Plot Double Double
-catPlot cls rects = Plot
-  { _plot_render = \pmap ->
-      withFillStyle (solidFillStyle (colorOf cls)) $
-        mapM_ (\(x0,x1) -> fillPath (rectPath (Rect (pmap (LValue x0, LValue 0))
-                                                    (pmap (LValue x1, LValue 1))))) rects
-  , _plot_legend = [(className cls, \r -> withFillStyle (solidFillStyle (colorOf cls))
-                                            (fillPath (rectPath r)))]
-  , _plot_all_points = (concatMap (\(a,b) -> [a,b]) rects, [0,1])
-  }
-
-renderPng :: Int -> Int -> FilePath -> [(Double, Double, Class)] -> IO ()
-renderPng w h out ss = do
-  let byCls = M.toList (M.fromListWith (++) [ (c, [(a,b)]) | (a,b,c) <- ss ])
-      layout = def
-        & layout_title .~ "GHC activity over time (work vs waiting)"
-        & layout_x_axis . laxis_title .~ "wall-clock time (s)"
-        & layout_y_axis . laxis_override .~
-            (\ad -> ad { _axis_visibility = AxisVisibility False False False })
-        & layout_plots .~ [ catPlot c rects | (c, rects) <- byCls ]
-        & layout_legend .~ Just def
-        :: Layout Double Double
-  _ <- renderableToFile (def { _fo_size = (w,h) }) out (toRenderable layout)
-  pure ()
+-- | The timeline: the intervals overlaid on a whole-log Idle background.
+analyse :: [Event] -> [Iv]
+analyse []            = []
+analyse evs@(ev0 : _) = overlay (background : intervals evs)
+  where background = (secs (evTime ev0), secs (evTime (last evs)), Idle)
 
 --------------------------------------------------------------------------------
 -- Interactive Vega-Lite webpage
 --------------------------------------------------------------------------------
 
-renderHtml :: FilePath -> [(Double, Double, Class)] -> IO ()
-renderHtml out ss = writeFile out page
+-- | Categories with a meaning get a fixed colour; the rest cycle a palette.
+colorsOf :: [Class] -> [String]
+colorsOf classes = [ fromMaybe p (lookup c fixed) | (c, p) <- zip classes (cycle palette) ]
   where
-    s = A.String
-    (.=) :: A.ToJSON v => A.Key -> v -> (A.Key, A.Value)
-    (.=) = (A..=)          -- shadow Chart.Easy's .= within this spec builder
-    tEnd    = maximum (0 : [ b | (_,b,_) <- ss ])
-    classes = Set.toList (Set.fromList [ c | (_,_,c) <- ss ])
-    rows    = [ A.object ["start" .= a, "end" .= b, "dur" .= (b-a), "cat" .= className c]
-              | (a,b,c) <- ss ]
-    qfmt f  = A.object ["field" .= s f, "type" .= s "quantitative", "format" .= s ".3f"]
-    spec = A.object
-      [ "$schema" .= s "https://vega.github.io/schema/vega-lite/v5.json"
-      , "width" .= s "container", "height" .= (140 :: Int)
-      , "data" .= A.object ["values" .= rows]
-      , "mark" .= A.object ["type" .= s "rect", "tooltip" .= True]
-      , "params" .=
-          [ A.object ["name" .= s "zoom", "bind" .= s "scales"
-                     , "select" .= A.object ["type" .= s "interval", "encodings" .= [s "x"]]]
-          , A.object ["name" .= s "legendSel", "bind" .= s "legend"
-                     , "select" .= A.object ["type" .= s "point", "fields" .= [s "cat"]]]
+    fixed = [ (Work, "#2ca02c"), (GC, "#1f77b4")
+            , (Systool "systool:as", "#d62728"), (Systool "systool:hs-cpp", "#ff7f0e")
+            , (Systool "systool:linker", "#8c564b"), (Systool "systool:cc", "#9467bd") ]
+    palette = ["#e377c2","#17becf","#bcbd22","#9edae5","#c49c94","#f7b6d2","#dbdb8d"]
+
+renderHtml :: FilePath -> [Iv] -> IO ()
+renderHtml out segs = writeFile out page
+  where
+    tEnd    = maximum (0 : [ b | (_,b,_) <- segs ])
+    classes = Set.toList (Set.fromList [ c | (_,_,c) <- segs ])
+    rows    = [ [aesonQQ| {"start": #{a}, "end": #{b}, "dur": #{b-a}, "cat": #{className c}} |]
+              | (a,b,c) <- segs ]
+    vlSpec = [aesonQQ|
+      { "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "width": "container", "height": 60,
+        "data": { "values": #{rows} },
+        "mark": { "type": "rect", "tooltip": true },
+        "params": [
+          { "name": "zoom", "bind": "scales",
+            "select": { "type": "interval", "encodings": ["x"] } },
+          { "name": "legendSel", "bind": "legend",
+            "select": { "type": "point", "fields": ["cat"] } }
+        ],
+        "encoding": {
+          "x":  { "field": "start", "type": "quantitative",
+                  "title": "wall-clock time (s)",
+                  "scale": { "domain": [0, #{tEnd}] } },
+          "x2": { "field": "end" },
+          "color": { "field": "cat", "type": "nominal",
+                     "scale": { "domain": #{map className classes},
+                                "range":  #{colorsOf classes} },
+                     "legend": { "title": "category" } },
+          "opacity": { "condition": { "param": "legendSel", "value": 1 },
+                       "value": 0.25 },
+          "tooltip": [
+            { "field": "cat",   "title": "category" },
+            { "field": "start", "type": "quantitative", "format": ".3f" },
+            { "field": "end",   "type": "quantitative", "format": ".3f" },
+            { "field": "dur",   "type": "quantitative", "format": ".3f" }
           ]
-      , "encoding" .= A.object
-          [ "x"  .= A.object ["field" .= s "start", "type" .= s "quantitative"
-                             , "title" .= s "wall-clock time (s)"
-                             , "scale" .= A.object ["domain" .= [0 :: Double, tEnd]]]
-          , "x2" .= A.object ["field" .= s "end"]
-          , "color" .= A.object
-              [ "field" .= s "cat", "type" .= s "nominal"
-              , "scale" .= A.object ["domain" .= map className classes
-                                    , "range"  .= map hexOf classes]
-              , "legend" .= A.object ["title" .= s "category"] ]
-          , "opacity" .= A.object
-              [ "condition" .= A.object ["param" .= s "legendSel", "value" .= (1 :: Double)]
-              , "value" .= (0.25 :: Double) ]
-          , "tooltip" .=
-              [ A.object ["field" .= s "cat", "title" .= s "category"]
-              , qfmt "start", qfmt "end", qfmt "dur" ]
-          ]
-      , "config" .= A.object ["view" .= A.object ["stroke" .= A.Null]]
-      ]
+        },
+        "config": { "view": { "stroke": null } }
+      } |]
     page = unlines
       [ "<!doctype html><html><head><meta charset=utf-8>"
       , "<script src=\"https://cdn.jsdelivr.net/npm/vega@5\"></script>"
       , "<script src=\"https://cdn.jsdelivr.net/npm/vega-lite@5\"></script>"
       , "<script src=\"https://cdn.jsdelivr.net/npm/vega-embed@6\"></script>"
       , "<style>#vis{width:100%}</style></head><body><div id=vis></div>"
-      , "<script>vegaEmbed('#vis'," ++ BLC.unpack (A.encode spec)
+      , "<script>vegaEmbed('#vis'," ++ BLC.unpack (encode vlSpec)
           ++ ",{renderer:'canvas'});</script></body></html>"
       ]
 
@@ -259,21 +197,13 @@ renderHtml out ss = writeFile out page
 
 main :: IO ()
 main = do
+  opts <- getRecord (T.pack "Render a GHC eventlog as a work-vs-waiting activity timeline")
   putStrLn "Make sure the .eventlog file was produced by running ghc with '-ddump-timings +RTS -l -RTS'"
-  opts <- getRecord "Render a GHC eventlog as a work-vs-waiting activity timeline"
-  bs <- BL.readFile (input opts)
-  case readEventLog bs of
-    Left err      -> ioError (userError ("parse error: " ++ err))
-    Right (el, _) -> case sortBy (comparing evTime) (events (dat el)) of
-      []  -> ioError (userError "no events")
-      evs -> do
-        let ss = timeline evs
-            totals = M.fromListWith (+) [ (c, b-a) | (a,b,c) <- ss ]
-        hPutStrLn stderr "seconds per category:"
-        mapM_ (\(c,d) -> hPutStrLn stderr (printf "  %-24s %8.3f s" (className c) d))
-              (sortBy (comparing (negate . snd)) (M.toList totals))
-        if html opts
-          then renderHtml (output opts) ss
-          else renderPng (fromMaybe 1800 (width opts)) (fromMaybe 260 (height opts))
-                         (output opts) ss
-        hPutStrLn stderr ("wrote " ++ output opts)
+  el <- either (fail . ("parse error: " ++)) pure =<< readEventLogFromFile (input opts)
+  let timeline = analyse (sortEvents (events (dat el)))
+      totals   = M.fromListWith (+) [ (c, b-a) | (a,b,c) <- timeline ]
+  hPutStrLn stderr "seconds per category:"
+  sequence_ [ hPrintf stderr "  %-24s %8.3f s\n" (className c) d
+            | (c, d) <- sortOn (Down . snd) (M.toList totals) ]
+  renderHtml (output opts) timeline
+  hPutStrLn stderr ("wrote " ++ output opts)
