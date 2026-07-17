@@ -242,7 +242,21 @@
       };
 
       /* Plugins */
-      plugins.treesitter.enable = true;
+      plugins.treesitter = {
+        enable = true;
+        settings = {
+          highlight.enable = true;
+          incremental_selection = {
+            enable = true;
+            keymaps = {
+              init_selection = "<C-s>";
+              node_incremental = "<C-s>";
+              scope_incremental = false;
+              node_decremental = "<C-S>";
+            };
+          };
+        };
+      };
 
       # Telescope is too slow to find files, so we use fzf-lua there.
       plugins.telescope.enable = true;

@@ -16,7 +16,7 @@ import qualified Data.Text as T
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as M
 import qualified Data.Aeson as A
-import Data.List (sortBy, foldl', isPrefixOf, find, stripPrefix)
+import Data.List (sortBy, foldl', isPrefixOf, find, stripPrefix, maximumBy)
 import Data.Ord (comparing)
 import Data.Maybe (fromMaybe)
 import Data.Colour.SRGB (sRGB24read)
@@ -71,39 +71,56 @@ classify st stack = case showThreadStopStatus st of
     | "blocked on black hole" `isPrefixOf` other -> Wait "blocked on black hole"
     | otherwise                                  -> Wait other
 
+-- | A finished or yielding thread is not actually blocked, so it must not win
+-- the "longest blocked" vote for labeling an idle stretch.
+blocking :: Class -> Bool
+blocking (Wait "thread finished") = False
+blocking (Wait "thread yielding") = False
+blocking _                        = True
+
 --------------------------------------------------------------------------------
 -- Eventlog -> timeline segments
 --------------------------------------------------------------------------------
 
-data S = S
-  { running  :: !(Set.Set Int)
-  , spans    :: ![String]
-  , reason   :: !Class
-  , segStart :: !Double
-  , curClass :: !Class
-  , segs     :: ![(Double, Double, Class)]
+-- A capability runs one thread at a time, so "work" = any cap running. Idle
+-- stretches (no cap running) are labeled by the blocked capability whose
+-- blocking episode (stop -> next run) lasts the longest.
+data P = P
+  { running    :: !(Set.Set Int)              -- caps currently executing a thread
+  , spans      :: !(M.Map Int [String])       -- per-cap withTiming span stacks
+  , stopped    :: !(M.Map Int (Double, Class)) -- blocked caps: (stop time, class)
+  , phaseStart :: !Double
+  , idlePhase  :: !Bool
+  , works      :: ![(Double, Double)]          -- intervals where some cap ran
+  , idles      :: ![(Double, Double)]          -- intervals where no cap ran
+  , eps        :: ![(Int, Double, Double, Class)] -- blocked episodes: cap,stop,resume,class
   }
 
 secs :: Timestamp -> Double
 secs t = fromIntegral t / 1e9
 
-step :: S -> Event -> S
-step s ev =
-  let cap = fromMaybe (-1) (evCap ev)
-      t   = secs (evTime ev)
-      s1  = case evSpec ev of
-        RunThread _         -> s { running = Set.insert cap (running s) }
-        StopThread _ status -> s { running = Set.delete cap (running s)
-                                 , reason  = classify status (spans s) }
-        UserMarker m        -> s { spans = marker (T.unpack m) (spans s) }
-        _                   -> s
-      newClass | Set.null (running s1) = reason s1
-               | otherwise             = Work
-  in if newClass == curClass s1
-       then s1
-       else s1 { segs     = (segStart s1, t, curClass s1) : segs s1
-               , segStart = t
-               , curClass = newClass }
+step :: P -> Event -> P
+step p ev = case evSpec ev of
+  UserMarker m ->
+    p { spans = M.insert c (marker (T.unpack m) (M.findWithDefault [] c (spans p))) (spans p) }
+  StopThread _ status ->
+    let cls = classify status (M.findWithDefault [] c (spans p))
+        run = Set.delete c (running p)
+        p1  = p { stopped = M.insert c (t, cls) (stopped p), running = run }
+    in if Set.null run && not (idlePhase p1)
+         then p1 { idlePhase = True, phaseStart = t, works = (phaseStart p1, t) : works p1 }
+         else p1
+  RunThread _ ->
+    let (eps', stopped') = case M.lookup c (stopped p) of
+          Just (ts, cls) -> ((c, ts, t, cls) : eps p, M.delete c (stopped p))
+          Nothing        -> (eps p, stopped p)
+        p1 = p { eps = eps', stopped = stopped', running = Set.insert c (running p) }
+    in if idlePhase p
+         then p1 { idlePhase = False, phaseStart = t, idles = (phaseStart p, t) : idles p }
+         else p1
+  _ -> p
+  where c = fromMaybe (-1) (evCap ev)
+        t = secs (evTime ev)
 
 marker :: String -> [String] -> [String]
 marker m st
@@ -120,10 +137,39 @@ merge (x:rest) = x : merge rest
 merge []       = []
 
 timeline :: [Event] -> [(Double, Double, Class)]
-timeline evs = merge (reverse ((segStart sN, tEnd, curClass sN) : segs sN))
-  where t0   = secs (evTime (head evs))
-        tEnd = secs (evTime (last evs))
-        sN   = foldl' step (S Set.empty [] (Wait "idle") t0 Work []) evs
+timeline evs = merge (sortBy (comparing (\(a,_,_) -> a)) (workSegs ++ idleSegs))
+  where
+    t0   = secs (evTime (head evs))
+    tEnd = secs (evTime (last evs))
+    pN   = foldl' step (P Set.empty M.empty M.empty t0 True [] [] []) evs
+    -- flush the final phase and episodes for caps still blocked at the end
+    works'   = [(phaseStart pN, tEnd) | not (idlePhase pN)] ++ works pN
+    idles'   = [(phaseStart pN, tEnd) |      idlePhase pN ] ++ idles pN
+    eps'     = [ (c, ts, tEnd, cls) | (c,(ts,cls)) <- M.toList (stopped pN) ] ++ eps pN
+    workSegs = [ (a, b, Work) | (a,b) <- works', b > a ]
+    blk      = [ e | e@(_,_,_,cls) <- eps', blocking cls ]
+    idleSegs = [ (a, b, cls) | ((a,b), cls) <- labelIdles blk [ i | i@(_,_) <- idles', snd i > fst i ] ]
+
+-- | Label each idle stretch with the class of the longest blocked episode that
+-- covers it (every episode active during an idle stretch fully contains it).
+data Sweep = StartE Int Double Class | EndE Int | QueryE Int
+
+labelIdles :: [(Int, Double, Double, Class)] -> [(Double, Double)] -> [((Double, Double), Class)]
+labelIdles epis idls =
+  [ (idl, M.findWithDefault (Wait "idle") i answers) | (i, idl) <- indexed ]
+  where
+    indexed = zip [0 :: Int ..] idls
+    evseq = sortBy (comparing (\(t,pri,_) -> (t, pri :: Int)))
+              (  [ (st, 0, StartE c (en-st) cls) | (c,st,en,cls) <- epis ]
+              ++ [ (is, 1, QueryE i)             | (i,(is,_))   <- indexed ]
+              ++ [ (en, 2, EndE c)               | (c,_,en,_)   <- epis ] )
+    answers = M.fromList (snd (foldl' go (M.empty, []) evseq))
+    go (active, out) (_,_,e) = case e of
+      StartE c dur cls -> (M.insert c (dur, cls) active, out)
+      EndE c           -> (M.delete c active, out)
+      QueryE i
+        | M.null active -> (active, out)
+        | otherwise     -> (active, (i, snd (maximumBy (comparing fst) (M.elems active))) : out)
 
 --------------------------------------------------------------------------------
 -- PNG (Chart + cairo)
