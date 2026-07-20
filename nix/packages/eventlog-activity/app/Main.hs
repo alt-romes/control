@@ -1,11 +1,11 @@
--- | Render a GHC eventlog (from -ddump-timings +RTS -l) as a work-vs-waiting
+-- | Render a GHC eventlog (from ghc <opts...> -ddump-timings +RTS -l) as a work-vs-waiting
 -- activity timeline: an interactive Vega-Lite webpage.
 --
 -- Extract class-labelled intervals from the events ('intervals'), then show
 -- the highest-priority class at every instant ('overlay'). Waiting inside a
 -- systool span is thereby attributed to that tool, not to the anonymous
--- foreign calls doing the waiting. See also ghc-events-analyze.
-{-# LANGUAGE QuasiQuotes #-}
+-- foreign calls doing the waiting. See also WT's ghc-events-analyze.
+{-# LANGUAGE OverloadedRecordDot, QuasiQuotes #-}
 module Main where
 
 import GHC.RTS.Events
@@ -13,8 +13,8 @@ import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.Text as T
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as M
-import qualified Data.IntervalMap.Strict as IM
-import Data.Interval (Extended(Finite), (<=..<), lowerBound, upperBound)
+import qualified Data.IntervalMap.Strict as Interval
+import Data.Interval (Extended(Finite), (<=..<), lowerBound, upperBound, Interval)
 import Data.Aeson (encode)
 import Data.Aeson.QQ (aesonQQ)
 import Control.Monad (mfilter)
@@ -34,10 +34,11 @@ data Options = Options
 instance ParseRecord Options
 
 type Seconds = Double
-type Iv      = (Seconds, Seconds, Class)
+type Iv      = (Interval Seconds, Class)
+type Timeline = Interval.IntervalMap Seconds
 
--- | Timeline categories; the derived 'Ord' is the overlay priority. Foreign
--- ranks low because housekeeping threads sit in foreign calls all run long.
+-- | Timeline categories; the derived 'Ord' is the overlay priority (where the
+-- 'min' Class in an interval is kept)
 data Class = Work | GC | Systool String | Blocked String | Foreign | Idle
   deriving (Eq, Ord)
 
@@ -66,7 +67,6 @@ secs t = fromIntegral t / 1e9
 -- Stage 1: eventlog -> class-labelled intervals
 --------------------------------------------------------------------------------
 
--- | An independent source of activity.
 data Source = Running Int | GCing Int | Stopped ThreadId | Tool String
   deriving (Eq, Ord)
 
@@ -99,44 +99,46 @@ intervals evs = concatMap spells (M.elems bySource)
     spells = go 0 Nothing   -- depth, and the start/class of the open run (if any)
       where
         go :: Int -> Maybe (Seconds, Class) -> [(Seconds, Maybe Class)] -> [Iv]
-        go d open []                           = [ (s, tEnd, c) | d > 0, Just (s, c) <- [open] ]
+        go d open []                           = [ (Finite s <=..< Finite tEnd, c) | d > 0, Just (s, c) <- [open] ]
         go 0 _    ((_, Nothing) : cs)          = go 0 Nothing cs        -- stray close
         go 0 _    ((t, Just c)  : cs)          = go 1 (Just (t, c)) cs  -- open a run
         go d open ((_, Just _)  : cs)          = go (d + 1) open cs     -- nested open
-        go 1 (Just (s, c)) ((e, Nothing) : cs) = (s, e, c) : go 0 Nothing cs  -- close run
+        go 1 (Just (s, c)) ((e, Nothing) : cs) = (Finite s <=..< Finite e, c) : go 0 Nothing cs  -- close run
         go d open ((_, Nothing) : cs)          = go (d - 1) open cs     -- close inner
 
 --------------------------------------------------------------------------------
 -- Stage 2: overlay intervals by priority
 --------------------------------------------------------------------------------
 
--- | At every instant, keep the minimum (= highest-priority) class among the
--- intervals covering it: an interval map resolving overlaps with 'min'. Its
--- slices come out ascending and gapless (the Idle background covers the whole
--- log), so runs of equal-class slices merge, first start to last end.
-overlay :: [Iv] -> [Iv]
-overlay ivs =
-    [ (a, b, c)
-    | run <- NE.groupWith (\(_, _, c) -> c) slices
-    , let (a, _, c) = NE.head run
-          (_, b, _) = NE.last run ]
-  where
-    slices = [ (a, b, c)
-             | (iv, c) <- IM.toAscList (IM.fromListWith min
-                            [ (Finite a <=..< Finite b, c) | (a, b, c) <- ivs ])
-             , Finite a <- [lowerBound iv], Finite b <- [upperBound iv] ]
-
--- | The timeline: the intervals overlaid on a whole-log Idle background.
-analyse :: [Event] -> [Iv]
-analyse []            = []
-analyse evs@(ev0 : _) = overlay (background : intervals evs)
-  where background = (secs (evTime ev0), secs (evTime (last evs)), Idle)
+-- | Lay out all delimited events in an interval map, keeping the most
+-- interesting `Class` when there are overlapping intervals
+--  (where Work > GC > Systool ... > ... given by the `Class` `Ord` instance)
+--
+-- E.g. Given:
+--   * RunThread from 1s-10s
+--   * ForeignCall from 6s-16s
+--   * RunThread from 14s-20s
+--
+-- We'll get an interval map roughly like:
+--
+--   Iv 1s-10s: Work
+--      10s-14s: ForeignCall
+--      14s-20s: Work
+--
+-- Note how the overlapping bits prefer reporting "Work" and we only get from
+-- 10s-14s reported No-work, as we're blocked on a foreign call and doing
+-- nothing else only at that time.
+overlay :: [Event] -> Timeline Class
+overlay []            = mempty
+overlay evs@(ev0 : _) = Interval.fromListWith min (background : intervals evs)
+  where background    = (einterval ev0 ev_last, Idle)
+        ev_last       = last evs
+        einterval a b = Finite (secs a.evTime) <=..< Finite (secs b.evTime)
 
 --------------------------------------------------------------------------------
 -- Interactive Vega-Lite webpage
 --------------------------------------------------------------------------------
 
--- | Categories with a meaning get a fixed colour; the rest cycle a palette.
 colorsOf :: [Class] -> [String]
 colorsOf classes = [ fromMaybe p (lookup c fixed) | (c, p) <- zip classes (cycle palette) ]
   where
@@ -200,7 +202,7 @@ main = do
   opts <- getRecord (T.pack "Render a GHC eventlog as a work-vs-waiting activity timeline")
   putStrLn "Make sure the .eventlog file was produced by running ghc with '-ddump-timings +RTS -l -RTS'"
   el <- either (fail . ("parse error: " ++)) pure =<< readEventLogFromFile (input opts)
-  let timeline = analyse (sortEvents (events (dat el)))
+  let timeline = overlay (sortEvents (events (dat el)))
       totals   = M.fromListWith (+) [ (c, b-a) | (a,b,c) <- timeline ]
   hPutStrLn stderr "seconds per category:"
   sequence_ [ hPrintf stderr "  %-24s %8.3f s\n" (className c) d
