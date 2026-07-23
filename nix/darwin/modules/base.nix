@@ -130,6 +130,7 @@
       # NOTE: Requires manually setting General > Sharing > Remote Login ON to activate remote login
       openssh.authorizedKeys.keys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ"
+        "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLE1i0MvrzHQuGhOi90vXuZFoMjQ1EtP86tjE4HVB2vJG7QMJk4uivKfY503DGUvcvBsEH6JWYUCttcNGckO4R8=" # Macmini key iPhone Termius
       ];
     };
 
