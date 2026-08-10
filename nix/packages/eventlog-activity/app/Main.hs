@@ -19,7 +19,6 @@ import Data.Aeson (encode)
 import Data.Aeson.QQ (aesonQQ)
 import Control.Monad (mfilter)
 import Data.List (sortOn, isPrefixOf, stripPrefix)
-import qualified Data.List.NonEmpty as NE
 import Data.Ord (Down(..))
 import Data.Maybe (fromMaybe)
 import System.IO (hPutStrLn, stderr)
@@ -35,6 +34,7 @@ instance ParseRecord Options
 
 type Seconds = Double
 type Iv      = (Interval Seconds, Class)
+type Seg     = (Seconds, Seconds, Class)   -- a flattened interval: start, end, class
 type Timeline = Interval.IntervalMap Seconds
 
 -- | Timeline categories; the derived 'Ord' is the overlay priority (where the
@@ -83,28 +83,39 @@ changes ev = case (evCap ev, evSpec ev) of
     where timed prefix = mfilter ("systool:" `isPrefixOf`) (stripPrefix prefix (T.unpack msg))
   _ -> []
 
--- | All class-labelled intervals. A source is active where its opens (Just)
--- outnumber its closes (Nothing), so treat opens/closes as brackets and track
--- the nesting depth, emitting one interval each time the depth returns to zero.
--- This makes the tricky cases facts rather than coincidences: nested/overlapping
--- opens (systool spans) merge into a single interval; a close with nothing open
--- is a no-op ("can't close what isn't open"); a spell still open at the end of
--- the log ends there.
+-- | All class-labelled intervals. Per source the opens (Just) and closes
+-- (Nothing) arrive interleaved, and the source is /active/ wherever its opens
+-- so far outnumber its closes. The right way to recover intervals from such
+-- markers is a coverage sweep: walk each source's changes in time order,
+-- keeping a running count of how many spans are open, and emit one interval for
+-- every maximal run where that count stays positive. This makes the tricky
+-- cases facts rather than coincidences: overlapping/nested opens (recursive
+-- systool spans) union into a single interval; a close with nothing open is a
+-- no-op ("can't close what isn't open"); a run still open at the end of the log
+-- ends there.
 intervals :: [Event] -> [Iv]
-intervals evs = concatMap spells (M.elems bySource)
+intervals evs = concatMap (spells . reverse) (M.elems bySource)
   where
-    bySource = reverse <$> M.fromListWith (++)   -- per source, in time order
+    bySource = M.fromListWith (++)   -- per source, changes newest-first (reversed below)
       [ (src, [(secs (evTime ev), c)]) | ev <- evs, (src, c) <- changes ev ]
     tEnd = secs (evTime (last evs))
-    spells = go 0 Nothing   -- depth, and the start/class of the open run (if any)
+
+    -- | Sweep one source's time-ordered changes into coverage intervals,
+    -- tracking the open count and the start/class of the current run (if any).
+    spells :: [(Seconds, Maybe Class)] -> [Iv]
+    spells = go 0 Nothing
       where
         go :: Int -> Maybe (Seconds, Class) -> [(Seconds, Maybe Class)] -> [Iv]
-        go d open []                           = [ (Finite s <=..< Finite tEnd, c) | d > 0, Just (s, c) <- [open] ]
-        go 0 _    ((_, Nothing) : cs)          = go 0 Nothing cs        -- stray close
-        go 0 _    ((t, Just c)  : cs)          = go 1 (Just (t, c)) cs  -- open a run
-        go d open ((_, Just _)  : cs)          = go (d + 1) open cs     -- nested open
-        go 1 (Just (s, c)) ((e, Nothing) : cs) = (Finite s <=..< Finite e, c) : go 0 Nothing cs  -- close run
-        go d open ((_, Nothing) : cs)          = go (d - 1) open cs     -- close inner
+        go _ (Just (s, c)) []   = [(Finite s <=..< Finite tEnd, c)]  -- still open at EOF
+        go _ Nothing       []   = []
+        go n open ((t, Just c) : cs)
+          | n == 0             = go 1 (Just (t, c)) cs    -- 0 -> 1: run begins here
+          | otherwise          = go (n + 1) open cs       -- deeper: extend current run
+        go n open ((t, Nothing) : cs)
+          | n <= 0             = go 0 open cs              -- stray close: nothing open
+          | n == 1, Just (s, c) <- open
+                               = (Finite s <=..< Finite t, c) : go 0 Nothing cs  -- 1 -> 0: run ends
+          | otherwise          = go (n - 1) open cs        -- inner close: run continues
 
 --------------------------------------------------------------------------------
 -- Stage 2: overlay intervals by priority
@@ -135,6 +146,14 @@ overlay evs@(ev0 : _) = Interval.fromListWith min (background : intervals evs)
         ev_last       = last evs
         einterval a b = Finite (secs a.evTime) <=..< Finite (secs b.evTime)
 
+-- | Flatten a timeline into (start, end, class) segments. All bounds are
+-- 'Finite' by construction (the background interval spans the whole log), so
+-- the non-'Finite' cases can't fire.
+segments :: Timeline Class -> [Seg]
+segments tl = [ (a, b, c) | (iv, c) <- Interval.toAscList tl
+                          , Finite a <- [lowerBound iv]
+                          , Finite b <- [upperBound iv] ]
+
 --------------------------------------------------------------------------------
 -- Interactive Vega-Lite webpage
 --------------------------------------------------------------------------------
@@ -147,7 +166,7 @@ colorsOf classes = [ fromMaybe p (lookup c fixed) | (c, p) <- zip classes (cycle
             , (Systool "systool:linker", "#8c564b"), (Systool "systool:cc", "#9467bd") ]
     palette = ["#e377c2","#17becf","#bcbd22","#9edae5","#c49c94","#f7b6d2","#dbdb8d"]
 
-renderHtml :: FilePath -> [Iv] -> IO ()
+renderHtml :: FilePath -> [Seg] -> IO ()
 renderHtml out segs = writeFile out page
   where
     tEnd    = maximum (0 : [ b | (_,b,_) <- segs ])
@@ -202,10 +221,10 @@ main = do
   opts <- getRecord (T.pack "Render a GHC eventlog as a work-vs-waiting activity timeline")
   putStrLn "Make sure the .eventlog file was produced by running ghc with '-ddump-timings +RTS -l -RTS'"
   el <- either (fail . ("parse error: " ++)) pure =<< readEventLogFromFile (input opts)
-  let timeline = overlay (sortEvents (events (dat el)))
-      totals   = M.fromListWith (+) [ (c, b-a) | (a,b,c) <- timeline ]
+  let segs   = segments (overlay (sortEvents (events (dat el))))
+      totals = M.fromListWith (+) [ (c, b-a) | (a,b,c) <- segs ]
   hPutStrLn stderr "seconds per category:"
   sequence_ [ hPrintf stderr "  %-24s %8.3f s\n" (className c) d
             | (c, d) <- sortOn (Down . snd) (M.toList totals) ]
-  renderHtml (output opts) timeline
+  renderHtml (output opts) segs
   hPutStrLn stderr ("wrote " ++ output opts)
