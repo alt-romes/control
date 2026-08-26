@@ -1,5 +1,0 @@
-packages: .
-package *
-    profiling: false
-    profiling-detail: late
-
