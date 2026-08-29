@@ -1,8 +1,8 @@
 { inputs, ... }:
 {
-  flake.homeModules.llm = { config, lib, pkgs, ... }:
+  flake.homeModules.llm = { config, pkgs, ... }:
     let
-      aiContext =
+      globalContext =
         ''
           - When a dependency is not available, use `nix` to temporarily make it available.
             Don't use nix for things which are already available, like the Haskell toolchain.
@@ -13,60 +13,46 @@
             Do not look around with `ghc-pkg` nor directly for interface files
           - Use --no-ext-diff when viewing git diffs
         '';
+
+      # Datalog engine for LLM agent memory, exposed to Claude Code as an MCP
+      # server (stdio). https://github.com/JordyZomer/lemmalog
+      lemmalog-mcp = pkgs.rustPlatform.buildRustPackage {
+        pname = "lemmalog-mcp";
+        version = "0.1.0";
+        src = inputs.lemmalog;
+        cargoLock.lockFile = "${inputs.lemmalog}/Cargo.lock";
+        buildFeatures = [ "mcp" ];
+        cargoBuildFlags = [ "--bin" "lemmalog-mcp" ];
+        # Tests/benches require the `llm` feature (network model access); skip.
+        doCheck = false;
+      };
     in
     {
     
       programs.claude-code = {
         enable = true;
         package = inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
-        context = aiContext;
-        skills.failing-tests-to-tmux = ''
-          ---
-          name: failing-tests-to-tmux
-          description: Open one tmux window per failing GHC test, each in its kept .run dir with the repro command pre-typed. Use when asked to open tmux windows for failing tests from a `hu run ... test --only=...` run.
-          ---
+        context = globalContext;
 
-          # Failing GHC tests -> one tmux window each
-
-          1. Re-run only the failing tests, keeping work dirs and printing invocations:
-             `hu run -d <root> -j8 --freeze1 test --only="<failing tests>" -VVV --keep-test-files > /tmp/ft.log 2>&1`
-             (same `-d <root>` the user used).
-
-          2. From the log: the in-tree compiler is `grep -o 'compiler="[^"]*"' /tmp/ft.log | head -1`.
-             Each test prints `=====> <name>(<way>) ...` then a `cd "<.run dir>" && <command> < ...`
-             line (the dir has literal spaces). The `.run` dir is the window cwd; `<command>` is the
-             repro -- drop the trailing ` < ...` and any diff text on that line.
-
-          3. Per command: direct `ghc` invocations use verbatim. Makefile tests (`$MAKE`) become
-             `make ... TEST_HC=<in-tree compiler>` -- without TEST_HC a bare `make` uses the system
-             ghc on $PATH and won't reproduce the failure.
-
-          4. Open one detached window per test, cwd in its `.run` dir, command pre-typed (no Enter):
-             ```bash
-             S=$(tmux display-message -p '#S')
-             mk() {  # name  dir  cmd
-               tmux new-window -d -t "$S:" -n "$1" -c "$2"   # trailing colon targets the session, not window index
-               tmux send-keys -t "$S:$1" -l "$3"            # -l literal, no Enter
-             }
-             ```
-             Wrap each path/command as one single-quoted bash arg (paths have spaces; package
-             commands embed double but no single quotes).
-
-          5. Report a table: window, `.run` dir, command, failure reason.
-        '';
         hooks.ghc-session-start = ''
           #!/usr/bin/env bash
           if [ -f "./hadrian/hadrian.cabal" ] && [ -d "./compiler" ]; then
             cat <<'EOF'
-          This is a **GHC source tree** (the Glasgow Haskell Compiler).
-          - **Typecheck only:** `./hadrian/ghci -j8`
-          - **Full build:** one-time configure with `hu build-root init debug --flavour=perf+no_profiled_libs+debug_ghc+debug_info`, then `hu run -d debug --freeze1 -j8`
-          - **Investigate a failing test:** build first, then `hu run -d debug -j8 --freeze1 test --only="<test-name>" --keep-test-files -VVV`
-          If you're given commands using a different build-root, use it instead of `debug`
-          - **Look up GHC issues/MRs:** `ghc-index preview issue|mr <N>` renders a gitlab.haskell.org ghc/ghc ticket as Markdown (prefer over WebFetch); `ghc-index sync` refreshes the local index if stale.
+          This is a GHC source tree (the Glasgow Haskell Compiler).
+          - Typecheck only: `./hadrian/ghci -j8`
+          - Full build: one-time configure with
+              `hu build-root init debug --flavour=perf+no_profiled_libs+debug_ghc+debug_info`,
+              then `hu run -d debug --freeze1 -j8`
+          - Investigate a failing test: build first,
+            then `hu run -d debug -j8 --freeze1 test --only="<test-name>" --keep-test-files -VVV`
+          - If you're given commands using a different build-root, use it instead of `debug`
+          - Look up GHC issues/MRs: `ghc-index preview issue|mr <N>` renders a
+            gitlab.haskell.org ghc/ghc ticket as Markdown (prefer over WebFetch);
+            `ghc-index sync` refreshes the local index if stale.
           EOF
           fi
         '';
+
         hooks.control-nix-session-start = ''
           #!/usr/bin/env bash
           case "$PWD" in
@@ -80,6 +66,7 @@
               ;;
           esac
         '';
+
         settings = {
           permissions.defaultMode = "auto";
           effortLevel = "medium";
@@ -103,12 +90,48 @@
             }
           ];
         };
+
+        skills.failing-tests-to-tmux = ''
+          ---
+          name: failing-tests-to-tmux
+          description: Open one tmux window per failing GHC test, each in its kept .run dir with the repro command pre-typed. Use when asked to open tmux windows for failing tests from a `hu run ... test --only=...` run.
+          ---
+
+          # Failing GHC tests -> one tmux window each
+
+          1. Re-run only the failing tests, keeping work dirs and printing invocations:
+             `hu run -d <root> -j8 --freeze1 test --only="<failing tests>" -VVV --keep-test-files > /tmp/ft.log 2>&1`
+             (same `-d <root>` the user used).
+
+          2. The in-tree compiler is `_build-<root>/stage1/bin/ghc`
+             Each test prints `=====> <name>(<way>) ...` then a `cd "<.run dir>" && <command> < ...`
+             line (the dir has literal spaces). The `.run` dir is the window cwd; `<command>` is the
+             repro -- drop the trailing ` < ...` and any diff text on that
+             line, also drop -dno-debug-output from the flags
+
+          3. Per command: direct `ghc` invocations use verbatim. Makefile tests (`$MAKE`) become
+             `make ... TEST_HC=<in-tree compiler>` -- without TEST_HC a bare `make` uses the system
+             ghc on $PATH and won't reproduce the failure.
+
+          4. Open one detached window per test, cwd in its `.run` dir, command pre-typed (no Enter):
+             ```bash
+             S=$(tmux display-message -p '#S')
+             mk() {  # name  dir  cmd
+               tmux new-window -d -t "$S:" -n "$1" -c "$2"   # trailing colon targets the session, not window index
+               tmux send-keys -t "$S:$1" -l "$3"            # -l literal, no Enter
+             }
+             ```
+             Wrap each path/command as one single-quoted bash arg (paths have spaces; package
+             commands embed double but no single quotes).
+
+          5. Report a table: window, `.run` dir, command, failure reason.
+        '';
       };
     
       programs.codex = {
         enable = true;
         package = inputs.codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
-        context = aiContext;
+        context = globalContext;
       };
     };
 }
