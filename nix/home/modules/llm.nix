@@ -91,6 +91,7 @@
           ];
         };
 
+        skills.lemmalog = "${inputs.lemmalog}/skills/lemmalog";
         skills.failing-tests-to-tmux = ''
           ---
           name: failing-tests-to-tmux
@@ -126,6 +127,13 @@
 
           5. Report a table: window, `.run` dir, command, failure reason.
         '';
+
+        mcpServers.lemmalog = {
+          type = "stdio";
+          command = "${lemmalog-mcp}/bin/lemmalog-mcp";
+          # Persist derived memory across sessions.
+          env.LEMMALOG_MCP_PATH = "${config.home.homeDirectory}/.local/share/lemmalog/lemmalog.snapshot";
+        };
       };
     
       programs.codex = {

@@ -290,6 +290,22 @@
         "url": "ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git"
       }
     },
+    "lemmalog": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787923286,
+        "narHash": "sha256-N+Q8NTG4NXesNBQvNExpKJrQ2sjmYicgXCCgeChQAdU=",
+        "owner": "JordyZomer",
+        "repo": "lemmalog",
+        "rev": "7d6f1541130aba53949a2da90cc3e134cb0aac01",
+        "type": "github"
+      },
+      "original": {
+        "owner": "JordyZomer",
+        "repo": "lemmalog",
+        "type": "github"
+      }
+    },
     "mercury-cli": {
       "inputs": {
         "flake-utils": [
@@ -451,6 +467,7 @@
         "home-manager": "home-manager",
         "import-tree": "import-tree",
         "kimai-client": "kimai-client",
+        "lemmalog": "lemmalog",
         "mercury-cli": "mercury-cli",
         "microvm": "microvm",
         "nix-darwin": "nix-darwin",

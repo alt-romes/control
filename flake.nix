@@ -26,6 +26,8 @@
     claude-code-nix.url = "github:sadjow/claude-code-nix";
     nix-doom-emacs-unstraightened.url = "github:marienz/nix-doom-emacs-unstraightened";
     cob-cli.url         = "github:alt-romes/cob-cli";
+    lemmalog.url        = "github:JordyZomer/lemmalog";
+    lemmalog.flake      = false;
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";
