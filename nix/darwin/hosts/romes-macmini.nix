@@ -41,6 +41,8 @@
       mogbit.ledger = "/Users/romes/control/finances/mogbit/2025.journal";
       prices.ledger = "/Users/romes/control/finances/prices.journal";
 
+      secrets.mercuryTokenFile = config.age.secrets.mercury-api.path;
+
       # Packages needed to build some of the finance utilities
       packages = {
         kimai = config.home-manager.users.romes.programs.kimai.package;
@@ -106,6 +108,7 @@
 
     age.secrets.duckdns.file           = ../modules/_agenix/duckdns.age;
     age.secrets.wireguard-macmini.file = ../modules/_agenix/wireguard-macmini.age;
+    age.secrets.mercury-api.file       = ../modules/_agenix/mercury-api.age;
 
     # --- Network ----------------------------------------------------------------
   

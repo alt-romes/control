@@ -1,6 +1,6 @@
 { self, inputs, ... }:
 {
-  flake.darwinModules.base = { pkgs, ... }: {
+  flake.darwinModules.base = { pkgs, lib, ... }: {
 
     imports = [
       inputs.home-manager.darwinModules.home-manager
