@@ -104,6 +104,8 @@
         # Other
         inputs.cob-cli.packages.${pkgs.system}.default
         pkgs.programmer-calculator
+        pkgs.tree
+        pkgs.cloc
 
       ] ++ lib.optionals pkgs.stdenv.isDarwin [
 
