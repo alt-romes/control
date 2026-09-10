@@ -63,19 +63,19 @@
     },
     "claude-code-nix": {
       "inputs": {
-        "flake-utils": [
-          "flake-utils"
-        ],
         "nixpkgs": [
           "nixpkgs"
+        ],
+        "systems": [
+          "systems"
         ]
       },
       "locked": {
-        "lastModified": 1781314818,
-        "narHash": "sha256-76EizPNWUOPLqwg6OP1KnX7XE7FEdrsJ2zQQaRKLYT4=",
+        "lastModified": 1788987690,
+        "narHash": "sha256-/TSj85TBwXmytliESwnhHrlFAIw2pwSOgAmI0MNCGQk=",
         "owner": "sadjow",
         "repo": "claude-code-nix",
-        "rev": "7c3c4413d8dbe29762fb5a9cb5443c3a72a9e18a",
+        "rev": "72091e21c74c14ccb6554a76e4416608039b289d",
         "type": "github"
       },
       "original": {

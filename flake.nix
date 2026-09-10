@@ -63,6 +63,7 @@
     nixvim.inputs.systems.follows                             = "systems";
     nix-doom-emacs-unstraightened.inputs.systems.follows      = "systems";
     agenix.inputs.systems.follows                             = "systems";
+    claude-code-nix.inputs.systems.follows                    = "systems";
 
     # Collapse nixpkgs-lib into nixpkgs (flake-parts only needs lib)
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
