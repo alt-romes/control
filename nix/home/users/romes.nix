@@ -211,6 +211,14 @@
           set -as terminal-features 'xterm*:extkeys'
           set -as terminal-features 'xterm*:RGB'
 
+          # Better than <prefix>-[ and <prefix>-] for copy/paste
+          # Better bindings for navigating visual mode
+          bind V copy-mode
+          bind P paste-buffer
+          bind -T copy-mode-vi v   send -X begin-selection
+          bind -T copy-mode-vi C-v send -X rectangle-toggle
+          bind -T copy-mode-vi y   send -X copy-selection-and-cancel
+
           # agenmux: monitor AI agents in tmux panes. prefix + A = sidebar,
           # prefix + e = popup. #{agenmux} renders a blocked/working/idle
           # summary (empty until you open it the first time in a fresh server).
