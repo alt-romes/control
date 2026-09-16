@@ -179,6 +179,7 @@
         plugins = [
           pkgs.tmuxPlugins.extrakto
           pkgs.tmuxPlugins.resurrect
+          self-pkgs.agenmux
         ];
         extraConfig = ''
           set -g history-limit 50000
@@ -209,6 +210,11 @@
           set -s extended-keys on
           set -as terminal-features 'xterm*:extkeys'
           set -as terminal-features 'xterm*:RGB'
+
+          # agenmux: monitor AI agents in tmux panes. prefix + A = sidebar,
+          # prefix + e = popup. #{agenmux} renders a blocked/working/idle
+          # summary (empty until you open it the first time in a fresh server).
+          set -g status-right '#{agenmux} | %H:%M %d-%b'
 
         '';
       };
