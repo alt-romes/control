@@ -45,22 +45,6 @@
         "type": "github"
       }
     },
-    "agenmux-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1789538579,
-        "narHash": "sha256-tjqnkY1U1lrM7NSiQoyoZsii7rJhFvPHtICTDPXjsoc=",
-        "owner": "snirt",
-        "repo": "agenmux",
-        "rev": "118709c21b5a2f585af12f2d77cc6dee9e0ce579",
-        "type": "github"
-      },
-      "original": {
-        "owner": "snirt",
-        "repo": "agenmux",
-        "type": "github"
-      }
-    },
     "claude-code-nix": {
       "inputs": {
         "nixpkgs": [
@@ -474,7 +458,6 @@
       "inputs": {
         "activobank-hs": "activobank-hs",
         "agenix": "agenix",
-        "agenmux-src": "agenmux-src",
         "claude-code-nix": "claude-code-nix",
         "cob-cli": "cob-cli",
         "codex-cli-nix": "codex-cli-nix",

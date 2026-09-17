@@ -28,8 +28,6 @@
     cob-cli.url         = "github:alt-romes/cob-cli";
     lemmalog.url        = "github:JordyZomer/lemmalog";
     lemmalog.flake      = false;
-    agenmux-src.url     = "github:snirt/agenmux";
-    agenmux-src.flake   = false;
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";
