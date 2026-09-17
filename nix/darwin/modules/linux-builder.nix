@@ -12,10 +12,14 @@
     options.process.linux-builder.enable
       = lib.mkEnableOption "Enable a linux-builder background-running VM to send target=linux jobs to.";
 
-    config = {
+    config = let
+      # nixpkgs-unstable's qemu-vm.nix switched to virtiofsd, which isn't
+      # available on darwin (fixed on master by a11877ed, not yet in the channel)
+      stablePkgs = inputs.nixpkgs-qemu.legacyPackages.${pkgs.stdenv.hostPlatform.system};
+    in {
       nix.linux-builder = {
         enable = config.process.linux-builder.enable;
-        package = pkgs.darwin.linux-builder;
+        package = stablePkgs.darwin.linux-builder;
         systems = [ "aarch64-linux" ];
         config = {
           virtualisation.cores = 6;        # Number of CPU cores
@@ -27,7 +31,7 @@
       # QEMU on head was broken; pin older version
       nixpkgs.overlays = lib.mkIf config.process.linux-builder.enable [
         (final: prev: {
-          qemu_kvm = inputs.nixpkgs-qemu.legacyPackages.${prev.stdenv.hostPlatform.system}.qemu_kvm;
+          qemu_kvm = stablePkgs.qemu_kvm;
         })
       ];
     };
