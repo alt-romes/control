@@ -37,8 +37,8 @@
       };
 
       all.ledger = "/Users/romes/control/finances/all.journal";
-      personal.ledger = "/Users/romes/control/finances/2025.journal";
-      mogbit.ledger = "/Users/romes/control/finances/mogbit/2025.journal";
+      personal.ledger = "/Users/romes/control/finances/2026.journal";
+      mogbit.ledger = "/Users/romes/control/finances/mogbit/2026.journal";
       prices.ledger = "/Users/romes/control/finances/prices.journal";
 
       secrets.mercuryTokenFile = config.age.secrets.mercury-api.path;
