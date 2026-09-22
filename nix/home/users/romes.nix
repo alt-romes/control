@@ -106,6 +106,7 @@
         pkgs.programmer-calculator
         pkgs.tree
         pkgs.cloc
+        pkgs.fd
         pkgs.haskellPackages.pretty-show # ppsh
 
       ] ++ lib.optionals pkgs.stdenv.isDarwin [
