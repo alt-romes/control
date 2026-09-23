@@ -34,7 +34,6 @@
       brews = [
       ];
       casks = [
-          "antigravity"
           "blender"
           "steam"
           "claude"
