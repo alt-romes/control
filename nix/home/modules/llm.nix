@@ -4,6 +4,12 @@
     let
       globalContext =
         ''
+          - Always prefer short and obviously correct code. If you can trade
+            off perfect compliance for simplicity, propose it.
+          - Do not add useless comments comparing the new code to how it worked
+            previously. The code should speak for itself always. Only use
+            comments in exceptional cases that need clarifying, and make them
+            short and straight to the point.
           - When a dependency is not available, use `nix` to temporarily make it available.
             Don't use nix for things which are already available, like the Haskell toolchain.
             (Example: nix-shell -p python3 python3Packages.matplotlib --run 'python3 script.py')
@@ -11,10 +17,6 @@
           - To browse Haskell dependencies use `cabal repl` to enter a REPL with the project packages.
             To browse a package which is not yet a dependency of the project, use `cabal repl --build-depends=<pkg>`.
             Do not look around with `ghc-pkg` nor directly for interface files
-          - Do not add useless comments comparing the new code to how it worked
-            previosuly in code. The code should speak for itself always. Only use
-            comments in exceptional cases that need clarifying, and make them
-            short and straight to the point.
           - Use --no-ext-diff when viewing git diffs
         '';
 
