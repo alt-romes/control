@@ -13,6 +13,7 @@
     nixvim.url       = "github:nix-community/nixvim";
 
     # More deps
+    control-events.url  = "github:alt-romes/control-events";
     microvm.url         = "github:microvm-nix/microvm.nix";
     agenix.url          = "github:ryantm/agenix";
     kimai-client.url    = "git+ssh://git@gitlab.well-typed.com/well-typed/kimai-client.git";
@@ -42,6 +43,7 @@
     claude-code-nix.inputs.nixpkgs.follows = "nixpkgs";
     nix-doom-emacs-unstraightened.inputs.nixpkgs.follows = "nixpkgs";
     cob-cli.inputs.nixpkgs.follows         = "nixpkgs";
+    control-events.inputs.nixpkgs.follows  = "nixpkgs";
 
     # Follow flake-utils (we don't use it, flake-parts is much better, but many deps do)
     flake-utils.url = "github:numtide/flake-utils";
@@ -54,6 +56,8 @@
     nixvim.inputs.flake-parts.follows       = "flake-parts";
     kimai-client.inputs.flake-parts.follows = "flake-parts";
     cob-cli.inputs.flake-parts.follows      = "flake-parts";
+    control-events.inputs.flake-parts.follows = "flake-parts";
+    control-events.inputs.import-tree.follows = "import-tree";
 
     # Follow systems (many deps pull it in independently)
     systems.url = "github:nix-systems/default";

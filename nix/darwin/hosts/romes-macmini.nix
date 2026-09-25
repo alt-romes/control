@@ -23,7 +23,14 @@
       self.darwinModules.duckdns
       self.darwinModules.finances
       self.darwinModules.backups
+      inputs.control-events.darwinModules.control-events
     ];
+
+    services.control-events-node = {
+      enable  = true;
+      proxyTo = "10.0.0.3"; # mogbit server on wireguard VPN
+      nodeId  = "m4-macmini-2024";
+    };
 
     # --------------------------------------------------------------------------------
     # My modules

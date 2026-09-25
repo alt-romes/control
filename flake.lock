@@ -114,6 +114,32 @@
         "type": "github"
       }
     },
+    "control-events": {
+      "inputs": {
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "import-tree": [
+          "import-tree"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790380143,
+        "narHash": "sha256-RrdSt0ZyRLY7hvqJ4gep7HZMuWNJyOZQm/5WXpDLTpI=",
+        "owner": "alt-romes",
+        "repo": "control-events",
+        "rev": "2c8690da30ab4229176d7a13d17ff6b943db6e17",
+        "type": "github"
+      },
+      "original": {
+        "owner": "alt-romes",
+        "repo": "control-events",
+        "type": "github"
+      }
+    },
     "doomdir": {
       "flake": false,
       "locked": {
@@ -476,6 +502,7 @@
         "claude-code-nix": "claude-code-nix",
         "cob-cli": "cob-cli",
         "codex-cli-nix": "codex-cli-nix",
+        "control-events": "control-events",
         "flake-parts": "flake-parts",
         "flake-utils": "flake-utils",
         "hadrian-util": "hadrian-util",
