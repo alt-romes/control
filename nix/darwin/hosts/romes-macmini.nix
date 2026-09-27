@@ -102,7 +102,6 @@
   
           # Xperiments
           "claude"
-          "antigravity"
           "codex-app"
       ];
     };
