@@ -81,7 +81,6 @@
         self-pkgs.gitlab-index # local fzf index of issues/MRs
         self-pkgs.prof-diff-test # differential GHC compiler flamegraphs across two trees
         self-pkgs.speedscope # open profiles in the speedscope flamegraph viewer: speedscope <file>
-        self-pkgs.eventlog-activity # Visualize time=X of `ghc -ddump-timings +RTS -l` invocation
 
         mosh
 
