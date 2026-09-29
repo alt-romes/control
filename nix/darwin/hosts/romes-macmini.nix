@@ -23,7 +23,6 @@
       self.darwinModules.duckdns
       self.darwinModules.finances
       self.darwinModules.backups
-      inputs.control-events.darwinModules.control-events
     ];
 
     services.control-events-node = {
