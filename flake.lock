@@ -3,11 +3,11 @@
     "activobank-hs": {
       "flake": false,
       "locked": {
-        "lastModified": 1781339984,
-        "narHash": "sha256-GiREK2anrXXd8Vhlqs98jSHyxxjwEydpq9PrwpuTpDI=",
+        "lastModified": 1790724331,
+        "narHash": "sha256-8/YKln94iCH08tj0SzCTsxGDrrCKQyWz3mv9cknaIqo=",
         "owner": "alt-romes",
         "repo": "activobank-hs",
-        "rev": "39b84a2e6f29b5156e0556a3582daf4fdc499ea4",
+        "rev": "81a7d1a6496e8ae19d6de9da948b346e946ac9d8",
         "type": "github"
       },
       "original": {
@@ -127,11 +127,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790380143,
-        "narHash": "sha256-RrdSt0ZyRLY7hvqJ4gep7HZMuWNJyOZQm/5WXpDLTpI=",
+        "lastModified": 1790724817,
+        "narHash": "sha256-xkI0mVQ+cKRNqREVmrhzE0L3iqpeul0bNP2/nK692GQ=",
         "owner": "alt-romes",
         "repo": "control-events",
-        "rev": "2c8690da30ab4229176d7a13d17ff6b943db6e17",
+        "rev": "5323f92d8f63939f7edd2b633a2e8145e2c9c622",
         "type": "github"
       },
       "original": {
