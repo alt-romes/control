@@ -26,9 +26,10 @@
     ];
 
     services.control-events-node = {
-      enable  = true;
-      proxyTo = "10.0.0.3"; # mogbit server on wireguard VPN
-      nodeId  = "m4-macmini-2024";
+      enable   = true;
+      listenOn = "10.0.0.1"; # wireguard net private address
+      proxyTo  = "10.0.0.3"; # mogbit server on wireguard VPN
+      nodeId   = "m4-macmini-2024";
     };
 
     # --------------------------------------------------------------------------------
