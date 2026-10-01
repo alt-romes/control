@@ -116,6 +116,7 @@
     age.secrets.duckdns.file           = ../modules/_agenix/duckdns.age;
     age.secrets.wireguard-macmini.file = ../modules/_agenix/wireguard-macmini.age;
     age.secrets.mercury-api.file       = ../modules/_agenix/mercury-api.age;
+    age.secrets.mercury-api.owner      = "romes"; # read by the gen-invoice and mercury-fetch user agents
 
     # --- Network ----------------------------------------------------------------
   
