@@ -3,44 +3,59 @@
   flake.darwinModules.dashboards = { config, lib, pkgs, ... }:
     let
       self-pkgs = self.packages.${pkgs.stdenv.hostPlatform.system};
-
-      # Mirror the finances toggle: the dashboard only shows the finances
-      # section (and queries hledger) when finances are enabled on this host.
-      financesEnabled = config.finances.enable or false;
-
-      # When finances are enabled, pass the --finances switch and one
-      # --journal NAME=PATH per configured journal, so the dashboard reports
-      # each journal's last reconciled date.
-      financesArgs = lib.optionalString financesEnabled (lib.concatStringsSep " "
-        ([ "--finances" ] ++ map
-          (j: "--journal ${lib.escapeShellArg "${j.name}=${j.path}"}")
-          config.finances.journals));
+      cfg = config.control-dashboard;
+      flags = name: lib.concatMapStringsSep " " (v: "--${name} ${lib.escapeShellArg v}");
     in
     {
-      # User daemon serving the control dashboard
-      launchd.user.agents = {
-        control-dashboard = {
-          script = ''
-            set -euo pipefail
-
-            exec ${lib.getExe self-pkgs.control-dashboard} \
-              --port 5001 \
-              --host 127.0.0.1 ${financesArgs}
+      options.control-dashboard = {
+        requiredHealthchecks = lib.mkOption {
+          description = ''
+            Topics that must always be running: each is a crisis until a run
+            of it is seen.
           '';
-
-          serviceConfig = {
-            RunAtLoad = true;
-            KeepAlive = true;
-            StandardOutPath   = "/tmp/org.romes.control-dashboard.out.log";
-            StandardErrorPath = "/tmp/org.romes.control-dashboard.err.log";
-          };
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+        };
+        links = lib.mkOption {
+          description = "Hosts linked to in the dashboard's header";
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
         };
       };
 
-      # Map dashboard.localhost to the control dashboard
-      services.caddy = {
-        virtualHosts = {
-          "dash.localhost" = "127.0.0.1:5001";
+      config = {
+        # User daemon serving the control dashboard
+        launchd.user.agents = {
+          control-dashboard = {
+            script = ''
+              set -euo pipefail
+
+              STATE="$HOME/.local/state/control-dashboard/runs.json"
+              mkdir -p "$(dirname "$STATE")"
+
+              exec ${lib.getExe self-pkgs.control-dashboard} \
+                --port 5001 \
+                --host 127.0.0.1 \
+                --persistent \
+                --state "$STATE" \
+                ${flags "require" cfg.requiredHealthchecks} \
+                ${flags "link" cfg.links}
+            '';
+
+            serviceConfig = {
+              RunAtLoad = true;
+              KeepAlive = true;
+              StandardOutPath   = "/tmp/org.romes.control-dashboard.out.log";
+              StandardErrorPath = "/tmp/org.romes.control-dashboard.err.log";
+            };
+          };
+        };
+
+        # Map dashboard.localhost to the control dashboard
+        services.caddy = {
+          virtualHosts = {
+            "dash.localhost" = "127.0.0.1:5001";
+          };
         };
       };
     };
