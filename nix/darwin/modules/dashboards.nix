@@ -23,7 +23,8 @@
 
             exec ${lib.getExe self-pkgs.control-dashboard} \
               --port 5001 \
-              --host 127.0.0.1 ${financesArgs}
+              --host 127.0.0.1 \
+              --persistent ${financesArgs}
           '';
 
           serviceConfig = {

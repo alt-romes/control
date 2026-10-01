@@ -55,10 +55,14 @@ newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing <*> newTVarIO Map
 -- | Stay subscribed to the control-events topics, reconnecting if the broker
 -- goes away. Messages are handled in order, so a run's start comes before its
 -- finish: the publisher waits for the broker to have the start.
-mqttLoop :: State -> IO ()
-mqttLoop st = forever $ do
+--
+-- A persistent session keeps a fixed client id, and the broker queues messages
+-- for up to a day while we're away. Otherwise the broker assigns a fresh id, so
+-- other instances (e.g. dev runs) can't take over the persistent session.
+mqttLoop :: Bool -> State -> IO ()
+mqttLoop persistent st = forever $ do
   r <- try @SomeException $ do
-    mc <- connectURI mqttConfig {_msgCB = OrderedCallback onMsg, _protocol = Protocol50, _cleanSession = True} uri
+    mc <- connectURI mqttConfig {_msgCB = OrderedCallback onMsg, _protocol = Protocol50, _cleanSession = not persistent, _connProps = props} uri
     void $ subscribe mc [(f, subOptions {_subQoS = QoS2}) | f <- ["script/#", "server/#", "healthcheck/#", "trigger/#"]] []
     atomically $ writeTVar st.broker (Just mc)
     waitForClient mc
@@ -67,7 +71,8 @@ mqttLoop st = forever $ do
   threadDelay 5_000_000
   where
     -- connectURI takes the client id from the fragment, ignoring '_connID'.
-    uri = fromJust (parseURI "mqtt://127.0.0.1:1883#control-dashboard")
+    uri = fromJust (parseURI ("mqtt://127.0.0.1:1883" <> if persistent then "#control-dashboard" else ""))
+    props = [PropSessionExpiryInterval 86400 | persistent]
     onMsg _ tp body props = getCurrentTime >>= \now -> atomically $ do
       let t = unTopic tp
           (base, kind) = T.breakOnEnd "/" t

@@ -21,15 +21,17 @@ import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Options.Generic (ParseRecord, getRecord)
 import Servant
 import Servant.HTML.Blaze (HTML)
+import System.IO (BufferMode (..), hSetBuffering, stdout)
 import Text.Blaze.Html5 (Html)
 import Views
 
--- | CLI options, parsed generically from the field names: @--host@, @--port@
--- and repeatable @--journal NAME=PATH@.
+-- | CLI options, parsed generically from the field names: @--host@, @--port@,
+-- repeatable @--journal NAME=PATH@ and @--persistent@ (see 'mqttLoop').
 data Options = Options
   { host :: Maybe String
   , port :: Maybe Int
   , journal :: [String]
+  , persistent :: Bool
   }
   deriving (Generic)
 
@@ -72,12 +74,13 @@ server st journals live =
 
 main :: IO ()
 main = do
+  hSetBuffering stdout LineBuffering
   opts <- getRecord "A trivially simple HTML dashboard server" :: IO Options
   let theHost = fromMaybe "127.0.0.1" opts.host
       thePort = fromMaybe 8080 opts.port
   st <- newState
   journals <- newTVarIO []
-  void (forkIO (mqttLoop st))
+  void (forkIO (mqttLoop opts.persistent st))
   void $ forkIO $ forever $ do
     rs <- mapM (\s -> let (name, path) = break (== '=') s in (name,) <$> lastReconciled (drop 1 path)) opts.journal
     atomically (writeTVar journals rs)
