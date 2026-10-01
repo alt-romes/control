@@ -1,0 +1,20 @@
+:root { color-scheme: light dark; }
+body { margin: 16px 24px; font: 14px/1.4 system-ui, sans-serif; }
+a { color: inherit; }
+header, nav { display: flex; gap: 1em; }
+header { justify-content: space-between; border-bottom: 1px solid #8884; padding-bottom: 8px; }
+h1 { font-size: 1.4em; }
+h2 { font-size: 1.1em; margin-top: 2em; }
+.bad { color: #d62718; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #8884; padding: 4px 8px; text-align: left; vertical-align: top; }
+th { font-weight: 600; }
+pre { white-space: pre-wrap; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 24px; }
+dt { font-weight: 600; }
+dd { margin: 0; }
+
+label { display: block; margin-bottom: 1em; }
+input, textarea { box-sizing: border-box; width: 100%; font: inherit; padding: 4px; }
+.prefixed { display: flex; align-items: center; }

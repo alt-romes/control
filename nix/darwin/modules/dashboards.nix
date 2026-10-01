@@ -8,13 +8,11 @@
       # section (and queries hledger) when finances are enabled on this host.
       financesEnabled = config.finances.enable or false;
 
-      # When finances are enabled, pass the --finances switch and one
-      # --journal NAME=PATH per configured journal, so the dashboard reports
-      # each journal's last reconciled date.
-      financesArgs = lib.optionalString financesEnabled (lib.concatStringsSep " "
-        ([ "--finances" ] ++ map
-          (j: "--journal ${lib.escapeShellArg "${j.name}=${j.path}"}")
-          config.finances.journals));
+      # When finances are enabled, pass one --journal NAME=PATH per configured
+      # journal, so the dashboard reports each journal's last reconciled date.
+      financesArgs = lib.optionalString financesEnabled (lib.concatMapStringsSep " "
+        (j: "--journal ${lib.escapeShellArg "${j.name}=${j.path}"}")
+        config.finances.journals);
     in
     {
       # User daemon serving the control dashboard

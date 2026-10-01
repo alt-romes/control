@@ -3,6 +3,7 @@ name:               control-dashboard
 version:            0.1.0
 synopsis:           Trivially simple HTML dashboard server
 build-type:         Simple
+extra-source-files: app/style.css
 
 common warnings
   ghc-options: -Wall
@@ -10,10 +11,24 @@ common warnings
 executable control-dashboard
   import:           warnings
   main-is:          Main.hs
+  other-modules:    Events, Finances, Views
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   hs-source-dirs:   app
   build-depends:
-      base
+      aeson
+    , aeson-pretty
+    , base
+    , bytestring
+    , containers
+    , control-events
+    , file-embed
+    , http-api-data
+    , http-types
+    , net-mqtt
+    , network-uri
+    , stm
+    , text
+    , uuid
     , blaze-html
     , blaze-markup
     , hledger-lib
@@ -27,3 +42,25 @@ executable control-dashboard
     OverloadedStrings
     DataKinds
     TypeOperators
+
+test-suite spec
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test app
+  other-modules:    Events
+  build-depends:
+      aeson
+    , base
+    , containers
+    , control-events
+    , http-api-data
+    , net-mqtt
+    , network-uri
+    , stm
+    , text
+    , time
+    , uuid
+  default-language: GHC2021
+  default-extensions:
+    OverloadedStrings
