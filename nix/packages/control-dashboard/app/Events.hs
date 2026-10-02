@@ -1,23 +1,22 @@
-{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase, DeriveAnyClass #-}
 -- | Runs of control-events as seen on the MQTT broker, how they relate, and
 -- what's wrong with them.
 module Events
-  ( Run (..), localRun, triggersOf
-  , State (..), newState, mqttLoop, sendTrigger
-  , Index (..), index, latestRuns
-  , problems, duration, grace, prune
-  , isHealthcheck, forgetHealthy
+  ( Run (..), localRun, triggersOf, lastStart
+  , State (..), newState, load, save, mqttLoop, sendTrigger
+  , Index (..), index, topLevel, latestRuns
+  , problems, duration, grace, prune, foldHealthy
   , fmtDuration
   ) where
 
-import Control.Applicative ((<|>))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, reacted, simple, withConn, withMsg, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
 import Control.Monad (forever, void)
-import Data.Aeson (Value (..), decode)
+import Data.Aeson (FromJSON, ToJSON, Value (..), decode, encode)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import Data.List (sortOn, unsnoc)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -33,17 +32,20 @@ import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V5 as UUID
+import GHC.Generics (Generic)
 import Network.MQTT.Client
 import Network.MQTT.Topic (Filter, match, split, unFilter, unTopic)
 import Network.URI (parseURI)
+import System.Directory (renameFile)
 
 -- | A run of an event: how it started and, once finished, how it ended.
 data Run = Run
   { eid :: EventId
   , start :: Timed (EvtMsg Value)
   , end :: Maybe (Timed EvtDone)
-  , followedAt :: Maybe UTCTime -- ^ when the next run on its topic started, if remembered
+  , folded :: Maybe (Int, UTCTime) -- ^ how many healthy runs after it were folded into it, and when the last started
   }
+  deriving (Generic, ToJSON, FromJSON)
 
 -- | A run the dashboard knows of itself rather than from the broker, over as
 -- soon as it starts. Its id is derived from its topic and start, so making it
@@ -51,6 +53,10 @@ data Run = Run
 localRun :: Topic -> UTCTime -> EvtMsg () -> (EvtDone, ()) -> Run
 localRun tp at msg (d, ()) = Run (EventId u tp) (Timed at (msg & withMsg .~ Nothing)) (Just (Timed at d)) Nothing
   where u = UUID.generateNamed UUID.namespaceURL (BS.unpack (encodeUtf8 (unTopic tp <> "@" <> T.pack (show at))))
+
+-- | When the last run folded into this one started, or else this one.
+lastStart :: Run -> UTCTime
+lastStart r = maybe r.start.at snd r.folded
 
 -- | The triggers a run announced when it finished.
 triggersOf :: Run -> [Trigger]
@@ -66,6 +72,21 @@ data State = State
 
 newState :: IO State
 newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing <*> newTVarIO Set.empty
+
+-- | Restore the runs and acknowledgements saved in a file, if any.
+load :: FilePath -> State -> IO ()
+load p st = try @SomeException (BL.readFile p) >>= \case
+  Right b | Just (rs, as) <- decode b -> atomically $ do
+    writeTVar st.runs (Map.fromList [(r.eid.correlationId, r) | r <- rs])
+    writeTVar st.acked as
+  Right _ -> putStrLn ("Couldn't decode " <> p <> ", starting afresh")
+  Left _ -> pure ()
+
+save :: FilePath -> State -> IO ()
+save p st = do
+  (rs, as) <- atomically ((,) <$> readTVar st.runs <*> readTVar st.acked)
+  BL.writeFile (p <> ".tmp") (encode (Map.elems rs, as))
+  renameFile (p <> ".tmp") p
 
 -- | Stay subscribed to every event, reconnecting if the broker goes away.
 -- Messages are handled in order, so a run's start comes before its finish:
@@ -92,7 +113,7 @@ mqttLoop persistent st = forever $ do
       case (unsnoc (split tp), listToMaybe [u | PropCorrelationData c <- props, Just u <- [UUID.fromLazyASCIIBytes c]]) of
         (Just (l : ls, kind), Just u)
           | kind == "start", Just s <- decode body, let t = foldl (<>) l ls ->
-              modifyTVar' st.runs (prune . forgetHealthy s.at t . Map.insert u (Run (EventId u t) s Nothing Nothing))
+              modifyTVar' st.runs (prune . foldHealthy s.at t . Map.insert u (Run (EventId u t) s Nothing Nothing))
           | kind == "finished", Just e <- decode body -> modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) u)
         _ -> pure ()
 
@@ -112,33 +133,31 @@ sendTrigger r t = case unsnoc (split t.triggerTopic) of
 prune :: Map UUID Run -> Map UUID Run
 prune m
   | Map.size m <= 20000 = m
-  | otherwise = Map.restrictKeys m (Set.fromList (concatMap tree kept))
+  | otherwise = Map.restrictKeys m (Set.fromList (concatMap (tree ix) kept))
   where
     ix = index m
-    kept = concatMap (take 500 . filter (isNothing . (.start.x.scope))) (Map.elems ix.byTopic)
-    tree r = r.eid.correlationId : concatMap tree (Map.findWithDefault [] r.eid.correlationId ix.scopedTo)
+    kept = concatMap (take 500 . topLevel ix) (Map.keys ix.byTopic)
 
--- | Healthchecks run often and alike, so only what went wrong with them is
--- worth keeping.
-isHealthcheck :: Topic -> Bool
-isHealthcheck t = take 1 (split t) == ["healthcheck"]
+-- | A run and, recursively, its subtasks.
+tree :: Index -> Run -> [UUID]
+tree ix r = r.eid.correlationId : concatMap (tree ix) (Map.findWithDefault [] r.eid.correlationId ix.scopedTo)
 
--- | Forget the healthy top-level runs of a healthcheck, once settled, but its
--- first and latest: what's left is what went wrong, and since when it's
--- known. Each run kept remembers when the next started, which may be
--- forgotten, so it isn't then overdue.
-forgetHealthy :: UTCTime -> Topic -> Map UUID Run -> Map UUID Run
-forgetHealthy now t m
-  | isHealthcheck t = foldr step m (zip (drop 1 rs) rs)
-  | otherwise = m
+-- | Fold each quiet top-level run of a topic, but its latest, into the one
+-- before it if that's quiet too, forgetting its subtasks. A run is quiet once
+-- settled, healthy, and with no triggers to offer. What's left is what went
+-- wrong, and when each healthy stretch started and ended.
+foldHealthy :: UTCTime -> Topic -> Map UUID Run -> Map UUID Run
+foldHealthy now t m = go m Nothing (reverse (drop 1 (topLevel ix t)))
   where
     ix = index m
-    rs = filter (isNothing . (.start.x.scope)) (Map.findWithDefault [] t ix.byTopic)
-    first = map (.eid.correlationId) (take 1 (reverse rs))
-    step (r, newer)
-      | healthy r && r.eid.correlationId `notElem` first = Map.delete r.eid.correlationId
-      | otherwise = Map.insert r.eid.correlationId r {followedAt = r.followedAt <|> Just newer.start.at}
-    healthy r = isJust r.end && diffUTCTime now r.start.at > fromIntegral r.start.x.rules.timeout && null (problems now ix r)
+    go acc (Just h) (r : rs) | quiet h && quiet r =
+      let h' = h {folded = Just (count h + 1 + count r, lastStart r)}
+       in go (Map.insert h.eid.correlationId h' (foldr Map.delete acc (tree ix r))) (Just h') rs
+    go acc _ (r : rs) = go acc (Just r) rs
+    go acc _ [] = acc
+    count = maybe 0 fst . (.folded)
+    quiet r = isJust r.end && diffUTCTime now r.start.at > fromIntegral r.start.x.rules.timeout
+      && null (triggersOf r) && null (problems now ix r)
 
 --------------------------------------------------------------------------------
 
@@ -160,6 +179,10 @@ index runs = Index
   where
     by k = Map.fromListWith (flip (++)) [(p, [r]) | r <- sortOn (Down . (.start.at)) (Map.elems runs), Just p <- [k r]]
 
+-- | The top-level runs of a topic, i.e. not scoped to another, newest first.
+topLevel :: Index -> Topic -> [Run]
+topLevel ix t = filter (isNothing . (.start.x.scope)) (Map.findWithDefault [] t ix.byTopic)
+
 -- | The latest run of each top-level event, i.e. not scoped to another.
 latestRuns :: Index -> [Run]
 latestRuns ix = [r | rs <- Map.elems ix.byTopic, r <- take 1 rs, isNothing r.start.x.scope]
@@ -170,8 +193,9 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 
 -- | Everything wrong with a run at the given time, each with an explanation:
 -- whether it failed, and each rule it broke. The run is overdue if the next
--- run on its topic, which may not have started yet, started too late. Related
--- runs are given the run's timeout to show up.
+-- run on its topic, which may not have started yet, started too late after
+-- the last run folded into it. Related runs are given the run's timeout to
+-- show up.
 problems :: UTCTime -> Index -> Run -> [(Text, Text)]
 problems now ix r =
   [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.x.summary) <> foldMap (" — " <>) (firstLine e.x.result))
@@ -184,8 +208,8 @@ problems now ix r =
     rules = r.start.x.rules
     taken = duration now r
     limit = fromIntegral rules.timeout
-    next = r.followedAt <|> listToMaybe (reverse (takeWhile (> r.start.at) [s.start.at | s <- Map.findWithDefault [] r.eid.evtTopic ix.byTopic]))
-    gap = diffUTCTime (fromMaybe now next) r.start.at
+    next = listToMaybe (reverse (takeWhile (> lastStart r) [s.start.at | s <- Map.findWithDefault [] r.eid.evtTopic ix.byTopic]))
+    gap = diffUTCTime (fromMaybe now next) (lastStart r)
     overdue d = "The next run was expected within " <> fmtDuration d <> " (+" <> fmtDuration grace <> " grace)" <> case next of
       Nothing -> ", but none has started in " <> fmtDuration gap <> "."
       Just _ -> ", but it started " <> fmtDuration gap <> " later."

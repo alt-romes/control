@@ -2,7 +2,8 @@
 -- | The dashboard's pages. Pages keep themselves up to date, and count what
 -- needs attention in their title.
 --
--- Only problems are coloured: a page with nothing wrong has no colour at all.
+-- Only what needs attention is coloured: a page with nothing wrong has no
+-- colour at all.
 module Views
   ( Ctx (..), Page, render
   , overviewPage, topicPage, runPage
@@ -14,18 +15,18 @@ import Data.Aeson (Value (..), encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed (embedStringFile)
-import Data.List (isSuffixOf, sortOn)
+import Data.List (isSuffixOf, partition, sort, sortOn)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
-import Data.Maybe (isNothing)
+import Data.Maybe (isNothing, listToMaybe, mapMaybe)
 import Data.Ord (Down (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8Lenient, encodeUtf8)
-import Data.Time (TimeZone, UTCTime, defaultTimeLocale, diffUTCTime, formatTime, utcToLocalTime)
+import Data.Time (NominalDiffTime, TimeZone, UTCTime, defaultTimeLocale, diffUTCTime, formatTime, utcToLocalTime)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Events
@@ -42,7 +43,8 @@ data Ctx = Ctx
   , tz :: TimeZone
   , ix :: Index
   , connected :: Bool
-  , acked :: Set UUID -- ^ critical failures acknowledged
+  , acked :: Set UUID -- ^ runs whose problems are acknowledged
+  , links :: [String] -- ^ hosts linked to in the header
   }
 
 data Page = Page {title :: Text, body :: Html}
@@ -66,29 +68,32 @@ render c live p
       H.body $ do
         H.header $ do
           H.nav $ H.a ! A.href "/" $ "Overview"
-          H.nav $ forM_ links $ \h ->
+          H.nav $ forM_ c.links $ \h ->
             H.a ! A.href (toValue ((if ".localhost" `isSuffixOf` h then "http://" else "https://") <> h)) $ toHtml h
         H.main ! customAttribute "hx-get" "?live" ! customAttribute "hx-trigger" "every 5s" ! customAttribute "hx-swap" "innerMorph" $ body
   where
-    n = length (filter (bad c) (shown c))
+    n = attention c
     title = toHtml ((if n == 0 then "" else "(" <> tshow n <> ") ") <> p.title <> " · control-dashboard")
     body = p.body >> H.p (toHtml ("Updated " <> formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime c.tz c.now)))
-    links = ["alt-romes.github.io", "analytics.mogbit.com", "dashboard.stripe.com", "ledger.localhost", "satisago.localhost"]
 
 --------------------------------------------------------------------------------
 -- Pages
 
--- | What needs attention, then the latest run of every event, by root topic.
+-- | What needs attention, most first, then everything else by name, as in
+-- @<cmd>/<name>/...@.
 overviewPage :: Ctx -> Page
 overviewPage c = Page "Overview" $ do
-  red (n > 0) $ H.h1 $ if n == 0 then "All clear" else toHtml (tshow n <> " need attention")
-  when (any (alarm c) rs) $ red True $ H.h1 "CRITICAL FAILURE"
-  unless c.connected $ red True $ H.p "Broker unreachable: this may be stale."
-  forM_ (Map.toList (Map.fromListWith (flip (++)) [(take 1 (split r.eid.evtTopic), [r]) | r <- rs])) $ \(root, rs') ->
-    H.h2 (foldMap (toHtml . unTopic) root) >> table c rs'
+  unless c.connected $ H.h1 $ flag Crisis "Broker unreachable: this may be stale"
+  H.h1 $ flag (maximum (Healthy : map (severity c) flagged)) $
+    if null flagged then "All clear" else toHtml (tshow (length flagged) <> " need attention")
+  H.p $ toHtml $ tshow (length latest - unmonitored) <> " monitored · " <> tshow unmonitored <> " unmonitored"
+  unless (null flagged) $ overview c (sortOn (\r -> (Down (severity c r), fst (failingSince c r))) flagged)
+  forM_ (Map.toList (Map.fromListWith (flip (++)) [(take 1 (drop 1 (split r.eid.evtTopic)), [r]) | r <- rest])) $ \(name, rs) ->
+    H.h2 (foldMap (toHtml . unTopic) name) >> overview c rs
   where
-    rs = shown c
-    n = length (filter (bad c) rs)
+    (flagged, rest) = partition (needsAttention c) (shown c)
+    latest = latestRuns c.ix
+    unmonitored = length (filter ((== Unmonitored) . severity c) latest)
 
 -- | Every run seen on one topic.
 topicPage :: Topic -> Ctx -> Page
@@ -97,10 +102,9 @@ topicPage t c = Page (unTopic t) $ do
   case Map.findWithDefault [] t c.ix.byTopic of
     [] -> H.p "No runs seen on this topic yet."
     rs@(latest : _) -> do
-      when (isHealthcheck t) $
-        H.p "Healthy runs of a healthcheck aren't kept, only its first, its latest, and those with problems."
       when (isNothing latest.start.x.rules.expected) $
         H.p "No expected interval is set, so the dashboard can't tell if this stops running."
+      H.p "Healthy runs in a row are kept as one, with how many there were."
       table c rs
 
 -- | One run in full: what's wrong with it, its details, the triggers it
@@ -108,28 +112,29 @@ topicPage t c = Page (unTopic t) $ do
 runPage :: UUID -> Ctx -> Page
 runPage u c = case Map.lookup u c.ix.runs of
   Nothing -> Page "Run not found" $
-    H.p "Run not found. The dashboard only knows runs published since it last started."
+    H.p "Run not found. Healthy runs in a row are kept as one, so it may have been folded into an earlier run."
   Just r -> Page (unTopic r.eid.evtTopic <> " run") $ do
     H.h1 (topicLink r.eid.evtTopic)
     let ps = problems c.now c.ix r
-    unless (null ps) $ red True $ H.ul $ forM_ ps $ \(name, why) -> H.li $ H.strong (toHtml name) >> " " >> toHtml why
+    unless (null ps) $ H.div ! colour (severity c r) $ do
+      H.ul $ forM_ ps $ \(name, why) -> H.li $ H.strong (toHtml name) >> " " >> toHtml why
+      if u `Set.member` c.acked then "Acknowledged." else ackButton c r
     H.dl $ do
       field "Label" (toHtml r.start.x.label)
       field "Started" $ toHtml (localTime c r.start.at) >> " (" >> ago c r.start.at >> ")"
+      forM_ r.folded $ \(n, at) -> field "Followed by" $
+        toHtml (tshow n <> " healthy runs, the last at " <> localTime c at) >> " (" >> ago c at >> ")"
       field "Finished" $ case r.end of
         Just e -> toHtml (localTime c e.at)
         Nothing | timedOut c r -> "never received"
                 | otherwise -> "not yet"
-      field "Took" (took c r)
+      field "Took" $ took c r >> foldMap (\d -> toHtml (" (typically " <> fmtDuration d <> ")")) (typical c r.eid.evtTopic)
       field "Summary" (toHtml (summaryOf r))
       field "Timeout" $ toHtml (fmtDuration (fromIntegral r.start.x.rules.timeout))
       field "Expected every" $ maybe "not set" (\d -> toHtml (fmtDuration d <> " (+" <> fmtDuration grace <> " grace)")) r.start.x.rules.expected
       forM_ r.start.x.rules.subtasks $ field "Expected subtasks" . toHtml . T.intercalate ", " . map T.pack
       forM_ r.start.x.rules.reactions $ field "Expected reactions" . toHtml . T.intercalate ", " . map unFilter
-      when r.start.x.rules.critical $ field "Critical" $ do
-        "yes: any problem is a CRITICAL FAILURE"
-        when (u `Set.member` c.acked) " (acknowledged)"
-        ackButton c r
+      when r.start.x.rules.critical $ field "Critical" "yes: any problem is a crisis until acknowledged"
       forM_ r.start.x.scope $ field "Part of" . eventLink
       forM_ r.start.x.reactTo $ field "Reacting to" . eventLink
       field "Correlation id" $ H.code (toHtml (UUID.toText u))
@@ -155,42 +160,87 @@ runPage u c = case Map.lookup u c.ix.runs of
 --------------------------------------------------------------------------------
 -- What needs attention
 
--- | The latest run of every event, and every unacknowledged critical failure,
--- newest first.
+-- | How much a run needs attention, least first. A run without an expected
+-- interval is unmonitored: if it stops running, nothing can tell.
+data Severity = Healthy | Unmonitored | Actionable | Crisis
+  deriving (Eq, Ord)
+
+severity :: Ctx -> Run -> Severity
+severity c r
+  | bad c r && r.eid.correlationId `Set.notMember` c.acked = if r.start.x.rules.critical then Crisis else Actionable
+  | isNothing r.start.x.rules.expected = Unmonitored
+  | otherwise = Healthy
+
+needsAttention :: Ctx -> Run -> Bool
+needsAttention c r = severity c r >= Actionable
+
+-- | What needs attention, and the broker if it's unreachable.
+attention :: Ctx -> Int
+attention c = length (filter (needsAttention c) (shown c)) + fromEnum (not c.connected)
+
+-- | The latest run of every event, and every crisis, newest first.
 shown :: Ctx -> [Run]
-shown c = sortOn (Down . (.start.at)) [r | r <- Map.elems c.ix.runs, alarm c r || r.eid.correlationId `Set.member` latest]
+shown c = sortOn (Down . (.start.at)) [r | r <- Map.elems c.ix.runs, severity c r == Crisis || r.eid.correlationId `Set.member` latest]
   where latest = Set.fromList (map (.eid.correlationId) (latestRuns c.ix))
 
 bad :: Ctx -> Run -> Bool
 bad c = not . null . problems c.now c.ix
 
--- | A problem with a critical run, not yet acknowledged.
-alarm :: Ctx -> Run -> Bool
-alarm c r = r.start.x.rules.critical && r.eid.correlationId `Set.notMember` c.acked && bad c r
+-- | Since when the run's topic has had problems in a row, up to the run, and
+-- in how many runs.
+failingSince :: Ctx -> Run -> (UTCTime, Int)
+failingSince c r = (maybe r.start.at (.start.at) (listToMaybe (reverse streak)), length streak)
+  where streak = takeWhile (bad c) (dropWhile ((/= r.eid.correlationId) . (.eid.correlationId)) (topLevel c.ix r.eid.evtTopic))
 
 --------------------------------------------------------------------------------
 -- Pieces
+
+-- | The latest state of topics: what's wrong and since when, the latest run
+-- against the expected interval, and the topic's recent history.
+overview :: Ctx -> [Run] -> Html
+overview c rs = H.table $ do
+  H.tr $ mapM_ H.th ["", "Event", "Problem", "Last run", "History", ""]
+  forM_ rs $ \r -> H.tr $ do
+    H.td (marker (severity c r))
+    H.td (topicLink r.eid.evtTopic)
+    H.td $ flag (severity c r) $ unless (null (problems c.now c.ix r)) $ do
+      toHtml (T.intercalate " " (map snd (problems c.now c.ix r)))
+      let (since, n) = failingSince c r
+      when (n > 1) $ toHtml (" Since " <> localTime c since <> ", " <> tshow n <> " runs.")
+      when (r.eid.correlationId `Set.member` c.acked) " (acknowledged)"
+    H.td $ runLink r (ago c (lastStart r)) >> forM_ r.start.x.rules.expected (\d -> toHtml (" / " <> fmtDuration d))
+    H.td (history c r.eid.evtTopic)
+    H.td (actions c r)
 
 -- | Runs as a table. Consecutive runs that differ only in when they ran are
 -- shown once, as the first, with how many there were.
 table :: Ctx -> [Run] -> Html
 table c rs = H.table $ do
-  H.tr $ mapM_ H.th ["Problem", "Event", "Run", "Took", "Label", "Summary", ""]
+  H.tr $ mapM_ H.th ["", "Problem", "Event", "Run", "Took", "Label", "Summary", ""]
   forM_ (NE.groupWith key rs) $ \g@(r :| _) -> H.tr $ do
-    H.td $ H.span ! A.class_ "bad" $ do
-      when (alarm c r) (H.strong "CRITICAL ")
-      toHtml (T.intercalate ", " (map fst (problems c.now c.ix r)))
+    H.td (marker (severity c r))
+    H.td $ flag (severity c r) $ toHtml (T.intercalate ", " (map fst (problems c.now c.ix r)))
     H.td (topicLink r.eid.evtTopic)
-    H.td $ runLink r (ago c r.start.at) >> times c (map (.start.at) (NE.toList g))
+    H.td $ runLink r (ago c r.start.at) >> times c (NE.toList g)
     H.td (took c r)
     H.td (toHtml r.start.x.label)
     H.td (toHtml (summaryOf r))
-    H.td $ ackButton c r >> mapM_ (triggerButton r) (zip [0 ..] (triggersOf r))
+    H.td (actions c r)
   where
-    key r = (r.eid.evtTopic, map fst (problems c.now c.ix r), alarm c r, r.start.x.label, summaryOf r)
+    key r = (r.eid.evtTopic, map fst (problems c.now c.ix r), severity c r, r.start.x.label, summaryOf r)
+
+-- | The latest top-level runs of a topic, oldest first, a mark each.
+history :: Ctx -> Topic -> Html
+history c t = H.span ! A.class_ "history" $ forM_ (reverse (take 20 (topLevel c.ix t))) $ \r ->
+  runLink r mempty
+    ! A.class_ ("tick" <> (if bad c r then " bad" else "") <> (if isNothing r.folded then "" else " folded"))
+    ! A.title (toValue (T.unwords (localTime c r.start.at : foldMap (\(n, _) -> ["and " <> tshow n <> " more"]) r.folded ++ map fst (problems c.now c.ix r))))
+
+actions :: Ctx -> Run -> Html
+actions c r = ackButton c r >> mapM_ (triggerButton r) (zip [0 ..] (triggersOf r))
 
 ackButton :: Ctx -> Run -> Html
-ackButton c r = when (alarm c r) $ action r "ack" Nothing "Acknowledge"
+ackButton c r = when (needsAttention c r) $ action r "ack" Nothing "Acknowledge"
 
 -- | Send a trigger the run announced.
 triggerButton :: Run -> (Int, Trigger) -> Html
@@ -202,13 +252,30 @@ action :: Run -> Text -> Maybe Text -> Html -> Html
 action r a confirm b = H.form ! A.method "post" ! A.action (toValue (runUrl r <> "/" <> a)) ! A.style "display: inline"
   ! foldMap (\q -> A.onsubmit (toValue ("return confirm(" <> json (String q) <> ")"))) confirm $ H.button b
 
-red :: Bool -> Html -> Html
-red b h = if b then h ! A.class_ "bad" else h
+flag :: Severity -> Html -> Html
+flag s = H.span ! colour s
 
--- | How many times, if more than one, listing them on hover.
-times :: Ctx -> [UTCTime] -> Html
-times c ts = when (length ts > 1) $
-  H.span ! A.title (toValue (T.intercalate "\n" (map (localTime c) ts))) $ toHtml (" ×" <> tshow (length ts))
+colour :: Severity -> H.Attribute
+colour = \case
+  Crisis -> A.class_ "crisis"
+  Actionable -> A.class_ "bad"
+  Unmonitored -> A.class_ "quiet"
+  Healthy -> mempty
+
+marker :: Severity -> Html
+marker = \case
+  Crisis -> flag Crisis "◆"
+  Actionable -> flag Actionable "●"
+  Unmonitored -> flag Unmonitored "○" ! A.title "No expected interval: nothing can tell if this stops running"
+  Healthy -> mempty
+
+-- | How many runs, if more than one, listing them on hover.
+times :: Ctx -> [Run] -> Html
+times c rs = when (n > 1) $
+  H.span ! A.title (toValue (T.intercalate "\n" (concatMap when' rs))) $ toHtml (" ×" <> tshow n)
+  where
+    n = sum [1 + maybe 0 fst r.folded | r <- rs]
+    when' r = localTime c r.start.at : foldMap (\(k, at) -> ["and " <> tshow k <> " more until " <> localTime c at]) r.folded
 
 -- | How long a finished run took, or how long an unfinished one has been
 -- running. An unfinished run past its timeout isn't running any more.
@@ -216,6 +283,13 @@ took :: Ctx -> Run -> Html
 took c r = case r.end of
   Just _ -> toHtml (fmtDuration (duration c.now r))
   Nothing -> unless (timedOut c r) $ toHtml (fmtDuration (duration c.now r) <> ", running")
+
+-- | The median time the latest finished top-level runs of a topic took, if
+-- there are a few.
+typical :: Ctx -> Topic -> Maybe NominalDiffTime
+typical c t = case sort (mapMaybe (\r -> duration c.now r <$ r.end) (take 20 (topLevel c.ix t))) of
+  ds | length ds >= 3 -> Just (ds !! (length ds `div` 2))
+  _ -> Nothing
 
 timedOut :: Ctx -> Run -> Bool
 timedOut c r = duration c.now r > fromIntegral r.start.x.rules.timeout
@@ -228,13 +302,8 @@ contentOf :: Run -> Maybe Value
 contentOf r = r.start.x.content >>= \v -> v <$ guard (v `notElem` [Null, Object mempty, Array mempty])
 
 ago :: Ctx -> UTCTime -> Html
-ago c t = H.span ! A.title (toValue (localTime c t)) $ toHtml (rel <> " ago")
-  where
-    s = round (diffUTCTime c.now t) :: Integer
-    rel | s < 60 = tshow (max 0 s) <> "s"
-        | s < 3600 = tshow (s `div` 60) <> "m"
-        | s < 86400 = tshow (s `div` 3600) <> "h"
-        | otherwise = tshow (s `div` 86400) <> "d"
+ago c t = H.span ! A.title (toValue (localTime c t)) $
+  toHtml (fmtDuration (fromInteger (max 1 (floor (diffUTCTime c.now t)))) <> " ago")
 
 localTime :: Ctx -> UTCTime -> Text
 localTime c = T.pack . formatTime defaultTimeLocale "%a %d %b %H:%M:%S" . utcToLocalTime c.tz

@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields #-}
--- | Checks of how runs are judged: failures, rules, grouping and pruning.
+-- | Checks of how runs are judged: failures, rules, grouping, folding and pruning.
 module Main (main) where
 
 import Control.Events (EventId (..), EvtMsg (..), Rules (..), Timed (..), done, evtExpected, evtSubtasks, failed, reacted, scoped, simple, withMsg, (&), (.~), (?~))
 import Control.Monad (forM_, unless)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Aeson (Value)
+import Data.Aeson (Value, decode, encode)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import Data.List (sort)
@@ -33,7 +33,7 @@ run topic s end = Run
   { eid = EventId (uuid 0) (fromJust (mkTopic topic))
   , start = Timed (sec s) (simple "" & withMsg .~ Nothing)
   , end = (\(took, ok) -> Timed (sec (s + took)) (fst ((if ok then done else failed) "" ()))) <$> end
-  , followedAt = Nothing
+  , folded = Nothing
   }
 
 with :: (EvtMsg Value -> EvtMsg Value) -> Run -> Run
@@ -118,17 +118,26 @@ main = do
              in Map.member (uuid 502) m && Map.member (uuid 3003) m && Map.notMember (uuid 2) m && Map.notMember (uuid 2003) m
                   && Map.size m == 500 * 4 + 500)
         , ("pruning leaves small histories alone", Map.size (prune (numbered [(n, a) | n <- [1 .. 100]])) == 100)
-        , ("a healthcheck forgets its settled healthy runs but its first and latest",
-            Map.keys (forgetHealthy (sec 1000) hc (numbered [(n, beat (60 * fromIntegral n) ok) | n <- [1 .. 4]])) == [uuid 1, uuid 4])
-        , ("a healthcheck doesn't forget unsettled runs",
-            Map.size (forgetHealthy (sec 400) hc (numbered [(n, beat (60 * fromIntegral n) ok) | n <- [1 .. 4]])) == 4)
-        , ("a healthcheck keeps its failures, not then overdue",
-            let m = forgetHealthy (sec 1000) hc (numbered [(1, beat 0 ok), (2, beat 60 (Just (1, False))), (3, beat 120 ok), (4, beat 180 ok)])
-             in Map.keys m == [uuid 1, uuid 2, uuid 4] && map fst (problems (sec 1000) (index m) (m Map.! uuid 2)) == ["failed"])
-        , ("a healthcheck keeps the run before a missed one",
-            Map.keys (forgetHealthy (sec 1000) hc (numbered [(1, beat 0 ok), (2, beat 60 ok), (3, beat 300 ok), (4, beat 360 ok)])) == [uuid 1, uuid 2, uuid 4])
-        , ("other topics are kept whole",
-            Map.size (forgetHealthy (sec 1000) (fromJust (mkTopic "script/a")) (numbered [(n, expecting 60 (run "script/a" (60 * fromIntegral n) ok)) | n <- [1 .. 4]])) == 4)
+        , ("healthy runs in a row fold into the first, but the latest",
+            let m = foldHealthy (sec 1000) hc (numbered [(n, beat (60 * fromIntegral n) ok) | n <- [1 .. 4]])
+             in Map.keys m == [uuid 1, uuid 4] && (m Map.! uuid 1).folded == Just (2, sec 180))
+        , ("unsettled runs aren't folded",
+            Map.size (foldHealthy (sec 400) hc (numbered [(n, beat (60 * fromIntegral n) ok) | n <- [1 .. 4]])) == 4)
+        , ("failures are kept, and runs after them fold into the first healthy one",
+            let m = foldHealthy (sec 1000) hc (numbered [(1, beat 0 ok), (2, beat 60 (Just (1, False))), (3, beat 120 ok), (4, beat 180 ok), (5, beat 240 ok)])
+             in Map.keys m == [uuid 1, uuid 2, uuid 3, uuid 5] && map fst (problems (sec 1000) (index m) (m Map.! uuid 2)) == ["failed"])
+        , ("a folded run is judged from its last folded run",
+            let m = foldHealthy (sec 2000) hc (numbered [(1, beat 0 ok), (2, beat 60 ok), (3, beat 120 ok), (4, beat 400 ok), (5, beat 460 ok)])
+                ps n = map fst (problems (sec 2000) (index m) (m Map.! uuid n))
+             in Map.keys m == [uuid 1, uuid 3, uuid 4, uuid 5] && ps 1 == [] && ps 3 == ["overdue"])
+        , ("every topic folds alike, forgetting the subtasks of what it folds",
+            let r s = expecting 60 (run "script/a" s ok)
+             in Map.keys (foldHealthy (sec 1000) (fromJust (mkTopic "script/a")) (numbered [(1, r 0), (2, r 60), (3, partOf 2 (run "script/a/x" 61 ok)), (4, r 120)])) == [uuid 1, uuid 4])
+        , ("runs survive being saved",
+            let m = numbered [(1, (beat 0 ok) {folded = Just (3, sec 180)}), (2, partOf 1 (run "script/a/x" 1 Nothing))]
+                key :: Run -> (UUID, Maybe (Int, UTCTime), UTCTime, Maybe UTCTime)
+                key r' = (r'.eid.correlationId, r'.folded, r'.start.at, fmap (.at) r'.end)
+             in fmap (map key) (decode (encode (Map.elems m))) == Just (map key (Map.elems m)))
         ]
   forM_ checks $ \(name, passed) -> putStrLn ((if passed then "ok   " else "FAIL ") <> name)
   unless (all snd checks) exitFailure

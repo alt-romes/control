@@ -11,7 +11,7 @@ common warnings
 executable control-dashboard
   import:           warnings
   main-is:          Main.hs
-  other-modules:    Events, Finances, Views
+  other-modules:    Events, Views
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   hs-source-dirs:   app
   build-depends:
@@ -21,6 +21,7 @@ executable control-dashboard
     , bytestring
     , containers
     , control-events
+    , directory
     , file-embed
     , http-types
     , net-mqtt
@@ -30,7 +31,6 @@ executable control-dashboard
     , uuid
     , blaze-html
     , blaze-markup
-    , hledger-lib
     , optparse-generic
     , servant-blaze
     , servant-server
@@ -54,6 +54,7 @@ test-suite spec
     , bytestring
     , containers
     , control-events
+    , directory
     , net-mqtt
     , network-uri
     , stm

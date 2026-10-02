@@ -11,6 +11,11 @@
       inputs.control-events.darwinModules.control-events
     ];
 
+    control-dashboard = {
+      requiredHealthchecks = [ "healthcheck/kanjideck/fulfillment-server" "healthcheck/scrollsent" ];
+      links = [ "alt-romes.github.io" "analytics.mogbit.com" "dashboard.stripe.com" "ledger.localhost" "satisago.localhost" ];
+    };
+
     homebrew = {
       # this doesn't install homebrew, needs to be installed manually (see instructions on website)
       enable = true;

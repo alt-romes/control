@@ -5,7 +5,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, displayException, try)
 import Control.Events (EventId (..), done, evtCritical, evtExpected, simple, (&), (.~), (?~))
-import Control.Monad (forever, void)
+import Control.Monad (forM_, forever, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.Map.Strict as Map
@@ -19,9 +19,7 @@ import Data.Time (getCurrentTime, getCurrentTimeZone)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Events
-import Finances
 import GHC.Generics (Generic)
-import Network.MQTT.Topic (Topic)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
 import Options.Generic (ParseRecord, getRecord)
 import Servant
@@ -30,13 +28,19 @@ import System.IO (BufferMode (..), hSetBuffering, stdout)
 import Text.Blaze.Html5 (Html)
 import Views
 
--- | CLI options, parsed generically from the field names: @--host@, @--port@,
--- repeatable @--journal NAME=PATH@ and @--persistent@ (see 'mqttLoop').
+-- | CLI options, parsed generically from the field names: @--host@,
+-- @--port@, @--persistent@ (see 'mqttLoop'), @--state FILE@ to keep runs
+-- across restarts, and repeatable @--require TOPIC@ and @--link HOST@.
+--
+-- A required topic must always be running: until a run of it is seen, the
+-- dashboard critically expects one from when it started.
 data Options = Options
   { host :: Maybe String
   , port :: Maybe Int
-  , journal :: [String]
   , persistent :: Bool
+  , state :: Maybe FilePath
+  , require :: [String]
+  , link :: [String]
   }
   deriving (Generic)
 
@@ -52,8 +56,8 @@ type API = QueryFlag "live" :>
          )
   )
 
-server :: State -> Server API
-server st live =
+server :: [String] -> State -> Server API
+server links st live =
        view overviewPage
   :<|> view . topicPage . fromString . T.unpack . T.intercalate "/"
   :<|> \u -> view (runPage u) :<|> ack u :<|> trigger u
@@ -75,7 +79,7 @@ server st live =
         ix <- index <$> readTVar st.runs
         connected <- isJust <$> readTVar st.broker
         acked <- readTVar st.acked
-        let c = Ctx {now, tz, ix, connected, acked}
+        let c = Ctx {now, tz, ix, connected, acked, links}
         pure (render c live (f c))
 
 main :: IO ()
@@ -85,18 +89,14 @@ main = do
   let theHost = fromMaybe "127.0.0.1" opts.host
       thePort = fromMaybe 8080 opts.port
   st <- newState
+  forM_ opts.state (`load` st)
   started <- getCurrentTime
-  let insert = atomically . modifyTVar' st.runs . flip (foldr (\r -> Map.insert r.eid.correlationId r))
-  insert [localRun t started (simple "Dashboard started" & evtExpected ?~ 60 & evtCritical .~ True) (done "Expecting this healthcheck" ()) | t <- requiredHealthchecks]
+  atomically $ modifyTVar' st.runs $ \m -> foldr (\r -> Map.insert r.eid.correlationId r) m
+    [ localRun t started (simple "Dashboard started" & evtExpected ?~ 60 & evtCritical .~ True) (done "Expecting this topic" ())
+    | t <- map fromString opts.require, t `Map.notMember` (index m).byTopic ]
   void (forkIO (mqttLoop opts.persistent st))
-  void $ forkIO $ forever $ do
-    tz <- getCurrentTimeZone
-    insert =<< mapM (reconciliation tz started) opts.journal
+  forM_ opts.state $ \p -> forkIO $ forever $ do
     threadDelay 60_000_000
+    try @SomeException (save p st) >>= either (putStrLn . ("save: " <>) . displayException) pure
   putStrLn $ "Serving on http://" <> theHost <> ":" <> show thePort
-  runSettings (setHost (fromString theHost) (setPort thePort defaultSettings)) (serve (Proxy @API) (server st))
-
--- | Healthchecks that must always be running: until one is seen, the
--- dashboard critically expects it from when it started.
-requiredHealthchecks :: [Topic]
-requiredHealthchecks = ["healthcheck/kanjideck/fulfillment-server", "healthcheck/scrollsent"]
+  runSettings (setHost (fromString theHost) (setPort thePort defaultSettings)) (serve (Proxy @API) (server opts.link st))
