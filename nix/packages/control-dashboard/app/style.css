@@ -14,7 +14,3 @@ pre { white-space: pre-wrap; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 24px; }
 dt { font-weight: 600; }
 dd { margin: 0; }
-
-label { display: block; margin-bottom: 1em; }
-input, textarea { box-sizing: border-box; width: 100%; font: inherit; padding: 4px; }
-.prefixed { display: flex; align-items: center; }

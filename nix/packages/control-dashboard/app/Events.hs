@@ -1,60 +1,72 @@
 {-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase #-}
--- | Runs of control-events as seen on the MQTT broker, and what's wrong with
--- them.
+-- | Runs of control-events as seen on the MQTT broker, how they relate, and
+-- what's wrong with them.
 module Events
-  ( State (..), Run (..), Trigger (..), newState, mqttLoop, publishTrigger
-  , Index (..), index, latestRuns, topLevel
+  ( Run (..), localRun, triggersOf
+  , State (..), newState, mqttLoop, sendTrigger
+  , Index (..), index, latestRuns
   , problems, duration, grace, prune
   , fmtDuration
   ) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
-import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), simple, withMsg, (&), (.~))
+import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, reacted, simple, withConn, withMsg, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
 import Control.Monad (forever, void)
-import Data.Aeson (Value (..), decode, eitherDecodeStrict, encode)
-import Data.List (sortOn, (\\))
+import Data.Aeson (Value (..), decode)
+import qualified Data.ByteString as BS
+import Data.List (sortOn, unsnoc)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust, fromMaybe, isJust, listToMaybe)
+import Data.Maybe (fromJust, fromMaybe, isJust, isNothing, listToMaybe)
 import Data.Ord (Down (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
+import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
-import GHC.Generics (Generic)
+import qualified Data.UUID.V5 as UUID
 import Network.MQTT.Client
-import Network.MQTT.Topic (mkTopic, unTopic)
+import Network.MQTT.Topic (Filter, match, split, unFilter, unTopic)
 import Network.URI (parseURI)
-import Web.FormUrlEncoded (FromForm)
 
 -- | A run of an event: how it started and, once finished, how it ended.
--- A trigger is a run that finishes as soon as it's sent.
 data Run = Run
-  { topic :: Text -- ^ without the @start@/@finished@ suffix
+  { eid :: EventId
   , start :: Timed (EvtMsg Value)
   , end :: Maybe (Timed EvtDone)
   }
 
+-- | A run the dashboard knows of itself rather than from the broker, over as
+-- soon as it starts. Its id is derived from its topic and start, so making it
+-- again gives the same run.
+localRun :: Topic -> UTCTime -> EvtMsg () -> (EvtDone, ()) -> Run
+localRun tp at msg (d, ()) = Run (EventId u tp) (Timed at (msg & withMsg .~ Nothing)) (Just (Timed at d))
+  where u = UUID.generateNamed UUID.namespaceURL (BS.unpack (encodeUtf8 (unTopic tp <> "@" <> T.pack (show at))))
+
+-- | The triggers a run announced when it finished.
+triggersOf :: Run -> [Trigger]
+triggersOf r = foldMap (fromMaybe [] . (.x.triggers)) r.end
+
+--------------------------------------------------------------------------------
+
 data State = State
   { runs :: TVar (Map UUID Run) -- ^ by correlation id
   , broker :: TVar (Maybe MQTTClient) -- ^ while connected
-  , lost :: TVar (Map Text UTCTime) -- ^ connections (by service topic) that dropped without disconnecting
   , acked :: TVar (Set UUID) -- ^ critical failures acknowledged
   }
 
 newState :: IO State
-newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing <*> newTVarIO Map.empty <*> newTVarIO Set.empty
+newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing <*> newTVarIO Set.empty
 
--- | Stay subscribed to the control-events topics, reconnecting if the broker
--- goes away. Messages are handled in order, so a run's start comes before its
--- finish: the publisher waits for the broker to have the start.
+-- | Stay subscribed to every event, reconnecting if the broker goes away.
+-- Messages are handled in order, so a run's start comes before its finish:
+-- the publisher waits for the broker to have the start.
 --
 -- A persistent session keeps a fixed client id, and the broker queues messages
 -- for up to a day while we're away. Otherwise the broker assigns a fresh id, so
@@ -62,8 +74,8 @@ newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing <*> newTVarIO Map
 mqttLoop :: Bool -> State -> IO ()
 mqttLoop persistent st = forever $ do
   r <- try @SomeException $ do
-    mc <- connectURI mqttConfig {_msgCB = OrderedCallback onMsg, _protocol = Protocol50, _cleanSession = not persistent, _connProps = props} uri
-    void $ subscribe mc [(f, subOptions {_subQoS = QoS2}) | f <- ["script/#", "server/#", "healthcheck/#", "trigger/#"]] []
+    mc <- connectURI mqttConfig {_msgCB = OrderedCallback onMsg, _protocol = Protocol50, _cleanSession = not persistent, _connProps = sessionProps} uri
+    void $ subscribe mc [("#", subOptions {_subQoS = QoS2})] []
     atomically $ writeTVar st.broker (Just mc)
     waitForClient mc
   atomically $ writeTVar st.broker Nothing
@@ -72,21 +84,24 @@ mqttLoop persistent st = forever $ do
   where
     -- connectURI takes the client id from the fragment, ignoring '_connID'.
     uri = fromJust (parseURI ("mqtt://127.0.0.1:1883" <> if persistent then "#control-dashboard" else ""))
-    props = [PropSessionExpiryInterval 86400 | persistent]
-    onMsg _ tp body props = getCurrentTime >>= \now -> atomically $ do
-      let t = unTopic tp
-          (base, kind) = T.breakOnEnd "/" t
-          evt = T.dropEnd 1 base
-          cid = listToMaybe [u | PropCorrelationData c <- props, Just u <- [UUID.fromLazyASCIIBytes c]]
-      modifyTVar' st.lost $ if kind == "last-will-testament"
-        then Map.insert evt now
-        else Map.filterWithKey (\svc _ -> not ((svc <> "/") `T.isPrefixOf` t))
-      case (kind, cid) of
-        ("start", Just u) | Just s <- decode body -> modifyTVar' st.runs (prune . Map.insert u (Run evt s Nothing))
-        ("finished", Just u) | Just e <- decode body -> modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) u)
-        (_, Just u) | "trigger/" `T.isPrefixOf` t, Just s <- decode body ->
-          modifyTVar' st.runs (prune . Map.insert u (Run t s (Just (Timed s.at (EvtDone "Sent" True Nothing)))))
+    sessionProps = [PropSessionExpiryInterval 86400 | persistent]
+    onMsg _ tp body props = atomically $
+      case (unsnoc (split tp), listToMaybe [u | PropCorrelationData c <- props, Just u <- [UUID.fromLazyASCIIBytes c]]) of
+        (Just (l : ls, kind), Just u)
+          | kind == "start", Just s <- decode body -> modifyTVar' st.runs (prune . Map.insert u (Run (EventId u (foldl (<>) l ls)) s Nothing))
+          | kind == "finished", Just e <- decode body -> modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) u)
         _ -> pure ()
+
+-- | Send a trigger announced by a run, as an event reacting to that run. Like
+-- any event it's a run of its own, which whoever listens on the trigger's
+-- topic is expected to react to within its timeout. Returns its correlation id.
+sendTrigger :: Run -> Trigger -> IO UUID
+sendTrigger r t = case unsnoc (split t.triggerTopic) of
+  Just (b : bs, leaf) -> withConn (foldl (<>) b bs) $ \c -> event c msg leaf $ \e -> pure (done "Sent" e.correlationId)
+  _ -> fail ("A trigger's topic needs at least two levels, unlike " <> show (unTopic t.triggerTopic))
+  where
+    msg0 = simple t.triggerLabel & withMsg .~ t.triggerData & reacted ?~ r.eid
+    msg = msg0 {rules = msg0.rules {reactions = Just ["#"]}}
 
 -- | Bound memory: past 20000 runs, keep only the latest 500 top-level runs of
 -- each topic, with their subtasks.
@@ -96,89 +111,64 @@ prune m
   | otherwise = Map.restrictKeys m (Set.fromList (concatMap tree kept))
   where
     ix = index m
-    kept = concatMap (map fst . take 500 . filter (topLevel ix . snd)) (Map.elems ix.byTopic)
-    tree u = u : concatMap (tree . fst) (Map.findWithDefault [] u ix.subtasks)
-
--- | A trigger to publish on @trigger/<topic>@: a control-events message
--- carrying the label and JSON content.
-data Trigger = Trigger {topic :: Text, label :: Text, content :: Text}
-  deriving (Eq, Ord, Generic)
-
-instance FromForm Trigger
-
-publishTrigger :: State -> Trigger -> IO (Either Text ())
-publishTrigger st t = do
-  mc <- readTVarIO st.broker
-  case (mkTopic ("trigger/" <> T.strip t.topic), content, mc) of
-    (Nothing, _, _) -> pure (Left "That isn't a valid MQTT topic (no wildcards or empty levels).")
-    (_, Left err, _) -> pure (Left ("The content isn't valid JSON: " <> T.pack err))
-    (_, _, Nothing) -> pure (Left "Not connected to the broker.")
-    (Just tp, Right v, Just c) -> do
-      u <- UUID.nextRandom
-      now <- getCurrentTime
-      let msg = simple (T.unpack t.label) & withMsg .~ v
-      Right <$> publishq c tp (encode (Timed now msg)) False QoS2 [PropCorrelationData (UUID.toLazyASCIIBytes u)]
-  where
-    content :: Either String (Maybe Value)
-    content
-      | T.null (T.strip t.content) = Right Nothing
-      | otherwise = Just <$> eitherDecodeStrict (encodeUtf8 t.content)
+    kept = concatMap (take 500 . filter (isNothing . (.start.x.scope))) (Map.elems ix.byTopic)
+    tree r = r.eid.correlationId : concatMap tree (Map.findWithDefault [] r.eid.correlationId ix.scopedTo)
 
 --------------------------------------------------------------------------------
 
 -- | Runs arranged for lookups, each list newest first.
 data Index = Index
   { runs :: Map UUID Run
-  , byTopic :: Map Text [(UUID, Run)]
-  , subtasks :: Map UUID [(UUID, Run)] -- ^ by the parent's correlation id
+  , byTopic :: Map Topic [Run]
+  , scopedTo :: Map UUID [Run] -- ^ the runs scoped to each run
+  , reactingTo :: Map UUID [Run] -- ^ the runs reacting to each run
   }
 
 index :: Map UUID Run -> Index
 index runs = Index
   { runs
-  , byTopic = Map.fromListWith (flip (++)) [(r.topic, [ur]) | ur@(_, r) <- ordered]
-  , subtasks = Map.fromListWith (flip (++)) [(p.correlationId, [ur]) | ur@(_, r) <- ordered, Just p <- [r.start.x.scope]]
+  , byTopic = by (Just . (.eid.evtTopic))
+  , scopedTo = by (fmap (.correlationId) . (.start.x.scope))
+  , reactingTo = by (fmap (.correlationId) . (.start.x.reactTo))
   }
   where
-    ordered = sortOn (Down . (.start.at) . snd) (Map.toList runs)
+    by k = Map.fromListWith (flip (++)) [(p, [r]) | r <- sortOn (Down . (.start.at)) (Map.elems runs), Just p <- [k r]]
 
--- | The latest run of each top-level event, newest first.
-latestRuns :: Index -> [(UUID, Run)]
-latestRuns ix = sortOn (Down . (.start.at) . snd) [ur | rs <- Map.elems ix.byTopic, ur <- take 1 (filter (topLevel ix . snd) rs)]
-
--- | A run is top-level unless it's a subtask: scoped to a run we know, under
--- its topic. So runs a trigger caused, or scoped to a run from before the
--- dashboard started, are top-level too.
-topLevel :: Index -> Run -> Bool
-topLevel ix r = case r.start.x.scope >>= \p -> Map.lookup p.correlationId ix.runs of
-  Just parent -> not ((parent.topic <> "/") `T.isPrefixOf` r.topic)
-  Nothing -> True
+-- | The latest run of each top-level event, i.e. not scoped to another.
+latestRuns :: Index -> [Run]
+latestRuns ix = [r | rs <- Map.elems ix.byTopic, r <- take 1 rs, isNothing r.start.x.scope]
 
 -- | How long a run took, or has been running for.
 duration :: UTCTime -> Run -> NominalDiffTime
 duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 
 -- | Everything wrong with a run at the given time, each with an explanation:
--- failure and violated rules. The run is overdue if the next run on its topic,
--- which may not have started yet, started too late. Its subtasks are only
--- checked once it's over.
-problems :: UTCTime -> Index -> (UUID, Run) -> [(Text, Text)]
-problems now ix (u, r) =
+-- whether it failed, and each rule it broke. The run is overdue if the next
+-- run on its topic, which may not have started yet, started too late. Related
+-- runs are given the run's timeout to show up.
+problems :: UTCTime -> Index -> Run -> [(Text, Text)]
+problems now ix r =
   [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.x.summary) <> foldMap (" — " <>) (firstLine e.x.result))
     | Just e <- [r.end], not e.x.success ]
     ++ [ ("timed out", (if isJust r.end then "Took " else "No finish after ") <> fmtDuration taken <> "; the limit is " <> fmtDuration limit <> ".") | taken > limit ]
-    ++ [ ("overdue", overdue d) | Just d <- [r.start.x.rules.expected], gap > d + grace ]
-    ++ [ ("subtasks", "Missing " <> T.intercalate ", " missing <> ".") | Just ts <- [r.start.x.rules.subtasks], isJust r.end || taken > limit
-       , let missing = map T.pack ts \\ subtopics, not (null missing) ]
+    ++ [ ("overdue", overdue d) | Just d <- [rules.expected], gap > d + grace ]
+    ++ related "subtasks" [fromString (T.unpack (unTopic r.eid.evtTopic) <> "/" <> s) | s <- fromMaybe [] rules.subtasks] ix.scopedTo
+    ++ related "reactions" (fromMaybe [] rules.reactions) ix.reactingTo
   where
+    rules = r.start.x.rules
     taken = duration now r
-    limit = fromIntegral r.start.x.rules.timeout
-    next = listToMaybe (reverse (takeWhile (> r.start.at) [s.start.at | (_, s) <- Map.findWithDefault [] r.topic ix.byTopic]))
+    limit = fromIntegral rules.timeout
+    next = listToMaybe (reverse (takeWhile (> r.start.at) [s.start.at | s <- Map.findWithDefault [] r.eid.evtTopic ix.byTopic]))
     gap = diffUTCTime (fromMaybe now next) r.start.at
     overdue d = "The next run was expected within " <> fmtDuration d <> " (+" <> fmtDuration grace <> " grace)" <> case next of
       Nothing -> ", but none has started in " <> fmtDuration gap <> "."
       Just _ -> ", but it started " <> fmtDuration gap <> " later."
-    subtopics = [t | (_, s) <- Map.findWithDefault [] u ix.subtasks, Just t <- [T.stripPrefix (r.topic <> "/") s.topic]]
+    -- Each filter must match the topic of a related run.
+    related :: Text -> [Filter] -> Map UUID [Run] -> [(Text, Text)]
+    related name fs m =
+      [ (name, "None matching " <> T.intercalate ", " (map unFilter missing) <> ".") | diffUTCTime now r.start.at > limit
+      , let topics = map (.eid.evtTopic) (Map.findWithDefault [] r.eid.correlationId m)
+      , let missing = [f | f <- fs, not (any (match f) topics)], not (null missing) ]
     nonEmpty s = if null s then Nothing else Just (T.pack s)
     firstLine = \case
       Just (String t) | not (T.null t) -> Just (T.takeWhile (/= '\n') t)

@@ -22,7 +22,6 @@ executable control-dashboard
     , containers
     , control-events
     , file-embed
-    , http-api-data
     , http-types
     , net-mqtt
     , network-uri
@@ -52,9 +51,9 @@ test-suite spec
   build-depends:
       aeson
     , base
+    , bytestring
     , containers
     , control-events
-    , http-api-data
     , net-mqtt
     , network-uri
     , stm
