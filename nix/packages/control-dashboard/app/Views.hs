@@ -97,6 +97,8 @@ topicPage t c = Page (unTopic t) $ do
   case Map.findWithDefault [] t c.ix.byTopic of
     [] -> H.p "No runs seen on this topic yet."
     rs@(latest : _) -> do
+      when (isHealthcheck t) $
+        H.p "Healthy runs of a healthcheck aren't kept, only its first, its latest, and those with problems."
       when (isNothing latest.start.x.rules.expected) $
         H.p "No expected interval is set, so the dashboard can't tell if this stops running."
       table c rs

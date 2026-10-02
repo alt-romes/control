@@ -6,9 +6,11 @@ module Events
   , State (..), newState, mqttLoop, sendTrigger
   , Index (..), index, latestRuns
   , problems, duration, grace, prune
+  , isHealthcheck, forgetHealthy
   , fmtDuration
   ) where
 
+import Control.Applicative ((<|>))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, reacted, simple, withConn, withMsg, (&), (.~), (?~))
@@ -40,13 +42,14 @@ data Run = Run
   { eid :: EventId
   , start :: Timed (EvtMsg Value)
   , end :: Maybe (Timed EvtDone)
+  , followedAt :: Maybe UTCTime -- ^ when the next run on its topic started, if remembered
   }
 
 -- | A run the dashboard knows of itself rather than from the broker, over as
 -- soon as it starts. Its id is derived from its topic and start, so making it
 -- again gives the same run.
 localRun :: Topic -> UTCTime -> EvtMsg () -> (EvtDone, ()) -> Run
-localRun tp at msg (d, ()) = Run (EventId u tp) (Timed at (msg & withMsg .~ Nothing)) (Just (Timed at d))
+localRun tp at msg (d, ()) = Run (EventId u tp) (Timed at (msg & withMsg .~ Nothing)) (Just (Timed at d)) Nothing
   where u = UUID.generateNamed UUID.namespaceURL (BS.unpack (encodeUtf8 (unTopic tp <> "@" <> T.pack (show at))))
 
 -- | The triggers a run announced when it finished.
@@ -88,7 +91,8 @@ mqttLoop persistent st = forever $ do
     onMsg _ tp body props = atomically $
       case (unsnoc (split tp), listToMaybe [u | PropCorrelationData c <- props, Just u <- [UUID.fromLazyASCIIBytes c]]) of
         (Just (l : ls, kind), Just u)
-          | kind == "start", Just s <- decode body -> modifyTVar' st.runs (prune . Map.insert u (Run (EventId u (foldl (<>) l ls)) s Nothing))
+          | kind == "start", Just s <- decode body, let t = foldl (<>) l ls ->
+              modifyTVar' st.runs (prune . forgetHealthy s.at t . Map.insert u (Run (EventId u t) s Nothing Nothing))
           | kind == "finished", Just e <- decode body -> modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) u)
         _ -> pure ()
 
@@ -113,6 +117,28 @@ prune m
     ix = index m
     kept = concatMap (take 500 . filter (isNothing . (.start.x.scope))) (Map.elems ix.byTopic)
     tree r = r.eid.correlationId : concatMap tree (Map.findWithDefault [] r.eid.correlationId ix.scopedTo)
+
+-- | Healthchecks run often and alike, so only what went wrong with them is
+-- worth keeping.
+isHealthcheck :: Topic -> Bool
+isHealthcheck t = take 1 (split t) == ["healthcheck"]
+
+-- | Forget the healthy top-level runs of a healthcheck, once settled, but its
+-- first and latest: what's left is what went wrong, and since when it's
+-- known. Each run kept remembers when the next started, which may be
+-- forgotten, so it isn't then overdue.
+forgetHealthy :: UTCTime -> Topic -> Map UUID Run -> Map UUID Run
+forgetHealthy now t m
+  | isHealthcheck t = foldr step m (zip (drop 1 rs) rs)
+  | otherwise = m
+  where
+    ix = index m
+    rs = filter (isNothing . (.start.x.scope)) (Map.findWithDefault [] t ix.byTopic)
+    first = map (.eid.correlationId) (take 1 (reverse rs))
+    step (r, newer)
+      | healthy r && r.eid.correlationId `notElem` first = Map.delete r.eid.correlationId
+      | otherwise = Map.insert r.eid.correlationId r {followedAt = r.followedAt <|> Just newer.start.at}
+    healthy r = isJust r.end && diffUTCTime now r.start.at > fromIntegral r.start.x.rules.timeout && null (problems now ix r)
 
 --------------------------------------------------------------------------------
 
@@ -158,7 +184,7 @@ problems now ix r =
     rules = r.start.x.rules
     taken = duration now r
     limit = fromIntegral rules.timeout
-    next = listToMaybe (reverse (takeWhile (> r.start.at) [s.start.at | s <- Map.findWithDefault [] r.eid.evtTopic ix.byTopic]))
+    next = r.followedAt <|> listToMaybe (reverse (takeWhile (> r.start.at) [s.start.at | s <- Map.findWithDefault [] r.eid.evtTopic ix.byTopic]))
     gap = diffUTCTime (fromMaybe now next) r.start.at
     overdue d = "The next run was expected within " <> fmtDuration d <> " (+" <> fmtDuration grace <> " grace)" <> case next of
       Nothing -> ", but none has started in " <> fmtDuration gap <> "."

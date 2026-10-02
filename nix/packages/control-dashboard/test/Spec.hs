@@ -33,6 +33,7 @@ run topic s end = Run
   { eid = EventId (uuid 0) (fromJust (mkTopic topic))
   , start = Timed (sec s) (simple "" & withMsg .~ Nothing)
   , end = (\(took, ok) -> Timed (sec (s + took)) (fst ((if ok then done else failed) "" ()))) <$> end
+  , followedAt = Nothing
   }
 
 with :: (EvtMsg Value -> EvtMsg Value) -> Run -> Run
@@ -69,6 +70,8 @@ main :: IO ()
 main = do
   let ok = Just (1, True)
       a = run "script/a" 0 ok
+      hc = fromJust (mkTopic "healthcheck/x")
+      beat s = expecting 60 . run "healthcheck/x" s
       checks =
         [ ("a successful run has no problems", names 10 [(1, a)] 1 == [])
         , ("a failed run is failed", let r = run "script/a" 0 (Just (1, False)) in names 10 [(1, r)] 1 == ["failed"])
@@ -115,6 +118,17 @@ main = do
              in Map.member (uuid 502) m && Map.member (uuid 3003) m && Map.notMember (uuid 2) m && Map.notMember (uuid 2003) m
                   && Map.size m == 500 * 4 + 500)
         , ("pruning leaves small histories alone", Map.size (prune (numbered [(n, a) | n <- [1 .. 100]])) == 100)
+        , ("a healthcheck forgets its settled healthy runs but its first and latest",
+            Map.keys (forgetHealthy (sec 1000) hc (numbered [(n, beat (60 * fromIntegral n) ok) | n <- [1 .. 4]])) == [uuid 1, uuid 4])
+        , ("a healthcheck doesn't forget unsettled runs",
+            Map.size (forgetHealthy (sec 400) hc (numbered [(n, beat (60 * fromIntegral n) ok) | n <- [1 .. 4]])) == 4)
+        , ("a healthcheck keeps its failures, not then overdue",
+            let m = forgetHealthy (sec 1000) hc (numbered [(1, beat 0 ok), (2, beat 60 (Just (1, False))), (3, beat 120 ok), (4, beat 180 ok)])
+             in Map.keys m == [uuid 1, uuid 2, uuid 4] && map fst (problems (sec 1000) (index m) (m Map.! uuid 2)) == ["failed"])
+        , ("a healthcheck keeps the run before a missed one",
+            Map.keys (forgetHealthy (sec 1000) hc (numbered [(1, beat 0 ok), (2, beat 60 ok), (3, beat 300 ok), (4, beat 360 ok)])) == [uuid 1, uuid 2, uuid 4])
+        , ("other topics are kept whole",
+            Map.size (forgetHealthy (sec 1000) (fromJust (mkTopic "script/a")) (numbered [(n, expecting 60 (run "script/a" (60 * fromIntegral n) ok)) | n <- [1 .. 4]])) == 4)
         ]
   forM_ checks $ \(name, passed) -> putStrLn ((if passed then "ok   " else "FAIL ") <> name)
   unless (all snd checks) exitFailure
