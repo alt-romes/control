@@ -49,7 +49,6 @@
     flake-utils.url = "github:numtide/flake-utils";
     codex-cli-nix.inputs.flake-utils.follows   = "flake-utils";
     mercury-cli.inputs.flake-utils.follows     = "flake-utils";
-    claude-code-nix.inputs.flake-utils.follows = "flake-utils";
     hadrian-util.inputs.flake-utils.follows    = "flake-utils";
 
     # Follow flake-parts
@@ -63,7 +62,6 @@
     systems.url = "github:nix-systems/default";
     flake-utils.inputs.systems.follows                        = "systems";
     nixvim.inputs.systems.follows                             = "systems";
-    nix-doom-emacs-unstraightened.inputs.systems.follows      = "systems";
     agenix.inputs.systems.follows                             = "systems";
     claude-code-nix.inputs.systems.follows                    = "systems";
 

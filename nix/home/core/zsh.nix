@@ -68,7 +68,7 @@
         '';
 
         localVariables = {
-            TYPEWRITTEN_PROMPT_LAYOUT = if pkgs.stdenv.isLinux then "singleline_verbose" else "singleline";
+            TYPEWRITTEN_PROMPT_LAYOUT = if pkgs.stdenv.hostPlatform.isLinux then "singleline_verbose" else "singleline";
         };
 
         plugins = [

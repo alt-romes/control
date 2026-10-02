@@ -101,14 +101,14 @@
         nerd-fonts.symbols-only # emacs uses it
 
         # Other
-        inputs.cob-cli.packages.${pkgs.system}.default
+        inputs.cob-cli.packages.${pkgs.stdenv.hostPlatform.system}.default
         pkgs.programmer-calculator
         pkgs.tree
         pkgs.cloc
         pkgs.fd
         pkgs.haskellPackages.pretty-show # ppsh
 
-      ] ++ lib.optionals pkgs.stdenv.isDarwin [
+      ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
 
         # macOS only
         caffeine
@@ -227,7 +227,7 @@
       # Home Manager needs a bit of information about you and the
       # paths it should manage.
       home.username = "romes";
-      home.homeDirectory = if pkgs.stdenv.isLinux then "/home/romes" else "/Users/romes";
+      home.homeDirectory = if pkgs.stdenv.hostPlatform.isLinux then "/home/romes" else "/Users/romes";
 
       home.sessionVariables = {
         # Commonly needed in the env for building haskell pkgs
