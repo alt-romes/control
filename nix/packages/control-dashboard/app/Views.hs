@@ -273,7 +273,7 @@ colour = \case
 -- | How much the run needs attention.
 marker :: Severity -> Html
 marker s = flag s $ case s of
-  Crisis -> "▲"
+  Crisis -> "CRITICAL"
   Actionable -> "●"
   Healthy -> mempty
 
