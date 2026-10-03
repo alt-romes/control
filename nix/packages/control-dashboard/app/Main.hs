@@ -63,10 +63,10 @@ server opts st live =
     -- Only triggers a run announced, and not yet sent, can be sent.
     trigger u i = do
       ix <- index <$> liftIO (readTVarIO st.runs)
-      case [(r, t) | Just r <- [Map.lookup u ix.runs], Just t <- [lookup i (pendingTriggers ix r)]] of
-        [(r, t)] -> liftIO (try @SomeException (sendTrigger r t))
+      case Map.lookup u ix.runs >>= \r -> (r,) <$> lookup i (pendingTriggers ix r) of
+        Just (r, t) -> liftIO (try @SomeException (sendTrigger r t))
           >>= either (\e -> throwError err500 {errBody = fromString (displayException e)}) (\v -> redirect ("/run/" <> UUID.toASCIIBytes v))
-        _ -> throwError err404 {errBody = "That run has no such trigger pending."}
+        Nothing -> throwError err404 {errBody = "That run has no such trigger pending."}
     redirect :: ByteString -> Handler Html
     redirect l = throwError err303 {errHeaders = [("Location", l)]}
     view f = liftIO $ do

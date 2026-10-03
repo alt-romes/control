@@ -2,7 +2,7 @@
 -- | Checks of how runs are judged: failures, rules, grouping and pruning.
 module Main (main) where
 
-import Control.Events (EventId (..), EvtMsg (..), Rules (..), Timed (..), done, evtExpected, evtSubtasks, failed, reacted, scoped, simple, withMsg, (&), (.~), (?~))
+import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, evtExpected, evtSubtasks, failed, reacted, scoped, simple, withMsg, (&), (.~), (?~))
 import Control.Monad (forM_, unless)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -47,6 +47,9 @@ expectingSubtasks ts = with (evtSubtasks ?~ ts)
 
 expectingReactions :: [Text] -> Run -> Run
 expectingReactions fs = with (\m -> m {rules = m.rules {reactions = Just (map (fromJust . mkFilter) fs)}})
+
+announcing :: Text -> Run -> Run
+announcing tp r = r {end = (\e -> e {x = e.x {triggers = Just [Trigger (fromJust (mkTopic tp)) "Send" Nothing]}}) <$> r.end}
 
 partOf, reactionTo :: Int -> Run -> Run
 partOf p = with (scoped ?~ EventId (uuid p) (fromJust (mkTopic "t")))
@@ -98,6 +101,12 @@ main = do
         , ("a missing reaction is reported", let r = expectingReactions ["script/#", "server/b"] a in problemsOf 400 [(1, r), (2, reactionTo 1 (run "script/x" 5 ok))] 1 == [("reactions", "None matching server/b.")])
         , ("a reaction must react to the run", let r = expectingReactions ["#"] a in names 400 [(1, r), (2, run "script/x" 5 ok)] 1 == ["reactions"])
         , ("a reaction is missing until it arrives, even within the timeout", let r = expectingReactions ["#"] a in names 1 [(1, r)] 1 == ["reactions"])
+        , ("a missing reaction a pending trigger would provide awaits it",
+            let r = announcing "trigger/x" (expectingReactions ["trigger/#", "server/b"] a)
+             in problemsOf 400 [(1, r)] 1 == [("awaiting trigger", "Not yet sent: Send."), ("reactions", "None matching server/b.")])
+        , ("a sent trigger is no longer awaited",
+            let r = announcing "trigger/x" (expectingReactions ["trigger/#"] a) in names 400 [(1, r), (2, reactionTo 1 (run "trigger/x" 5 ok))] 1 == [])
+        , ("a pending trigger no reaction is expected of is no problem", names 400 [(1, announcing "trigger/x" a)] 1 == [])
         , ("a reaction is top-level", sort (ids (latestRuns (index (numbered [(1, a), (2, reactionTo 1 (run "script/b" 5 ok))])))) == [uuid 1, uuid 2])
         , ("a subtask isn't top-level, even of an unknown run", ids (latestRuns (index (numbered [(1, a), (2, partOf 1 (run "script/a/sub" 0 ok)), (3, partOf 9 (run "script/a/sub2" 0 ok))]))) == [uuid 1])
         , ("the latest runs are one per topic",

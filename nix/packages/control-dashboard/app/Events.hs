@@ -2,7 +2,7 @@
 -- | Runs of control-events as seen on the MQTT broker, how they relate, and
 -- what's wrong with them.
 module Events
-  ( Run (..), pendingTriggers
+  ( Run (..), pendingTriggers, causes
   , State (..), newState, load, save, mqttLoop, sendTrigger
   , Index (..), index, topLevel, latestRuns
   , problems, duration, timedOut, grace, prune
@@ -152,6 +152,12 @@ pendingTriggers :: Index -> Run -> [(Int, Trigger)]
 pendingTriggers ix r = [(i, t) | (i, t) <- zip [0 ..] (foldMap (fromMaybe [] . (.x.triggers)) r.end), t.triggerTopic `notElem` sent]
   where sent = map (.eid.evtTopic) (Map.findWithDefault [] r.eid.correlationId ix.reactingTo)
 
+-- | The runs a run reacts to, directly or not, closest first.
+causes :: Index -> Run -> [Run]
+causes ix r = case r.start.x.reactTo >>= \e -> Map.lookup e.correlationId ix.runs of
+  Just p -> p : causes ix p
+  Nothing -> []
+
 -- | The top-level runs of a topic, i.e. not scoped to another, newest first.
 topLevel :: Index -> Topic -> [Run]
 topLevel ix t = filter (isNothing . (.start.x.scope)) (Map.findWithDefault [] t ix.byTopic)
@@ -168,15 +174,16 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 -- whether it failed, and each rule it broke. The run is overdue if the next
 -- run on its topic, which may not have started yet, started too late after
 -- it. Subtasks are given the run's timeout to show up; a reaction is missing
--- until it arrives.
+-- until it arrives, and awaits the trigger the run announced for it, if any.
 problems :: UTCTime -> Index -> Run -> [(Text, Text)]
 problems now ix r =
   [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.x.summary) <> foldMap (" — " <>) (firstLine e.x.result))
     | Just e <- [r.end], not e.x.success ]
     ++ [ ("timed out", (if isJust r.end then "Took " else "No finish after ") <> fmtDuration taken <> "; the limit is " <> fmtDuration limit <> ".") | timedOut now r ]
     ++ [ ("overdue", overdue d) | Just d <- [rules.expected], gap > d + grace ]
-    ++ [p | diffUTCTime now r.start.at > limit, p <- related "subtasks" [fromString (T.unpack (unTopic r.eid.evtTopic) <> "/" <> s) | s <- fromMaybe [] rules.subtasks] ix.scopedTo]
-    ++ related "reactions" (fromMaybe [] rules.reactions) ix.reactingTo
+    ++ [p | diffUTCTime now r.start.at > limit, p <- none "subtasks" (unmatched [fromString (T.unpack (unTopic r.eid.evtTopic) <> "/" <> s) | s <- fromMaybe [] rules.subtasks] ix.scopedTo)]
+    ++ [("awaiting trigger", "Not yet sent: " <> T.intercalate ", " (map (T.pack . (.triggerLabel)) awaited) <> ".") | not (null awaited)]
+    ++ none "reactions" [f | f <- reactions, not (any (match f . (.triggerTopic)) awaited)]
   where
     rules = r.start.x.rules
     taken = duration now r
@@ -187,11 +194,12 @@ problems now ix r =
       Nothing -> ", but none has started in " <> fmtDuration gap <> "."
       Just _ -> ", but it started " <> fmtDuration gap <> " later."
     -- Each filter must match the topic of a related run.
-    related :: Text -> [Filter] -> Map UUID [Run] -> [(Text, Text)]
-    related name fs m =
-      [ (name, "None matching " <> T.intercalate ", " (map unFilter missing) <> ".")
-      | let topics = map (.eid.evtTopic) (Map.findWithDefault [] r.eid.correlationId m)
-      , let missing = [f | f <- fs, not (any (match f) topics)], not (null missing) ]
+    unmatched :: [Filter] -> Map UUID [Run] -> [Filter]
+    unmatched fs m = [f | f <- fs, not (any (match f . (.eid.evtTopic)) (Map.findWithDefault [] r.eid.correlationId m))]
+    none name fs = [(name, "None matching " <> T.intercalate ", " (map unFilter fs) <> ".") | not (null fs)]
+    -- A missing reaction a pending trigger would provide is waiting on it.
+    reactions = unmatched (fromMaybe [] rules.reactions) ix.reactingTo
+    awaited = [t | (_, t) <- pendingTriggers ix r, any (`match` t.triggerTopic) reactions]
     nonEmpty s = if null s then Nothing else Just (T.pack s)
     firstLine = \case
       Just (String t) | not (T.null t) -> Just (T.takeWhile (/= '\n') t)
