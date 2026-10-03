@@ -101,7 +101,7 @@ topicPage t c = Page (unTopic t) $ do
   case Map.findWithDefault [] t c.ix.byTopic of
     [] -> H.p "No runs seen on this topic yet."
     rs@(latest : _) -> do
-      when (isNothing latest.start.x.rules.expected) $
+      when (isNothing latest.start.e.rules.expected) $
         H.p "No expected interval is set, so the dashboard can't tell if this stops running."
       table c Nothing [("", concatMap (chain c 0) rs)]
 
@@ -118,7 +118,7 @@ runPage u c = case Map.lookup u c.ix.runs of
       when r.acked "Acknowledged."
     H.p (ackButton c r)
     H.dl $ do
-      field "Label" (toHtml r.start.x.label)
+      field "Label" (toHtml r.start.e.label)
       field "Started" $ toHtml (localTime c r.start.at) >> " (" >> ago c r.start.at >> ")"
       field "Finished" $ case r.end of
         Just e -> toHtml (localTime c e.at)
@@ -126,10 +126,10 @@ runPage u c = case Map.lookup u c.ix.runs of
                 | otherwise -> "not yet"
       field "Took" (took c r)
       field "Summary" (toHtml (summaryOf r))
-      forM_ r.start.x.scope $ field "Part of" . eventLink c
-      forM_ r.start.x.reactTo $ field "Reacting to" . eventLink c
+      forM_ r.start.e.scope $ field "Part of" . eventLink c
+      forM_ r.start.e.reactTo $ field "Reacting to" . eventLink c
       field "Correlation id" $ H.code (toHtml (UUID.toText u))
-    sequence_ [H.h2 h >> H.pre (pretty v) | (h, Just v) <- [("Rules", Just (toJSON r.start.x.rules)), ("Content", contentOf r), ("Result", r.end >>= (.x.result))]]
+    sequence_ [H.h2 h >> H.pre (pretty v) | (h, Just v) <- [("Rules", Just (toJSON r.start.e.rules)), ("Content", contentOf r), ("Result", r.end >>= (.e.result))]]
     let whole = chain c 0 (last (r : causes c.ix r))
     table c (Just u) [(name, rows) | (name, rows) <- [("Subtasks", concatMap (chain c 0) (Map.findWithDefault [] u c.ix.scopedTo)), ("Chain of reactions", whole)], length rows > 1 || name == "Subtasks" && not (null rows)]
   where
@@ -145,7 +145,7 @@ data Severity = Healthy | Actionable | Crisis
 
 severity :: Ctx -> Run -> Severity
 severity c r
-  | bad c r && not r.acked = if r.start.x.rules.critical then Crisis else Actionable
+  | bad c r && not r.acked = if r.start.e.rules.critical then Crisis else Actionable
   | otherwise = Healthy
 
 needsAttention :: Ctx -> Run -> Bool
@@ -209,9 +209,9 @@ table c current sections = unless (null sections) $ H.table $ do
         H.td (marker (severity c r))
         H.td ! A.class_ "topic" ! indent d $ do
           arrow d >> topicLink r.eid.evtTopic
-          forM_ r.start.x.scope $ \e -> unless (current == Just e.correlationId) $ H.span ! A.class_ "muted" $ " in " >> eventLink c e
+          forM_ r.start.e.scope $ \e -> unless (current == Just e.correlationId) $ H.span ! A.class_ "muted" $ " in " >> eventLink c e
         H.td (problem r)
-        H.td ! A.class_ "time" $ runLink r (ago c r.start.at) >> times c (runsOf (NE.toList g)) >> forM_ r.start.x.rules.expected (\e -> toHtml (" / " <> fmtDuration e))
+        H.td ! A.class_ "time" $ runLink r (ago c r.start.at) >> times c (runsOf (NE.toList g)) >> forM_ r.start.e.rules.expected (\e -> toHtml (" / " <> fmtDuration e))
         H.td ! A.class_ "time" $ took c r
         H.td (toHtml (summaryOf r))
         H.td $ when (map (.eid.correlationId) (take 1 (topLevel c.ix r.eid.evtTopic)) == [r.eid.correlationId]) (history c r.eid.evtTopic)
@@ -231,7 +231,7 @@ table c current sections = unless (null sections) $ H.table $ do
     -- run.
     same (RunRow d r) (RunRow d' r') = d == d' && key r == key r' && null (reactionsTo c r') && null (pendingTriggers c.ix r')
     same _ _ = False
-    key r = (r.eid.evtTopic, (.correlationId) <$> r.start.x.scope, problemsOf c r, severity c r, summaryOf r)
+    key r = (r.eid.evtTopic, (.correlationId) <$> r.start.e.scope, problemsOf c r, severity c r, summaryOf r)
     indent d = A.style (toValue ("padding-left: " <> tshow (0.5 + 1.5 * fromIntegral d :: Double) <> "em"))
     arrow d = when (d > 0) "↳ "
     problem r = let ps = problemsOf c r in
@@ -290,11 +290,11 @@ took c r = case r.end of
   Nothing -> unless (timedOut c.now r) $ toHtml (fmtDuration (duration c.now r) <> ", running")
 
 summaryOf :: Run -> Text
-summaryOf r = foldMap (\e -> T.pack e.x.summary) r.end
+summaryOf r = foldMap (\e -> T.pack e.e.summary) r.end
 
 -- | The run's content, unless empty.
 contentOf :: Run -> Maybe Value
-contentOf r = r.start.x.content >>= \v -> v <$ guard (v `notElem` [Null, Object mempty, Array mempty])
+contentOf r = r.start.e.content >>= \v -> v <$ guard (v `notElem` [Null, Object mempty, Array mempty])
 
 ago :: Ctx -> UTCTime -> Html
 ago c t = H.span ! A.title (toValue (localTime c t)) $

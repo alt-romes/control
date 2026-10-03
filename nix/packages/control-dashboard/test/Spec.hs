@@ -37,7 +37,7 @@ run topic s end = Run
   }
 
 with :: (EvtMsg Value -> EvtMsg Value) -> Run -> Run
-with f r = r {start = r.start {x = f r.start.x}}
+with f r = r {start = r.start {e = f r.start.e}}
 
 expecting :: NominalDiffTime -> Run -> Run
 expecting d = with (evtExpected ?~ d)
@@ -49,7 +49,7 @@ expectingReactions :: [Text] -> Run -> Run
 expectingReactions fs = with (\m -> m {rules = m.rules {reactions = Just (map (fromJust . mkFilter) fs)}})
 
 announcing :: Text -> Run -> Run
-announcing tp r = r {end = (\e -> e {x = e.x {triggers = Just [Trigger (fromJust (mkTopic tp)) "Send" Nothing]}}) <$> r.end}
+announcing tp r = r {end = (\d -> d {e = d.e {triggers = Just [Trigger (fromJust (mkTopic tp)) "Send" Nothing]}}) <$> r.end}
 
 partOf, reactionTo :: Int -> Run -> Run
 partOf p = with (scoped ?~ EventId (uuid p) (fromJust (mkTopic "t")))

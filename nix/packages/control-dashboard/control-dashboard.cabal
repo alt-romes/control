@@ -18,7 +18,6 @@ common shared
     , control-events
     , directory
     , net-mqtt
-    , network-uri
     , stm
     , text
     , time

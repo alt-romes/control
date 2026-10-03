@@ -11,15 +11,15 @@ module Events
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
-import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, reacted, simple, withConn, withMsg, (&), (.~), (?~))
+import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, react, reacted, simple, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
-import Control.Monad (forever, void)
+import Control.Monad (forever)
 import Data.Aeson (FromJSON, ToJSON, Value (..), decode, encode)
 import qualified Data.ByteString.Lazy as BL
 import Data.List (sortOn, unsnoc)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust, fromMaybe, isJust, isNothing, listToMaybe)
+import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe)
 import Data.Ord (Down (..))
 import qualified Data.Set as Set
 import Data.String (fromString)
@@ -27,11 +27,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
 import GHC.Generics (Generic)
-import Network.MQTT.Client
-import Network.MQTT.Topic (Filter, match, split, unFilter, unTopic)
-import Network.URI (parseURI)
+import Network.MQTT.Topic (Filter, Topic, match, split, unFilter, unTopic)
 import System.Directory (renameFile)
 
 -- | A run of an event: how it started and, once finished, how it ended.
@@ -47,7 +44,7 @@ data Run = Run
 
 data State = State
   { runs :: TVar (Map UUID Run) -- ^ by correlation id
-  , broker :: TVar (Maybe MQTTClient) -- ^ while connected
+  , conn :: TVar (Maybe Conn)
   }
 
 newState :: IO State
@@ -67,32 +64,24 @@ save p st = do
   renameFile (p <> ".tmp") p
 
 -- | Stay subscribed to every event, reconnecting if the broker goes away.
--- Messages are handled in order, so a run's start comes before its finish:
--- the publisher waits for the broker to have the start.
+--
+-- TODO: A finish arriving over twice its timeout after its start, or whose
+-- start came before a restart or reconnect, is lost (see control-events).
 --
 -- A persistent session keeps a fixed client id, and the broker queues messages
 -- for up to a day while we're away. Otherwise the broker assigns a fresh id, so
 -- other instances (e.g. dev runs) can't take over the persistent session.
 mqttLoop :: Bool -> State -> IO ()
 mqttLoop persistent st = forever $ do
-  r <- try @SomeException $ do
-    mc <- connectURI mqttConfig {_msgCB = OrderedCallback onMsg, _protocol = Protocol50, _cleanSession = not persistent, _connProps = sessionProps} uri
-    void $ subscribe mc [("#", subOptions {_subQoS = QoS2})] []
-    atomically $ writeTVar st.broker (Just mc)
-    waitForClient mc
-  atomically $ writeTVar st.broker Nothing
+  r <- try @SomeException $ withPersistentConn (if persistent then Just "control-dashboard" else Nothing) "server/control-dashboard" $ \c -> do
+    atomically $ writeTVar st.conn (Just c)
+    react c "#" (\eid s -> started eid s >> pure (finished eid))
+  atomically $ writeTVar st.conn Nothing
   putStrLn ("mqtt: " <> either show (const "disconnected") r)
   threadDelay 5_000_000
   where
-    -- connectURI takes the client id from the fragment, ignoring '_connID'.
-    uri = fromJust (parseURI ("mqtt://127.0.0.1:1883" <> if persistent then "#control-dashboard" else ""))
-    sessionProps = [PropSessionExpiryInterval 86400 | persistent]
-    onMsg _ tp body props = atomically $
-      case (splitLast tp, listToMaybe [u | PropCorrelationData c <- props, Just u <- [UUID.fromLazyASCIIBytes c]]) of
-        (Just (t, kind), Just u)
-          | kind == "start", Just s <- decode body -> modifyTVar' st.runs (prune . Map.insert u (Run (EventId u t) s Nothing False))
-          | kind == "finished", Just e <- decode body -> modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) u)
-        _ -> pure ()
+    started eid s = atomically $ modifyTVar' st.runs (prune . Map.insert eid.correlationId (Run eid s Nothing False))
+    finished eid e = atomically $ modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) eid.correlationId)
 
 -- | Send a trigger announced by a run, as an event reacting to that run. Like
 -- any event it's a run of its own, which whoever listens on the trigger's
@@ -139,8 +128,8 @@ index :: Map UUID Run -> Index
 index runs = Index
   { runs
   , byTopic = by (Just . (.eid.evtTopic))
-  , scopedTo = by (fmap (.correlationId) . (.start.x.scope))
-  , reactingTo = by (fmap (.correlationId) . (.start.x.reactTo))
+  , scopedTo = by (fmap (.correlationId) . (.start.e.scope))
+  , reactingTo = by (fmap (.correlationId) . (.start.e.reactTo))
   }
   where
     by k = Map.fromListWith (flip (++)) [(p, [r]) | r <- sortOn (Down . (.start.at)) (Map.elems runs), Just p <- [k r]]
@@ -149,22 +138,22 @@ index runs = Index
 -- each with its position among all it announced. Triggers are one-shot: one
 -- counts as sent once a run reacting to the run is seen on its topic.
 pendingTriggers :: Index -> Run -> [(Int, Trigger)]
-pendingTriggers ix r = [(i, t) | (i, t) <- zip [0 ..] (foldMap (fromMaybe [] . (.x.triggers)) r.end), t.triggerTopic `notElem` sent]
+pendingTriggers ix r = [(i, t) | (i, t) <- zip [0 ..] (foldMap (fromMaybe [] . (.e.triggers)) r.end), t.triggerTopic `notElem` sent]
   where sent = map (.eid.evtTopic) (Map.findWithDefault [] r.eid.correlationId ix.reactingTo)
 
 -- | The runs a run reacts to, directly or not, closest first.
 causes :: Index -> Run -> [Run]
-causes ix r = case r.start.x.reactTo >>= \e -> Map.lookup e.correlationId ix.runs of
+causes ix r = case r.start.e.reactTo >>= \e -> Map.lookup e.correlationId ix.runs of
   Just p -> p : causes ix p
   Nothing -> []
 
 -- | The top-level runs of a topic, i.e. not scoped to another, newest first.
 topLevel :: Index -> Topic -> [Run]
-topLevel ix t = filter (isNothing . (.start.x.scope)) (Map.findWithDefault [] t ix.byTopic)
+topLevel ix t = filter (isNothing . (.start.e.scope)) (Map.findWithDefault [] t ix.byTopic)
 
 -- | The latest run of each top-level event, i.e. not scoped to another.
 latestRuns :: Index -> [Run]
-latestRuns ix = [r | rs <- Map.elems ix.byTopic, r <- take 1 rs, isNothing r.start.x.scope]
+latestRuns ix = [r | rs <- Map.elems ix.byTopic, r <- take 1 rs, isNothing r.start.e.scope]
 
 -- | How long a run took, or has been running for.
 duration :: UTCTime -> Run -> NominalDiffTime
@@ -177,15 +166,15 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 -- until it arrives, and awaits the trigger the run announced for it, if any.
 problems :: UTCTime -> Index -> Run -> [(Text, Text)]
 problems now ix r =
-  [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.x.summary) <> foldMap (" — " <>) (firstLine e.x.result))
-    | Just e <- [r.end], not e.x.success ]
+  [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.e.summary) <> foldMap (" — " <>) (firstLine e.e.result))
+    | Just e <- [r.end], not e.e.success ]
     ++ [ ("timed out", (if isJust r.end then "Took " else "No finish after ") <> fmtDuration taken <> "; the limit is " <> fmtDuration limit <> ".") | timedOut now r ]
     ++ [ ("overdue", overdue d) | Just d <- [rules.expected], gap > d + grace ]
     ++ [p | diffUTCTime now r.start.at > limit, p <- none "subtasks" (unmatched [fromString (T.unpack (unTopic r.eid.evtTopic) <> "/" <> s) | s <- fromMaybe [] rules.subtasks] ix.scopedTo)]
     ++ [("awaiting trigger", "Not yet sent: " <> T.intercalate ", " (map (T.pack . (.triggerLabel)) awaited) <> ".") | not (null awaited)]
     ++ none "reactions" [f | f <- reactions, not (any (match f . (.triggerTopic)) awaited)]
   where
-    rules = r.start.x.rules
+    rules = r.start.e.rules
     taken = duration now r
     limit = fromIntegral rules.timeout
     next = listToMaybe (reverse (takeWhile (> r.start.at) [s.start.at | s <- Map.findWithDefault [] r.eid.evtTopic ix.byTopic]))
@@ -207,7 +196,7 @@ problems now ix r =
 
 -- | Whether a run took, or has been running for, longer than its timeout.
 timedOut :: UTCTime -> Run -> Bool
-timedOut now r = duration now r > fromIntegral r.start.x.rules.timeout
+timedOut now r = duration now r > fromIntegral r.start.e.rules.timeout
 
 -- | Leeway on 'expected', so a run expected every minute doesn't race its
 -- own schedule.
