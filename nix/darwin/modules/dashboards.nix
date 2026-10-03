@@ -10,8 +10,8 @@
       options.control-dashboard = {
         requiredHealthchecks = lib.mkOption {
           description = ''
-            Topics that must always be running: until a run of one is seen,
-            the dashboard critically expects one from when it started.
+            Topics that must always be running: each is a crisis until a run
+            of it is seen.
           '';
           type = lib.types.listOf lib.types.str;
           default = [ ];

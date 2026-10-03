@@ -7,11 +7,11 @@ h1 { font-size: 1.4em; }
 h2 { font-size: 1.1em; margin-top: 2em; }
 .bad { color: #d62718; }
 .crisis { color: #d62718; font-weight: 700; }
-.quiet { color: #888; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #8884; padding: 4px 8px; text-align: left; vertical-align: top; }
 th { font-weight: 600; }
+td.time { white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 20ch; }
 pre { white-space: pre-wrap; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 24px; }
 dt { font-weight: 600; }
@@ -19,5 +19,5 @@ dd { margin: 0; }
 
 .history { display: inline-flex; gap: 1px; }
 .tick { display: inline-block; width: 4px; height: 14px; background: #8886; }
-.tick.folded { width: 12px; }
 .tick.bad { background: #d62718; }
+tr.section th { padding-top: 1.5em; font-size: 1.1em; }
