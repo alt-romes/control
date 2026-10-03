@@ -24,5 +24,5 @@ button { white-space: nowrap; }
 .tick { display: inline-block; width: 4px; height: 14px; background: #8886; }
 .tick.bad { background: #d62718; }
 tr.current { background: #8882; }
-tr.pending { color: #888; }
+tr.pending, .muted { color: #888; }
 tr.section th { padding-top: 1.5em; font-size: 1.1em; }

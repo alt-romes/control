@@ -126,8 +126,8 @@ runPage u c = case Map.lookup u c.ix.runs of
                 | otherwise -> "not yet"
       field "Took" (took c r)
       field "Summary" (toHtml (summaryOf r))
-      forM_ r.start.x.scope $ field "Part of" . eventLink
-      forM_ r.start.x.reactTo $ field "Reacting to" . eventLink
+      forM_ r.start.x.scope $ field "Part of" . eventLink c
+      forM_ r.start.x.reactTo $ field "Reacting to" . eventLink c
       field "Correlation id" $ H.code (toHtml (UUID.toText u))
     sequence_ [H.h2 h >> H.pre (pretty v) | (h, Just v) <- [("Rules", Just (toJSON r.start.x.rules)), ("Content", contentOf r), ("Result", r.end >>= (.x.result))]]
     let whole = chain c 0 (last (r : causes c.ix r))
@@ -135,9 +135,6 @@ runPage u c = case Map.lookup u c.ix.runs of
   where
     field :: Text -> Html -> Html
     field k v = H.dt (toHtml k) >> H.dd v
-    eventLink e = case Map.lookup e.correlationId c.ix.runs of
-      Just p -> runLink p (toHtml (unTopic p.eid.evtTopic))
-      Nothing -> H.code (toHtml (unTopic e.evtTopic <> " " <> UUID.toText e.correlationId))
 
 --------------------------------------------------------------------------------
 -- What needs attention
@@ -198,6 +195,7 @@ reactionsTo :: Ctx -> Run -> [Run]
 reactionsTo c r = Map.findWithDefault [] r.eid.correlationId c.ix.reactingTo
 
 -- | Rows as one table, in sections named unless empty, highlighting the
+-- current run. A subtask names the run it's part of, unless that's the
 -- current run. Consecutive runs that differ only in when they ran are shown
 -- once, as the first, with how many there were. The latest run of a topic
 -- shows the topic's recent history.
@@ -209,7 +207,9 @@ table c current sections = unless (null sections) $ H.table $ do
     forM_ (NE.groupBy same rows) $ \g -> case NE.head g of
       RunRow d r -> H.tr ! (if current == Just r.eid.correlationId then A.class_ "current" else mempty) $ do
         H.td (marker (severity c r))
-        H.td ! A.class_ "topic" ! indent d $ arrow d >> topicLink r.eid.evtTopic
+        H.td ! A.class_ "topic" ! indent d $ do
+          arrow d >> topicLink r.eid.evtTopic
+          forM_ r.start.x.scope $ \e -> unless (current == Just e.correlationId) $ H.span ! A.class_ "muted" $ " in " >> eventLink c e
         H.td (problem r)
         H.td ! A.class_ "time" $ runLink r (ago c r.start.at) >> times c (runsOf (NE.toList g)) >> forM_ r.start.x.rules.expected (\e -> toHtml (" / " <> fmtDuration e))
         H.td ! A.class_ "time" $ took c r
@@ -226,11 +226,12 @@ table c current sections = unless (null sections) $ H.table $ do
         H.td mempty
         H.td (triggerButton r t)
   where
-    -- A run with reactions or triggers is never folded in, lest they show
-    -- under another run.
+    -- A subtask is only folded with subtasks of the same run, and a run with
+    -- reactions or triggers is never folded in, lest they show under another
+    -- run.
     same (RunRow d r) (RunRow d' r') = d == d' && key r == key r' && null (reactionsTo c r') && null (pendingTriggers c.ix r')
     same _ _ = False
-    key r = (r.eid.evtTopic, problemsOf c r, severity c r, summaryOf r)
+    key r = (r.eid.evtTopic, (.correlationId) <$> r.start.x.scope, problemsOf c r, severity c r, summaryOf r)
     indent d = A.style (toValue ("padding-left: " <> tshow (0.5 + 1.5 * fromIntegral d :: Double) <> "em"))
     arrow d = when (d > 0) "↳ "
     problem r = let ps = problemsOf c r in
@@ -308,6 +309,12 @@ topicLink t = H.a ! A.href (toValue ("/topic/" <> T.intercalate "/" (map (enc . 
 
 runUrl :: Run -> Text
 runUrl r = "/run/" <> UUID.toText r.eid.correlationId
+
+-- | A link to an event's run, if it's known.
+eventLink :: Ctx -> EventId -> Html
+eventLink c e = case Map.lookup e.correlationId c.ix.runs of
+  Just p -> runLink p (toHtml (unTopic p.eid.evtTopic))
+  Nothing -> H.code (toHtml (unTopic e.evtTopic <> " " <> UUID.toText e.correlationId))
 
 runLink :: Run -> Html -> Html
 runLink r = H.a ! A.href (toValue (runUrl r))
