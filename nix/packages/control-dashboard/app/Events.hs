@@ -4,7 +4,7 @@
 module Events
   ( Run (..), pendingTriggers, causes
   , State (..), newState, load, save, mqttLoop, sendTrigger
-  , Index (..), index, topLevel, latestRuns
+  , Index (..), index, topLevel, latestRuns, isCritical
   , problems, duration, timedOut, grace, prune
   , fmtDuration
   ) where
@@ -146,6 +146,11 @@ causes :: Index -> Run -> [Run]
 causes ix r = case r.start.e.reactTo >>= \e -> Map.lookup e.correlationId ix.runs of
   Just p -> p : causes ix p
   Nothing -> []
+
+-- | Whether a run is critical: marked so, or part of or reacting to a
+-- critical run.
+isCritical :: Index -> Run -> Bool
+isCritical ix r = r.start.e.rules.critical || any (isCritical ix) [p | Just e <- [r.start.e.scope, r.start.e.reactTo], Just p <- [Map.lookup e.correlationId ix.runs]]
 
 -- | The top-level runs of a topic, i.e. not scoped to another, newest first.
 topLevel :: Index -> Topic -> [Run]

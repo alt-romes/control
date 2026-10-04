@@ -126,6 +126,9 @@ main = do
              in Map.member (uuid 502) m && Map.member (uuid 3003) m && Map.notMember (uuid 2) m && Map.notMember (uuid 2003) m
                   && Map.size m == 500 * 4 + 500)
         , ("pruning leaves small histories alone", Map.size (prune (numbered [(n, a) | n <- [1 .. 100]])) == 100)
+        , ("subtasks and reactions of a critical run are critical, transitively",
+            let ix = index (numbered [(1, with (\m -> m {rules = m.rules {critical = True}}) a), (2, partOf 1 (run "script/a/x" 0 ok)), (3, reactionTo 2 (run "script/b" 5 ok)), (4, a)])
+             in map (isCritical ix) (Map.elems ix.runs) == [True, True, True, False])
         , ("runs survive being saved",
             let m = numbered [(1, (beat 0 ok) {acked = True}), (2, partOf 1 (run "script/a/x" 1 Nothing))]
                 key :: Run -> (UUID, Bool, UTCTime, Maybe UTCTime)

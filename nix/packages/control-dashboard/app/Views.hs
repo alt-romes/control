@@ -145,7 +145,7 @@ data Severity = Healthy | Actionable | Crisis
 
 severity :: Ctx -> Run -> Severity
 severity c r
-  | bad c r && not r.acked = if r.start.e.rules.critical then Crisis else Actionable
+  | bad c r && not r.acked = if isCritical c.ix r then Crisis else Actionable
   | otherwise = Healthy
 
 needsAttention :: Ctx -> Run -> Bool
