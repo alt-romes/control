@@ -169,6 +169,7 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 -- run on its topic, which may not have started yet, started too late after
 -- it. Subtasks are given the run's timeout to show up; a reaction is missing
 -- until it arrives, and awaits the trigger the run announced for it, if any.
+-- A subtask's problems are the run's too, unless acknowledged.
 problems :: UTCTime -> Index -> Run -> [(Text, Text)]
 problems now ix r =
   [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.e.summary) <> foldMap (" — " <>) (firstLine e.e.result))
@@ -176,6 +177,7 @@ problems now ix r =
     ++ [ ("timed out", (if isJust r.end then "Took " else "No finish after ") <> fmtDuration taken <> "; the limit is " <> fmtDuration limit <> ".") | timedOut now r ]
     ++ [ ("overdue", overdue d) | Just d <- [rules.expected], gap > d + grace ]
     ++ [p | diffUTCTime now r.start.at > limit, p <- none "subtasks" (unmatched [fromString (T.unpack (unTopic r.eid.evtTopic) <> "/" <> s) | s <- fromMaybe [] rules.subtasks] ix.scopedTo)]
+    ++ [("failed subtasks", T.intercalate "; " fs <> ".") | let fs = failedSubtasks, not (null fs)]
     ++ [("awaiting trigger", "Not yet sent: " <> T.intercalate ", " (map (T.pack . (.triggerLabel)) awaited) <> ".") | not (null awaited)]
     ++ none "reactions" [f | f <- reactions, not (any (match f . (.triggerTopic)) awaited)]
   where
@@ -194,6 +196,7 @@ problems now ix r =
     -- A missing reaction a pending trigger would provide is waiting on it.
     reactions = unmatched (fromMaybe [] rules.reactions) ix.reactingTo
     awaited = [t | (_, t) <- pendingTriggers ix r, any (`match` t.triggerTopic) reactions]
+    failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- Map.findWithDefault [] r.eid.correlationId ix.scopedTo, not s.acked, let ps = problems now ix s, not (null ps)]
     nonEmpty s = if null s then Nothing else Just (T.pack s)
     firstLine = \case
       Just (String t) | not (T.null t) -> Just (T.takeWhile (/= '\n') t)
