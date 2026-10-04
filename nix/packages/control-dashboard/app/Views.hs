@@ -67,7 +67,7 @@ render c live p
         H.header $ do
           H.nav $ H.a ! A.href "/" $ "Overview"
           H.nav $ forM_ c.links $ \h ->
-            H.a ! A.href (toValue ((if ".localhost" `isSuffixOf` h then "http://" else "https://") <> h)) $ toHtml h
+            H.a ! A.href (toValue ((if any (`isSuffixOf` h) [".localhost", "control.mogbit.com"] then "http://" else "https://") <> h)) $ toHtml h
         H.main ! customAttribute "hx-get" "?live" ! customAttribute "hx-trigger" "every 5s" ! customAttribute "hx-swap" "innerMorph" $ body
   where
     n = attention c
