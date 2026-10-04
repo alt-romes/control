@@ -13,7 +13,7 @@
 
     control-dashboard = {
       requiredHealthchecks = [ "healthcheck/kanjideck/fulfillment-server" "healthcheck/scrollsent" ];
-      links = [ "alt-romes.github.io" "analytics.mogbit.com" "dashboard.stripe.com" "ledger.localhost" "satisago.localhost" ];
+      links = [ "alt-romes.github.io" "analytics.mogbit.com" "dashboard.stripe.com" "ledger.control.mogbit.com" "satisago.control.mogbit.com" ];
     };
 
     homebrew = {

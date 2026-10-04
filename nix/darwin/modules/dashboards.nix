@@ -51,10 +51,11 @@
           };
         };
 
-        # Map dashboard.localhost to the control dashboard
+        # Serve the control dashboard locally and on the wireguard VPN
         services.caddy = {
           virtualHosts = {
-            "dash.localhost" = "127.0.0.1:5001";
+            "dash.localhost"     = "127.0.0.1:5001";
+            "control.mogbit.com" = "127.0.0.1:5001";
           };
         };
       };
