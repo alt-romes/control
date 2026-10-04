@@ -1,5 +1,5 @@
 {
-  flake.homeModules.email = { ... }: {
+  flake.homeModules.email = { osConfig, ... }: {
     programs.neomutt.enable = true; # Email client
   
     programs.mbsync.enable = true; # Email downloader
@@ -29,7 +29,7 @@
         notmuch.enable = true;
         primary = true;
         realName = "Rodrigo Mesquita";
-        passwordCommand = "op item get 'Mogbit Mail' --fields password --reveal";
+        passwordCommand = "cat ${osConfig.age.secrets.mogbit-mail.path}";
         smtp = {
           host = "mail.mogbit.com";
         };
