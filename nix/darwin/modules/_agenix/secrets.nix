@@ -30,4 +30,5 @@ in
   "wireguard-macmini.age".publicKeys = [ romes-macmini ]; # private key for macmini
   "wireguard-mbp.age".publicKeys = [ romes-mbp ]; # private key for mbp
   "wireguard-mercury.age".publicKeys = romes-machines;
+  "mogbit-mail.age".publicKeys = romes-machines;
 }
