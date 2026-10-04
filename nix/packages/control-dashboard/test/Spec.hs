@@ -95,6 +95,8 @@ main = do
         , ("a subtask must be scoped to the run", let r = expectingSubtasks ["x"] a in names 400 [(1, r), (2, run "script/a/x" 0 ok)] 1 == ["subtasks"])
         , ("subtasks aren't checked within the timeout, even once finished", let r = expectingSubtasks ["x"] a in names 299 [(1, r)] 1 == [])
         , ("subtasks are checked once timed out", let r = expectingSubtasks ["x"] (run "script/a" 0 Nothing) in names 301 [(1, r)] 1 == ["timed out", "subtasks"])
+        , ("a failed subtask is reported", problemsOf 10 [(1, a), (2, partOf 1 (run "script/a/x" 0 (Just (1, False))))] 1 == [("failed subtasks", "script/a/x: failed.")])
+        , ("an acknowledged failed subtask isn't", names 10 [(1, a), (2, (partOf 1 (run "script/a/x" 0 (Just (1, False)))) {acked = True})] 1 == [])
         , ("matching reactions are fine",
             let r = expectingReactions ["script/#", "server/b"] a
              in names 400 [(1, r), (2, reactionTo 1 (run "script/x/y" 5 ok)), (3, reactionTo 1 (run "server/b" 9 ok))] 1 == [])
