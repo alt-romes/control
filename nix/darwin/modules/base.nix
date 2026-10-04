@@ -116,6 +116,11 @@
       owner = "romes";
     };
 
+    age.secrets.mogbit-mail = {
+      file = ./_agenix/mogbit-mail.age;
+      owner = "romes";
+    };
+
     # ------------------------------------------------------------------------
     # Users & Home Manager
 
