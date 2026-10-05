@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase, DeriveAnyClass #-}
+{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase, DeriveAnyClass, DataKinds, RequiredTypeArguments #-}
 -- | Runs of control-events as seen on the MQTT broker, how they relate, and
 -- what's wrong with them.
 module Events
@@ -11,7 +11,7 @@ module Events
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
-import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, react, reacted, simple, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
+import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), SessionData (..), StaticTopic, Timed (..), Trigger (..), done, event, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
 import Control.Monad (forever, unless)
 import Data.Aeson (FromJSON, ToJSON, Value (..), decode, encode)
@@ -44,11 +44,11 @@ data Run = Run
 
 data State = State
   { runs :: TVar (Map UUID Run) -- ^ by correlation id
-  , conn :: TVar (Maybe Conn)
+  , connected :: TVar Bool -- ^ to the broker
   }
 
 newState :: IO State
-newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing
+newState = State <$> newTVarIO Map.empty <*> newTVarIO False
 
 -- | Restore the runs saved in a file, if any.
 load :: FilePath -> State -> IO ()
@@ -73,13 +73,20 @@ save p st = do
 -- other instances (e.g. dev runs) can't take over the persistent session.
 mqttLoop :: Bool -> State -> IO ()
 mqttLoop persistent st = forever $ do
-  r <- try @SomeException $ withPersistentConn (if persistent then Just "control-dashboard" else Nothing) "server/control-dashboard" $ \c -> do
-    atomically $ writeTVar st.conn (Just c)
-    react c "#" (\eid s -> started eid s >> pure (finished eid))
-  atomically $ writeTVar st.conn Nothing
+  r <- try @SomeException $
+    if persistent
+      then withPersistentConn (SPersistentSession @'["#"] "control-dashboard") base listen
+      else withConn base listen
+  atomically $ writeTVar st.connected False
   putStrLn ("mqtt: " <> either show (const "disconnected") r)
   threadDelay 5_000_000
   where
+    base = "server/control-dashboard"
+    listen :: StaticTopic s "#" => Conn s -> IO ()
+    listen c = do
+      atomically $ writeTVar st.connected True
+      _ <- react c "#" (\eid s -> started eid s >> pure (finished eid))
+      waitConnDisconnect c
     started eid s = unless (isTest eid) $ atomically $ modifyTVar' st.runs (prune . Map.insert eid.correlationId (Run eid s Nothing False))
     finished eid e = atomically $ modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) eid.correlationId)
 

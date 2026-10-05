@@ -5,7 +5,6 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, displayException, try)
 import Control.Monad (forM_, forever, void)
-import Control.Events (isConnUp)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.Map.Strict as Map
@@ -75,7 +74,7 @@ server opts st live =
       tz <- getCurrentTimeZone
       atomically $ do
         ix <- index <$> readTVar st.runs
-        connected <- maybe (pure False) isConnUp =<< readTVar st.conn
+        connected <- readTVar st.connected
         let c = Ctx {now, tz, ix, connected, required = map fromString opts.require, links = opts.link}
         pure (render c live (f c))
 
