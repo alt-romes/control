@@ -13,7 +13,7 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, react, reacted, simple, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
-import Control.Monad (forever)
+import Control.Monad (forever, unless)
 import Data.Aeson (FromJSON, ToJSON, Value (..), decode, encode)
 import qualified Data.ByteString.Lazy as BL
 import Data.List (sortOn, unsnoc)
@@ -53,7 +53,7 @@ newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing
 -- | Restore the runs saved in a file, if any.
 load :: FilePath -> State -> IO ()
 load p st = try @SomeException (BL.readFile p) >>= \case
-  Right b | Just rs <- decode b -> atomically $ writeTVar st.runs (Map.fromList [(r.eid.correlationId, r) | r <- rs])
+  Right b | Just rs <- decode b -> atomically $ writeTVar st.runs (Map.fromList [(r.eid.correlationId, r) | r <- rs, not (isTest r.eid)])
   Right _ -> putStrLn ("Couldn't decode " <> p <> ", starting afresh")
   Left _ -> pure ()
 
@@ -80,8 +80,12 @@ mqttLoop persistent st = forever $ do
   putStrLn ("mqtt: " <> either show (const "disconnected") r)
   threadDelay 5_000_000
   where
-    started eid s = atomically $ modifyTVar' st.runs (prune . Map.insert eid.correlationId (Run eid s Nothing False))
+    started eid s = unless (isTest eid) $ atomically $ modifyTVar' st.runs (prune . Map.insert eid.correlationId (Run eid s Nothing False))
     finished eid e = atomically $ modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) eid.correlationId)
+
+-- | Events on test/... topics are ignored.
+isTest :: EventId -> Bool
+isTest eid = "test/" `T.isPrefixOf` unTopic eid.evtTopic
 
 -- | Send a trigger announced by a run, as an event reacting to that run. Like
 -- any event it's a run of its own, which whoever listens on the trigger's
