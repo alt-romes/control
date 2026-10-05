@@ -1,21 +1,20 @@
-{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase, DeriveAnyClass #-}
+{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase, DataKinds, RequiredTypeArguments #-}
 -- | Runs of control-events as seen on the MQTT broker, how they relate, and
 -- what's wrong with them.
 module Events
-  ( Run (..), pendingTriggers, causes
-  , State (..), newState, load, save, mqttLoop, sendTrigger
+  ( Run (..), pendingTriggers, rootCause
+  , State (..), newState, mqttLoop, sendTrigger
   , Index (..), index, topLevel, latestRuns, isCritical
-  , problems, duration, timedOut, grace, prune
+  , problems, duration, timedOut, prune
   , fmtDuration
   ) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
-import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, react, reacted, simple, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
+import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), SessionData (..), StaticTopic, Timed (..), Trigger (..), done, event, evtReactions, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
-import Control.Monad (forever)
-import Data.Aeson (FromJSON, ToJSON, Value (..), decode, encode)
-import qualified Data.ByteString.Lazy as BL
+import Control.Monad (forever, unless)
+import Data.Aeson (Value (..))
 import Data.List (sortOn, unsnoc)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -27,61 +26,55 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
 import Data.UUID (UUID)
-import GHC.Generics (Generic)
 import Network.MQTT.Topic (Filter, Topic, match, split, unFilter, unTopic)
-import System.Directory (renameFile)
 
 -- | A run of an event: how it started and, once finished, how it ended.
 data Run = Run
   { eid :: EventId
   , start :: Timed (EvtMsg Value)
   , end :: Maybe (Timed EvtDone)
-  , acked :: Bool -- ^ whether its problems are acknowledged
   }
-  deriving (Generic, ToJSON, FromJSON)
 
 --------------------------------------------------------------------------------
 
 data State = State
   { runs :: TVar (Map UUID Run) -- ^ by correlation id
-  , conn :: TVar (Maybe Conn)
+  , connected :: TVar Bool -- ^ to the broker
   }
 
 newState :: IO State
-newState = State <$> newTVarIO Map.empty <*> newTVarIO Nothing
-
--- | Restore the runs saved in a file, if any.
-load :: FilePath -> State -> IO ()
-load p st = try @SomeException (BL.readFile p) >>= \case
-  Right b | Just rs <- decode b -> atomically $ writeTVar st.runs (Map.fromList [(r.eid.correlationId, r) | r <- rs])
-  Right _ -> putStrLn ("Couldn't decode " <> p <> ", starting afresh")
-  Left _ -> pure ()
-
-save :: FilePath -> State -> IO ()
-save p st = do
-  rs <- readTVarIO st.runs
-  BL.writeFile (p <> ".tmp") (encode (Map.elems rs))
-  renameFile (p <> ".tmp") p
+newState = State <$> newTVarIO Map.empty <*> newTVarIO False
 
 -- | Stay subscribed to every event, reconnecting if the broker goes away.
 --
--- TODO: A finish arriving over twice its timeout after its start, or whose
--- start came before a restart or reconnect, is lost (see control-events).
+-- A finish arriving over twice its timeout after its start, or whose start
+-- came before a restart or reconnect, is lost (see control-events).
 --
 -- A persistent session keeps a fixed client id, and the broker queues messages
 -- for up to a day while we're away. Otherwise the broker assigns a fresh id, so
 -- other instances (e.g. dev runs) can't take over the persistent session.
 mqttLoop :: Bool -> State -> IO ()
 mqttLoop persistent st = forever $ do
-  r <- try @SomeException $ withPersistentConn (if persistent then Just "control-dashboard" else Nothing) "server/control-dashboard" $ \c -> do
-    atomically $ writeTVar st.conn (Just c)
-    react c "#" (\eid s -> started eid s >> pure (finished eid))
-  atomically $ writeTVar st.conn Nothing
+  r <- try @SomeException $
+    if persistent
+      then withPersistentConn (SPersistentSession @'["#"] "control-dashboard") base listen
+      else withConn base listen
+  atomically $ writeTVar st.connected False
   putStrLn ("mqtt: " <> either show (const "disconnected") r)
   threadDelay 5_000_000
   where
-    started eid s = atomically $ modifyTVar' st.runs (prune . Map.insert eid.correlationId (Run eid s Nothing False))
+    base = "server/control-dashboard"
+    listen :: StaticTopic s "#" => Conn s -> IO ()
+    listen c = do
+      atomically $ writeTVar st.connected True
+      _ <- react c "#" (\eid s -> started eid s >> pure (finished eid))
+      waitConnDisconnect c
+    started eid s = unless (isTest eid.evtTopic) $ atomically $ modifyTVar' st.runs (prune . Map.insert eid.correlationId (Run eid s Nothing))
     finished eid e = atomically $ modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) eid.correlationId)
+
+-- | Events on test/... topics are ignored.
+isTest :: Topic -> Bool
+isTest t = "test/" `T.isPrefixOf` unTopic t
 
 -- | Send a trigger announced by a run, as an event reacting to that run. Like
 -- any event it's a run of its own, which whoever listens on the trigger's
@@ -91,8 +84,7 @@ sendTrigger r t = case splitLast t.triggerTopic of
   Just (base, leaf) -> withConn base $ \c -> event c leaf msg $ \e -> pure (done "Sent" e.correlationId)
   _ -> fail ("A trigger's topic needs at least two levels, unlike " <> show (unTopic t.triggerTopic))
   where
-    msg0 = simple t.triggerLabel & withMsg .~ t.triggerData & reacted ?~ r.eid
-    msg = msg0 {rules = msg0.rules {reactions = Just ["#"]}}
+    msg = simple t.triggerLabel & withMsg .~ t.triggerData & reacted ?~ r.eid & evtReactions ?~ ["#"]
 
 -- | A topic's levels but the last, and its last, if it has at least two.
 splitLast :: Topic -> Maybe (Topic, Topic)
@@ -141,11 +133,9 @@ pendingTriggers :: Index -> Run -> [(Int, Trigger)]
 pendingTriggers ix r = [(i, t) | (i, t) <- zip [0 ..] (foldMap (fromMaybe [] . (.e.triggers)) r.end), t.triggerTopic `notElem` sent]
   where sent = map (.eid.evtTopic) (Map.findWithDefault [] r.eid.correlationId ix.reactingTo)
 
--- | The runs a run reacts to, directly or not, closest first.
-causes :: Index -> Run -> [Run]
-causes ix r = case r.start.e.reactTo >>= \e -> Map.lookup e.correlationId ix.runs of
-  Just p -> p : causes ix p
-  Nothing -> []
+-- | The first run in the chain of reactions a run is part of.
+rootCause :: Index -> Run -> Run
+rootCause ix r = maybe r (rootCause ix) (r.start.e.reactTo >>= \e -> Map.lookup e.correlationId ix.runs)
 
 -- | Whether a run is critical: marked so, or part of or reacting to a
 -- critical run.
@@ -169,7 +159,7 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 -- run on its topic, which may not have started yet, started too late after
 -- it. Subtasks are given the run's timeout to show up; a reaction is missing
 -- until it arrives, and awaits the trigger the run announced for it, if any.
--- A subtask's problems are the run's too, unless acknowledged.
+-- A subtask's problems are the run's too.
 problems :: UTCTime -> Index -> Run -> [(Text, Text)]
 problems now ix r =
   [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.e.summary) <> foldMap (" — " <>) (firstLine e.e.result))
@@ -196,7 +186,7 @@ problems now ix r =
     -- A missing reaction a pending trigger would provide is waiting on it.
     reactions = unmatched (fromMaybe [] rules.reactions) ix.reactingTo
     awaited = [t | (_, t) <- pendingTriggers ix r, any (`match` t.triggerTopic) reactions]
-    failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- Map.findWithDefault [] r.eid.correlationId ix.scopedTo, not s.acked, let ps = problems now ix s, not (null ps)]
+    failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- Map.findWithDefault [] r.eid.correlationId ix.scopedTo, let ps = problems now ix s, not (null ps)]
     nonEmpty s = if null s then Nothing else Just (T.pack s)
     firstLine = \case
       Just (String t) | not (T.null t) -> Just (T.takeWhile (/= '\n') t)
