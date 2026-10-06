@@ -122,7 +122,7 @@ runPage u c = case Map.lookup u c.ix.runs of
         Nothing | timedOut c.now r -> "never received"
                 | otherwise -> "not yet"
       field "Took" (took c r)
-      field "Summary" (toHtml (summaryOf r))
+      field "Summary" (H.span ! A.class_ "summary" $ toHtml (summaryOf r))
       forM_ r.start.e.scope $ field "Part of" . eventLink c
       forM_ r.start.e.reactTo $ field "Reacting to" . eventLink c
       field "Correlation id" $ H.code (toHtml (UUID.toText u))
@@ -208,7 +208,7 @@ table c current sections = unless (null sections) $ H.table $ do
         H.td $ let ps = problemsOf c r in flag (severity c r) ! A.title (toValue (T.unwords (map snd ps))) $ toHtml (T.intercalate ", " (map fst ps))
         H.td ! A.class_ "time" $ runLink r (ago c r.start.at) >> forM_ r.start.e.rules.expected (\e -> toHtml (" / " <> fmtDuration e))
         H.td ! A.class_ "time" $ took c r
-        H.td (toHtml (summaryOf r))
+        H.td ! A.class_ "summary" $ toHtml (summaryOf r)
         H.td mempty
       TriggerRow d r t -> H.tr ! A.class_ "pending" $ do
         H.td mempty

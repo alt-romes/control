@@ -13,7 +13,7 @@ th, td { border-bottom: 1px solid #8884; padding: 4px 8px; text-align: left; ver
 th { font-weight: 600; }
 td.topic { white-space: nowrap; }
 td.time { white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 20ch; }
-pre { white-space: pre-wrap; }
+pre, .summary { white-space: pre-wrap; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 24px; }
 dt { font-weight: 600; }
 dd { margin: 0; }
