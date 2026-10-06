@@ -2,11 +2,11 @@
 -- | Checks of how runs are judged: failures, rules, grouping and pruning.
 module Main (main) where
 
-import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, evtExpected, evtSubtasks, failed, reacted, scoped, simple, withMsg, (&), (.~), (?~))
+import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Timed (..), Trigger (..), done, evtCritical, evtExpected, evtReactions, evtSubtasks, failed, reacted, scoped, simple, withMsg, (&), (.~), (?~))
 import Control.Monad (forM_, unless)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Aeson (Value, decode, encode)
+import Data.Aeson (Value)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import Data.List (sort)
@@ -33,7 +33,6 @@ run topic s end = Run
   { eid = EventId (uuid 0) (fromJust (mkTopic topic))
   , start = Timed (sec s) (simple "" & withMsg .~ Nothing)
   , end = (\(took, ok) -> Timed (sec (s + took)) (fst ((if ok then done else failed) "" ()))) <$> end
-  , acked = False
   }
 
 with :: (EvtMsg Value -> EvtMsg Value) -> Run -> Run
@@ -46,7 +45,7 @@ expectingSubtasks :: [String] -> Run -> Run
 expectingSubtasks ts = with (evtSubtasks ?~ ts)
 
 expectingReactions :: [Text] -> Run -> Run
-expectingReactions fs = with (\m -> m {rules = m.rules {reactions = Just (map (fromJust . mkFilter) fs)}})
+expectingReactions fs = with (evtReactions ?~ map (fromJust . mkFilter) fs)
 
 announcing :: Text -> Run -> Run
 announcing tp r = r {end = (\d -> d {e = d.e {triggers = Just [Trigger (fromJust (mkTopic tp)) "Send" Nothing]}}) <$> r.end}
@@ -73,7 +72,6 @@ main :: IO ()
 main = do
   let ok = Just (1, True)
       a = run "script/a" 0 ok
-      beat s = expecting 60 . run "healthcheck/x" s
       checks =
         [ ("a successful run has no problems", names 10 [(1, a)] 1 == [])
         , ("a failed run is failed", let r = run "script/a" 0 (Just (1, False)) in names 10 [(1, r)] 1 == ["failed"])
@@ -96,7 +94,6 @@ main = do
         , ("subtasks aren't checked within the timeout, even once finished", let r = expectingSubtasks ["x"] a in names 299 [(1, r)] 1 == [])
         , ("subtasks are checked once timed out", let r = expectingSubtasks ["x"] (run "script/a" 0 Nothing) in names 301 [(1, r)] 1 == ["timed out", "subtasks"])
         , ("a failed subtask is reported", problemsOf 10 [(1, a), (2, partOf 1 (run "script/a/x" 0 (Just (1, False))))] 1 == [("failed subtasks", "script/a/x: failed.")])
-        , ("an acknowledged failed subtask isn't", names 10 [(1, a), (2, (partOf 1 (run "script/a/x" 0 (Just (1, False)))) {acked = True})] 1 == [])
         , ("matching reactions are fine",
             let r = expectingReactions ["script/#", "server/b"] a
              in names 400 [(1, r), (2, reactionTo 1 (run "script/x/y" 5 ok)), (3, reactionTo 1 (run "server/b" 9 ok))] 1 == [])
@@ -129,13 +126,8 @@ main = do
                   && Map.size m == 500 * 4 + 500)
         , ("pruning leaves small histories alone", Map.size (prune (numbered [(n, a) | n <- [1 .. 100]])) == 100)
         , ("subtasks and reactions of a critical run are critical, transitively",
-            let ix = index (numbered [(1, with (\m -> m {rules = m.rules {critical = True}}) a), (2, partOf 1 (run "script/a/x" 0 ok)), (3, reactionTo 2 (run "script/b" 5 ok)), (4, a)])
+            let ix = index (numbered [(1, with (evtCritical .~ True) a), (2, partOf 1 (run "script/a/x" 0 ok)), (3, reactionTo 2 (run "script/b" 5 ok)), (4, a)])
              in map (isCritical ix) (Map.elems ix.runs) == [True, True, True, False])
-        , ("runs survive being saved",
-            let m = numbered [(1, (beat 0 ok) {acked = True}), (2, partOf 1 (run "script/a/x" 1 Nothing))]
-                key :: Run -> (UUID, Bool, UTCTime, Maybe UTCTime)
-                key r' = (r'.eid.correlationId, r'.acked, r'.start.at, fmap (.at) r'.end)
-             in fmap (map key) (decode (encode (Map.elems m))) == Just (map key (Map.elems m)))
         ]
   forM_ checks $ \(name, passed) -> putStrLn ((if passed then "ok   " else "FAIL ") <> name)
   unless (all snd checks) exitFailure

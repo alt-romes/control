@@ -17,9 +17,17 @@
           default = [ ];
         };
         links = lib.mkOption {
-          description = "Hosts linked to in the dashboard's header";
+          description = "URLs linked to in the dashboard's header";
           type = lib.types.listOf lib.types.str;
           default = [ ];
+        };
+        alertCommand = lib.mkOption {
+          description = ''
+            Shell command run for each new thing needing attention, given as
+            `$1`, e.g. `curl -s -d "$1" ntfy.sh/<topic>`.
+          '';
+          type = lib.types.nullOr lib.types.str;
+          default = null;
         };
       };
 
@@ -28,18 +36,13 @@
         launchd.user.agents = {
           control-dashboard = {
             script = ''
-              set -euo pipefail
-
-              STATE="$HOME/.local/state/control-dashboard/runs.json"
-              mkdir -p "$(dirname "$STATE")"
-
               exec ${lib.getExe self-pkgs.control-dashboard} \
                 --port 5001 \
                 --host 127.0.0.1 \
                 --persistent \
-                --state "$STATE" \
                 ${flags "require" cfg.requiredHealthchecks} \
-                ${flags "link" cfg.links}
+                ${flags "link" cfg.links} \
+                ${flags "alert" (lib.optional (cfg.alertCommand != null) cfg.alertCommand)}
             '';
 
             serviceConfig = {

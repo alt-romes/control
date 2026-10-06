@@ -16,7 +16,6 @@ common shared
     , bytestring
     , containers
     , control-events
-    , directory
     , net-mqtt
     , stm
     , text
@@ -36,6 +35,7 @@ executable control-dashboard
     , file-embed
     , http-types
     , optparse-generic
+    , process
     , servant-blaze
     , servant-server
     , warp
