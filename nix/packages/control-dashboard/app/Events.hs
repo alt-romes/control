@@ -11,7 +11,7 @@ module Events
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
-import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), SessionData (..), StaticTopic, Timed (..), Trigger (..), done, event, evtReactions, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
+import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), StaticTopic, Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
 import Control.Monad (forever, unless)
 import Data.Aeson (Value (..))
@@ -48,20 +48,22 @@ newState = State <$> newTVarIO Map.empty <*> newTVarIO False
 -- | Stay subscribed to every event, reconnecting if the broker goes away.
 --
 -- A finish arriving over twice its timeout after its start, or whose start
--- came before a restart or reconnect, is lost (see control-events).
+-- came before a restart, is lost (see control-events).
 --
 -- A persistent session keeps a fixed client id, and the broker queues messages
 -- for up to a day while we're away. Otherwise the broker assigns a fresh id, so
 -- other instances (e.g. dev runs) can't take over the persistent session.
 mqttLoop :: Bool -> State -> IO ()
-mqttLoop persistent st = forever $ do
-  r <- try @SomeException $
-    if persistent
-      then withPersistentConn (SPersistentSession @'["#"] "control-dashboard") base listen
-      else withConn base listen
-  atomically $ writeTVar st.connected False
-  putStrLn ("mqtt: " <> either show (const "disconnected") r)
-  threadDelay 5_000_000
+mqttLoop persistent st = do
+  session <- newPersistentSession "control-dashboard" ["#"]
+  forever $ do
+    r <- try @SomeException $
+      if persistent
+        then withPersistentConn session base listen
+        else withConn base listen
+    atomically $ writeTVar st.connected False
+    putStrLn ("mqtt: " <> either show (const "disconnected") r)
+    threadDelay 5_000_000
   where
     base = "server/control-dashboard"
     listen :: StaticTopic s "#" => Conn s -> IO ()
