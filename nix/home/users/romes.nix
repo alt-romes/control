@@ -33,7 +33,8 @@
       # My modules
 
       # style.colors.theme = "melange-light";
-      style.colors.theme = "rose-pine-dawn";
+      # style.colors.theme = "rose-pine-dawn";
+      style.colors.theme = "nord";
       # Other options: oxocarbon, ayu-light, ayu-dark, everforest, hotblue,
       # github, kanagawa, gruvbox-light, gruvbox-dark, catppuccin, tokyonight,
       # rose-pine, nord, catppuccin-latte, rose-pine-dawn, tokyonight-day,
@@ -41,7 +42,9 @@
       # dawnfox, melange-light, modus-operandi, gruvbox-material-light,
       # nord-light
 
-      style.fonts.font = "martian-mono";
+      # style.fonts.font = "martian-mono";
+      style.fonts.font = "mononoki";
+      # style.fonts.font = "fantasque-sans-mono";
       # Other options: ioskeley, iosevka, maple-mono, jetbrains-mono,
       # fira-code, cascadia-code, victor-mono, hack, commit-mono, geist-mono,
       # zed-mono, departure-mono, monaspace-neon, monaspace-argon,
