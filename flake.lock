@@ -127,11 +127,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1791411832,
-        "narHash": "sha256-9i6gX6RMR7cMHBZ1BCLQtiV5NpTWQBgKLDFP3jnxwiE=",
+        "lastModified": 1791494390,
+        "narHash": "sha256-qdwHg6KumBQtnDXBAUlzOzroh2dQgJXOvU6aqBSdcn0=",
         "owner": "alt-romes",
         "repo": "control-events",
-        "rev": "edbf662c47aa315c2ba433e5f9e895e69e2a4a63",
+        "rev": "ecf43df55d21883127ee4698083a003673892374",
         "type": "github"
       },
       "original": {
@@ -310,6 +310,22 @@
         "type": "github"
       }
     },
+    "invoicexpress-hs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791578025,
+        "narHash": "sha256-qKAZ0JRbntc8hTG9v+97KRdzgJEJty2HdG0+uQGRNZY=",
+        "owner": "alt-romes",
+        "repo": "invoicexpress-hs",
+        "rev": "7ab3f3463bf469388021410cd201e13bc4d4f2a0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "alt-romes",
+        "repo": "invoicexpress-hs",
+        "type": "github"
+      }
+    },
     "kimai-client": {
       "inputs": {
         "flake-parts": [
@@ -375,11 +391,11 @@
     "mercurybank-hs": {
       "flake": false,
       "locked": {
-        "lastModified": 1790722353,
-        "narHash": "sha256-NhY6TfghsNJmk3E5HH58/xpGWvGEfX2t0pTPPJWvphw=",
+        "lastModified": 1791577668,
+        "narHash": "sha256-KjlKLCTi2p0pyDf+QdCvwM0IOQ1knm+vNuJ+PMUg+z8=",
         "ref": "refs/heads/master",
-        "rev": "4877b0e5882283ae660f6f28ed3cee81185a1705",
-        "revCount": 109,
+        "rev": "989cb71cb827611cad4b6fd16f97578d5a5d403e",
+        "revCount": 36,
         "type": "git",
         "url": "ssh://git@github.com/alt-romes/mercurybank-hs"
       },
@@ -508,6 +524,7 @@
         "hadrian-util": "hadrian-util",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
+        "invoicexpress-hs": "invoicexpress-hs",
         "kimai-client": "kimai-client",
         "lemmalog": "lemmalog",
         "mercury-cli": "mercury-cli",

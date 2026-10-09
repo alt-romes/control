@@ -23,6 +23,8 @@
     activobank-hs.flake = false;
     mercurybank-hs.url  = "git+ssh://git@github.com/alt-romes/mercurybank-hs";
     mercurybank-hs.flake = false;
+    invoicexpress-hs.url = "github:alt-romes/invoicexpress-hs";
+    invoicexpress-hs.flake = false;
     codex-cli-nix.url   = "github:sadjow/codex-cli-nix";
     claude-code-nix.url = "github:sadjow/claude-code-nix";
     nix-doom-emacs-unstraightened.url = "github:marienz/nix-doom-emacs-unstraightened";
