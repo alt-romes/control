@@ -85,7 +85,7 @@ overviewPage c = Page "Overview" $ do
   forM_ (missing c) $ \t -> H.h1 $ flag Crisis $ "No run seen of required " >> topicLink t
   H.h1 $ flag (maximum (Healthy : map (severity c) flagged)) $
     if null flagged then "All clear" else toHtml (tshow (length flagged) <> " need attention")
-  table c Nothing $
+  table c Nothing True $
     [("Needs attention", concat urgent) | not (null urgent)]
       ++ Map.toList (Map.fromListWith (flip (++)) [(name r, rows) | rows@(RunRow _ r : _) <- calm])
   where
@@ -103,7 +103,7 @@ topicPage t c = Page (unTopic t) $ do
     rs@(latest : _) -> do
       when (isNothing latest.start.e.rules.expected) $
         H.p "No expected interval is set, so the dashboard can't tell if this stops running."
-      table c Nothing [("", concatMap (chain c 0) rs)]
+      table c Nothing False [("", concatMap (chain c 0) rs)]
 
 -- | One run in full: what's wrong with it, its details, its subtasks, and the
 -- whole chain of reactions it's part of.
@@ -129,7 +129,7 @@ runPage u c = case Map.lookup u c.ix.runs of
     sequence_ [H.h2 h >> H.pre (pretty v) | (h, Just v) <- [("Rules", Just (toJSON r.start.e.rules)), ("Content", contentOf r), ("Result", r.end >>= (.e.result))]]
     let subtasks = concatMap (chain c 0) (Map.findWithDefault [] u c.ix.scopedTo)
         whole = chain c 0 (rootCause c.ix r)
-    table c (Just u) ([("Subtasks", subtasks) | not (null subtasks)] ++ [("Chain of reactions", whole) | length whole > 1])
+    table c (Just u) False ([("Subtasks", subtasks) | not (null subtasks)] ++ [("Chain of reactions", whole) | length whole > 1])
   where
     field :: Text -> Html -> Html
     field k v = H.dt (toHtml k) >> H.dd v
@@ -192,19 +192,20 @@ reactionsTo :: Ctx -> Run -> [Run]
 reactionsTo c r = Map.findWithDefault [] r.eid.correlationId c.ix.reactingTo
 
 -- | Rows as one table, in sections named unless empty, highlighting the
--- current run. A subtask names the run it's part of, unless that's the
--- current run.
-table :: Ctx -> Maybe UUID -> [(Text, [Row])] -> Html
-table c current sections = unless (null sections) $ H.table $ do
-  H.tr $ mapM_ H.th ["", "Event", "Problem", "Run", "Took", "Summary", ""]
+-- current run, and with @hist@ the 'history' of each run's topic. A subtask
+-- names the run it's part of, unless that's the current run.
+table :: Ctx -> Maybe UUID -> Bool -> [(Text, [Row])] -> Html
+table c current hist sections = unless (null sections) $ H.table $ do
+  H.tr $ mapM_ H.th (["", "Event"] ++ ["History" | hist] ++ ["Problem", "Run", "Took", "Summary", ""])
   forM_ sections $ \(name, rows) -> do
-    unless (T.null name) $ H.tr ! A.class_ "section" $ H.th ! A.colspan "7" $ toHtml name
+    unless (T.null name) $ H.tr ! A.class_ "section" $ H.th ! A.colspan (if hist then "8" else "7") $ toHtml name
     forM_ rows $ \case
       RunRow d r -> H.tr ! (if current == Just r.eid.correlationId then A.class_ "current" else mempty) $ do
         H.td (marker (severity c r))
         H.td ! A.class_ "topic" ! indent d $ do
           arrow d >> topicLink r.eid.evtTopic
           forM_ r.start.e.scope $ \e -> unless (current == Just e.correlationId) $ H.span ! A.class_ "muted" $ " in " >> eventLink c e
+        when hist $ H.td ! A.class_ "history" $ history c r.eid.evtTopic
         H.td $ let ps = problemsOf c r in flag (severity c r) ! A.title (toValue (T.unwords (map snd ps))) $ toHtml (T.intercalate ", " (map fst ps))
         H.td ! A.class_ "time" $ runLink r (ago c r.start.at) >> forM_ r.start.e.rules.expected (\e -> toHtml (" / " <> fmtDuration e))
         H.td ! A.class_ "time" $ took c r
@@ -213,6 +214,7 @@ table c current sections = unless (null sections) $ H.table $ do
       TriggerRow d r t -> H.tr ! A.class_ "pending" $ do
         H.td mempty
         H.td ! A.class_ "topic" ! indent d $ arrow d >> topicLink (snd t).triggerTopic
+        when hist $ H.td mempty
         H.td mempty
         H.td ! A.class_ "time" $ "not sent"
         H.td mempty
@@ -221,6 +223,15 @@ table c current sections = unless (null sections) $ H.table $ do
   where
     indent d = A.style (toValue ("padding-left: " <> tshow (0.5 + 1.5 * fromIntegral d :: Double) <> "em"))
     arrow d = when (d > 0) "↳ "
+
+-- | The last 24 hours of a topic's top-level runs, oldest first, one mark
+-- per hour: coloured if a run needed attention, muted if none ran.
+history :: Ctx -> Topic -> Html
+history c t = forM_ [23, 22 .. 0 :: Int] $ \h ->
+  case [r | r <- topLevel c.ix t, let age = diffUTCTime c.now r.start.at, age >= hour h, age < hour (h + 1)] of
+    [] -> H.span ! A.class_ "muted" $ "·"
+    rs -> flag (maximum (map (severity c) rs)) "▮"
+  where hour n = fromIntegral (3600 * n)
 
 -- | Send a trigger the run announced.
 triggerButton :: Run -> (Int, Trigger) -> Html
