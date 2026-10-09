@@ -141,6 +141,58 @@
           background = "light";
           ghostty = "Nord Light";
         };
+        github-light = {
+          vim = "github-theme";
+          vim-colorscheme = "github_light_default";
+          background = "light";
+          ghostty = "GitHub Light Default";
+        };
+        gruvbox-light-hard = {
+          vim = "gruvbox";
+          background = "light";
+          ghostty = "Gruvbox Light Hard";
+          extraSettings = {
+            programs.nixvim.colorschemes.gruvbox.settings.contrast = "hard";
+          };
+        };
+        modus-operandi-tinted = {
+          vim = "modus";
+          background = "light";
+          ghostty = "Modus Operandi Tinted";
+          extraSettings = {
+            programs.nixvim.colorschemes.modus.settings.variants.modus_operandi = "tinted";
+          };
+        };
+        zenbones = {
+          vim-plugins = [ "zenbones-nvim" "lush-nvim" ];
+          vim-colorscheme = "zenbones";
+          background = "light";
+          ghostty = "Zenbones Light";
+        };
+        seoulbones = {
+          vim-plugins = [ "zenbones-nvim" "lush-nvim" ];
+          vim-colorscheme = "seoulbones";
+          background = "light";
+          ghostty = "Seoulbones Light";
+        };
+        neobones = {
+          vim-plugins = [ "zenbones-nvim" "lush-nvim" ];
+          vim-colorscheme = "neobones";
+          background = "light";
+          ghostty = "Neobones Light";
+        };
+        kanso-pearl = {
+          vim-plugins = [ "kanso-nvim" ];
+          vim-colorscheme = "kanso-pearl";
+          background = "light";
+          ghostty = "Kanso Pearl";
+        };
+        alabaster = {
+          vim-plugins = [ "alabaster-nvim" ];
+          vim-colorscheme = "alabaster";
+          background = "light";
+          ghostty = "Alabaster";
+        };
       };
 
       theme = themeName: themeConf:
@@ -154,9 +206,12 @@
             vim2 = if themeConf ? vim-colorscheme then {
               programs.nixvim.colorscheme = themeConf.vim-colorscheme;
             } else {};
+            vim3 = if themeConf ? vim-plugins then {
+              programs.nixvim.extraPlugins = map (p: pkgs.vimPlugins.${p}) themeConf.vim-plugins;
+            } else {};
             extra = if themeConf ? extraSettings then themeConf.extraSettings else {};
         in lib.mkIf (config.style.colors.theme == themeName)
-             (lib.foldl' lib.recursiveUpdate base [ vim1 vim2 extra ]);
+             (lib.foldl' lib.recursiveUpdate base [ vim1 vim2 vim3 extra ]);
     in
     {
 
