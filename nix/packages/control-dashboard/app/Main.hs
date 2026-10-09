@@ -49,7 +49,7 @@ type API = QueryFlag "live" :>
   :<|> "topic" :> CaptureAll "topic" Text :> Get '[HTML] Html
   :<|> "run" :> Capture "run" UUID :>
          (    Get '[HTML] Html
-         :<|> "trigger" :> Capture "trigger" Int :> Post '[HTML] Html
+         :<|> "trigger" :> Capture "trigger" Int :> (Get '[HTML] Html :<|> Post '[HTML] Html)
          )
   )
 
@@ -57,7 +57,7 @@ server :: Options -> State -> Server API
 server opts st live =
        view overviewPage
   :<|> view . topicPage . fromString . T.unpack . T.intercalate "/"
-  :<|> \u -> view (runPage u) :<|> trigger u
+  :<|> \u -> view (runPage u) :<|> \i -> view (triggerPage u i) :<|> trigger u i
   where
     -- Only triggers a run announced, and not yet sent, can be sent.
     trigger u i = do
