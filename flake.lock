@@ -391,11 +391,11 @@
     "mercurybank-hs": {
       "flake": false,
       "locked": {
-        "lastModified": 1791577668,
-        "narHash": "sha256-KjlKLCTi2p0pyDf+QdCvwM0IOQ1knm+vNuJ+PMUg+z8=",
+        "lastModified": 1791583455,
+        "narHash": "sha256-zDPXKyZB63KDbTh9czRqL24jDh1yXDG8cC1tpdEeTuc=",
         "ref": "refs/heads/master",
-        "rev": "989cb71cb827611cad4b6fd16f97578d5a5d403e",
-        "revCount": 36,
+        "rev": "dffd2fb047012a0d741cade015f8751b39319274",
+        "revCount": 38,
         "type": "git",
         "url": "ssh://git@github.com/alt-romes/mercurybank-hs"
       },
