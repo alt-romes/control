@@ -25,7 +25,7 @@ in
   #
   # See https://github.com/ryantm/agenix/issues/182
   "kimai.age".publicKeys = romes-machines;
-  "mercury-api.age".publicKeys = romes-machines;
+  "mercury-api.age".publicKeys = romes-machines; # scoped to read only + modify invoices
   "invoicexpress-api.age".publicKeys = romes-machines;
   "duckdns.age".publicKeys = romes-machines;
   "wireguard-macmini.age".publicKeys = [ romes-macmini ]; # private key for macmini
