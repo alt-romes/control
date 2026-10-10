@@ -127,6 +127,8 @@ runPage u c = case Map.lookup u c.ix.runs of
       forM_ r.start.e.reactTo $ field "Reacting to" . eventLink c
       field "Correlation id" $ H.code (toHtml (UUID.toText u))
     sequence_ [H.h2 h >> H.pre (pretty v) | (h, Just v) <- [("Rules", Just (toJSON r.start.e.rules)), ("Content", contentOf r), ("Result", r.end >>= (.e.result))]]
+    let pending = pendingTriggers c.ix r
+    unless (null pending) $ H.h2 "Triggers" >> forM_ pending (\t -> H.p (toHtml (snd t).triggerLabel >> " " >> triggerButton r t) >> forM_ (snd t).triggerData (H.pre . pretty))
     let subtasks = concatMap (chain c 0) (Map.findWithDefault [] u c.ix.scopedTo)
         whole = chain c 0 (rootCause c.ix r)
     table c (Just u) False ([("Subtasks", subtasks) | not (null subtasks)] ++ [("Chain of reactions", whole) | length whole > 1])
