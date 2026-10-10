@@ -6,7 +6,7 @@
 -- colour at all.
 module Views
   ( Ctx (..), Page, render
-  , overviewPage, topicPage, runPage, triggerPage
+  , overviewPage, topicPage, runPage
   , alerts
   ) where
 
@@ -134,19 +134,6 @@ runPage u c = case Map.lookup u c.ix.runs of
     field :: Text -> Html -> Html
     field k v = H.dt (toHtml k) >> H.dd v
 
--- | A trigger a run announced and hasn't sent yet: what it would send, and
--- the button to send it.
-triggerPage :: UUID -> Int -> Ctx -> Page
-triggerPage u i c = case Map.lookup u c.ix.runs >>= \r -> (r,) <$> lookup i (pendingTriggers c.ix r) of
-  Nothing -> Page "Trigger not found" $ H.p "No such trigger pending: it may have been sent, or its run pruned."
-  Just (r, t) -> Page (T.pack t.triggerLabel) $ do
-    H.h1 (toHtml t.triggerLabel)
-    H.dl $ do
-      H.dt "Topic" >> H.dd (topicLink t.triggerTopic)
-      H.dt "Announced by" >> H.dd (runLink r (toHtml (unTopic r.eid.evtTopic)) >> " " >> ago c (maybe r.start.at (.at) r.end))
-    forM_ t.triggerData $ \v -> H.h2 "Value" >> H.pre (pretty v)
-    triggerButton r (i, t)
-
 --------------------------------------------------------------------------------
 -- What needs attention
 
@@ -231,8 +218,8 @@ table c current hist sections = unless (null sections) $ H.table $ do
         H.td mempty
         H.td ! A.class_ "time" $ "not sent"
         H.td mempty
-        H.td ! A.class_ "summary" $ H.a ! A.href (toValue (triggerUrl r (fst t))) $ toHtml (snd t).triggerLabel
-        H.td mempty
+        H.td (toHtml (snd t).triggerLabel)
+        H.td (triggerButton r t)
   where
     indent d = A.style (toValue ("padding-left: " <> tshow (0.5 + 1.5 * fromIntegral d :: Double) <> "em"))
     arrow d = when (d > 0) "↳ "
@@ -248,8 +235,9 @@ history c t = forM_ [23, 22 .. 0 :: Int] $ \h ->
 
 -- | Send a trigger the run announced.
 triggerButton :: Run -> (Int, Trigger) -> Html
-triggerButton r (i, t) = H.form ! A.method "post" ! A.action (toValue (triggerUrl r i))
+triggerButton r (i, t) = H.form ! A.method "post" ! A.action (toValue (runUrl r <> "/trigger/" <> tshow i))
   ! A.onsubmit (toValue ("return confirm(" <> json (String (T.pack t.triggerLabel <> "?")) <> ")"))
+  ! A.title (toValue (unTopic t.triggerTopic <> foldMap ((" " <>) . json) t.triggerData))
   $ H.button "Send"
 
 flag :: Severity -> Html -> Html
@@ -295,9 +283,6 @@ topicLink t = H.a ! A.href (toValue ("/topic/" <> T.intercalate "/" (map (enc . 
 
 runUrl :: Run -> Text
 runUrl r = "/run/" <> UUID.toText r.eid.correlationId
-
-triggerUrl :: Run -> Int -> Text
-triggerUrl r i = runUrl r <> "/trigger/" <> tshow i
 
 -- | A link to an event's run, if it's known.
 eventLink :: Ctx -> EventId -> Html

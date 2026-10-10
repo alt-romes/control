@@ -14,7 +14,7 @@ th { font-weight: 600; }
 td.topic { white-space: nowrap; }
 td.history { white-space: nowrap; letter-spacing: -1px; }
 td.time { white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 20ch; }
-pre, .summary { white-space: pre-wrap; overflow-wrap: anywhere; }
+pre, .summary { white-space: pre-wrap; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 24px; }
 dt { font-weight: 600; }
 dd { margin: 0; }
