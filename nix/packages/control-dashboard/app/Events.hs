@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase, DataKinds, RequiredTypeArguments #-}
+{-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase #-}
 -- | Runs of control-events as seen on the MQTT broker, how they relate, and
 -- what's wrong with them.
 module Events
@@ -11,7 +11,7 @@ module Events
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
-import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), StaticTopic, Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
+import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (SomeException, try)
 import Control.Monad (forever, unless)
 import Data.Aeson (Value (..))
@@ -55,7 +55,7 @@ newState = State <$> newTVarIO Map.empty <*> newTVarIO False
 -- other instances (e.g. dev runs) can't take over the persistent session.
 mqttLoop :: Bool -> State -> IO ()
 mqttLoop persistent st = do
-  session <- newPersistentSession "control-dashboard" ["#"]
+  session <- newPersistentSession "control-dashboard"
   forever $ do
     r <- try @SomeException $
       if persistent
@@ -66,7 +66,7 @@ mqttLoop persistent st = do
     threadDelay 5_000_000
   where
     base = "server/control-dashboard"
-    listen :: StaticTopic s "#" => Conn s -> IO ()
+    listen :: Conn s -> IO ()
     listen c = do
       atomically $ writeTVar st.connected True
       _ <- react c "#" (\eid s -> started eid s >> pure (finished eid))
