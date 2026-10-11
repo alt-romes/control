@@ -15,6 +15,12 @@
 
     nix.settings.trusted-public-keys = [ "cult-m4:ptTV1P5s2mpYCfFQMUb+6S8LbtrYK5HfCYas3YrUbho=" ];
 
+    services.control-events-node = {
+      enable   = true;
+      proxyTo  = "10.0.0.3"; # mogbit server on wireguard VPN
+      nodeId   = "m4-mercury-mbp";
+    };
+
     home-manager.users.romes.programs.custom.doom-emacs = true;
 
     # --- Users ------------------------------------------------------------------
