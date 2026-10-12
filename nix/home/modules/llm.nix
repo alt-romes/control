@@ -19,19 +19,6 @@
             Do not look around with `ghc-pkg` nor directly for interface files
           - Use --no-ext-diff when viewing git diffs
         '';
-
-      # Datalog engine for LLM agent memory, exposed to Claude Code as an MCP
-      # server (stdio). https://github.com/JordyZomer/lemmalog
-      lemmalog-mcp = pkgs.rustPlatform.buildRustPackage {
-        pname = "lemmalog-mcp";
-        version = "0.1.0";
-        src = inputs.lemmalog;
-        cargoLock.lockFile = "${inputs.lemmalog}/Cargo.lock";
-        buildFeatures = [ "mcp" ];
-        cargoBuildFlags = [ "--bin" "lemmalog-mcp" ];
-        # Tests/benches require the `llm` feature (network model access); skip.
-        doCheck = false;
-      };
     in
     {
     
@@ -97,7 +84,6 @@
           ];
         };
 
-        skills.lemmalog = "${inputs.lemmalog}/skills/lemmalog";
         skills.failing-tests-to-tmux = ''
           ---
           name: failing-tests-to-tmux
@@ -133,13 +119,6 @@
 
           5. Report a table: window, `.run` dir, command, failure reason.
         '';
-
-        mcpServers.lemmalog = {
-          type = "stdio";
-          command = "${lemmalog-mcp}/bin/lemmalog-mcp";
-          # Persist derived memory across sessions.
-          env.LEMMALOG_MCP_PATH = "${config.home.homeDirectory}/.local/share/lemmalog/lemmalog.snapshot";
-        };
       };
     
       programs.codex = {
