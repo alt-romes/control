@@ -29,6 +29,8 @@
     claude-code-nix.url = "github:sadjow/claude-code-nix";
     nix-doom-emacs-unstraightened.url = "github:marienz/nix-doom-emacs-unstraightened";
     cob-cli.url         = "github:alt-romes/cob-cli";
+    supvan-cups.url     = "github:heeen/supvan-cups";
+    supvan-cups.flake   = false;
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";

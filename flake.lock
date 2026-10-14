@@ -517,6 +517,7 @@
         "nix-doom-emacs-unstraightened": "nix-doom-emacs-unstraightened",
         "nixpkgs": "nixpkgs",
         "nixvim": "nixvim",
+        "supvan-cups": "supvan-cups",
         "systems": "systems"
       }
     },
@@ -534,6 +535,22 @@
       "original": {
         "type": "git",
         "url": "https://spectrum-os.org/git/spectrum"
+      }
+    },
+    "supvan-cups": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791805113,
+        "narHash": "sha256-RGNdNpP3zV5y2Tc6ZDWqKF5fq7XSFl5hQUU6bFvzVyA=",
+        "owner": "heeen",
+        "repo": "supvan-cups",
+        "rev": "908430b89a7fa5bb6298155e1074b8af306ef5a0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "heeen",
+        "repo": "supvan-cups",
+        "type": "github"
       }
     },
     "systems": {

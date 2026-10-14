@@ -1,0 +1,100 @@
+# Raspberry Pi Zero W V1.1 (armv6l, cross-compiled from aarch64-linux linux-builder)
+#
+# First install:
+#   nix build '.?submodules=1#nixosConfigurations.pi.config.system.build.sdImage'
+#   zstd -d result/sd-image/*.img.zst -o pi.img && sudo diskutil unmountDisk /dev/<diskname> && dd if=pi.img of=/dev/<diskname> bs=4M (CAREFUL!!!)
+#   Then add `wifi.conf` to the FIRMWARE partition:
+#     network={
+#       ssid="..."
+#       psk="..."
+#     }
+# Deploy:
+#   nixos-rebuild switch --flake '.?submodules=1#pi' --target-host root@pi
+{ self, inputs, ... }:
+{
+  flake.images.pi = self.nixosConfigurations.pi.config.system.build.sdImage;
+  flake.nixosConfigurations.pi = inputs.nixpkgs.lib.nixosSystem {
+    modules = [ ({ config, lib, pkgs, modulesPath, ... }:
+    let
+      supvan = pkgs.rustPlatform.buildRustPackage {
+        pname = "supvan-cups";
+        version = "unstable";
+        src = inputs.supvan-cups;
+        cargoLock.lockFile = "${inputs.supvan-cups}/Cargo.lock";
+        nativeBuildInputs = [ pkgs.pkg-config ];
+        buildInputs = [ pkgs.dbus ];
+        doCheck = false;
+      };
+    in {
+      imports = [
+        (modulesPath + "/installer/sd-card/sd-image.nix")
+        (modulesPath + "/profiles/minimal.nix")
+      ];
+
+      nixpkgs.buildPlatform = "aarch64-linux";
+      nixpkgs.hostPlatform = "armv6l-linux"; # Raspberry Pi Zero W 1.1
+
+      boot.loader.grub.enable = false;
+      boot.loader.generic-extlinux-compatible.enable = true;
+      boot.kernelPackages = pkgs.linuxPackages; # mainline, bcm2835_defconfig
+      hardware.enableAllHardware = lib.mkForce false;
+      boot.initrd.includeDefaultModules = false; # PC modules (ahci, nvme, ...) aren't in this kernel
+      boot.initrd.availableKernelModules = lib.mkForce [ "mmc_block" ];
+      system.disableInstallerTools = true; # nixos-generate-config pulls bcachefs-tools, which fails on armv6l
+      services.lvm.enable = false;
+      boot.bcache.enable = false;
+      boot.kexec.enable = false;
+      fonts.fontconfig.enable = false;
+      security.sudo.enable = false;
+      hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
+
+      sdImage.populateFirmwareCommands = ''
+        (cd ${pkgs.raspberrypifw}/share/raspberrypi/boot && cp bootcode.bin fixup*.dat start*.elf *.dtb $NIX_BUILD_TOP/firmware/)
+        cp ${pkgs.ubootRaspberryPiZero}/u-boot.bin firmware/u-boot.bin
+        printf 'kernel=u-boot.bin\nenable_uart=1\navoid_warnings=1\n' > firmware/config.txt
+      '';
+      sdImage.populateRootCommands = ''
+        mkdir -p ./files/boot
+        ${config.boot.loader.generic-extlinux-compatible.populateCmd} -c ${config.system.build.toplevel} -d ./files/boot
+      '';
+
+      fileSystems."/boot/firmware".options = lib.mkForce [ "nofail" ];
+      networking.wireless.enable = true;
+      networking.wireless.extraConfigFiles = [ "/boot/firmware/wifi.conf" ];
+      systemd.services.wpa_supplicant.unitConfig.RequiresMountsFor = "/boot/firmware";
+
+      networking.hostName = "pi";
+      networking.firewall.allowedTCPPorts = [ 1883 8631 ];
+      networking.firewall.allowedUDPPorts = [ 5353 ];
+
+      services.openssh.enable = true;
+      users.users.root.openssh.authorizedKeys.keys = [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ romes@world"
+      ];
+      nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
+      # services.mosquitto = {
+      #   enable = true;
+      #   listeners = [{
+      #     omitPasswordAuth = true;
+      #     settings.allow_anonymous = true;
+      #     acl = [ "topic readwrite #" ];
+      #   }];
+      # };
+
+      hardware.bluetooth.enable = true;
+      systemd.services.supvan-printer-app = {
+        wantedBy = [ "multi-user.target" ];
+        after = [ "bluetooth.target" "network-online.target" ];
+        wants = [ "network-online.target" ];
+        serviceConfig = {
+          ExecStart = "${supvan}/bin/supvan-printer-app";
+          Restart = "on-failure";
+          RestartSec = 5;
+        };
+      };
+
+      system.stateVersion = "26.11";
+    }) ];
+  };
+}
