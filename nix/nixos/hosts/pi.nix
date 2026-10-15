@@ -9,7 +9,7 @@
 #       psk="..."
 #     }
 # Deploy:
-#   nixos-rebuild switch --flake '.?submodules=1#pi' --target-host root@pi
+#   nixos-rebuild switch --flake '.?submodules=1#pi' --target-host root@192.168.68.10 # or whichever ip
 { self, inputs, ... }:
 {
   flake.images.pi = self.nixosConfigurations.pi.config.system.build.sdImage;
@@ -37,16 +37,17 @@
       boot.loader.grub.enable = false;
       boot.loader.generic-extlinux-compatible.enable = true;
       boot.kernelPackages = pkgs.linuxPackages; # mainline, bcm2835_defconfig
+      # only add strictly necessary modules
       hardware.enableAllHardware = lib.mkForce false;
-      boot.initrd.includeDefaultModules = false; # PC modules (ahci, nvme, ...) aren't in this kernel
-      boot.initrd.availableKernelModules = lib.mkForce [ "mmc_block" ];
+      boot.initrd.includeDefaultModules = false;
+      boot.initrd.kernelModules = [ "ext4" "mmc_block" ];
+      boot.initrd.systemd.tpm2.enable = false;
       system.disableInstallerTools = true; # nixos-generate-config pulls bcachefs-tools, which fails on armv6l
       services.lvm.enable = false;
       boot.bcache.enable = false;
       boot.kexec.enable = false;
       fonts.fontconfig.enable = false;
       security.sudo.enable = false;
-      hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
 
       sdImage.populateFirmwareCommands = ''
         (cd ${pkgs.raspberrypifw}/share/raspberrypi/boot && cp bootcode.bin fixup*.dat start*.elf *.dtb $NIX_BUILD_TOP/firmware/)
@@ -59,9 +60,18 @@
       '';
 
       fileSystems."/boot/firmware".options = lib.mkForce [ "nofail" ];
+      systemd.services.wpa_supplicant.unitConfig.RequiresMountsFor = "/boot/firmware";
+
+      hardware.firmware = [ pkgs.raspberrypiWirelessFirmware ];
+      # Firmware's WPA handshake offload times out on our APs; let wpa_supplicant do it
+      boot.extraModprobeConfig = "options brcmfmac feature_disable=0x82000";
       networking.wireless.enable = true;
       networking.wireless.extraConfigFiles = [ "/boot/firmware/wifi.conf" ];
-      systemd.services.wpa_supplicant.unitConfig.RequiresMountsFor = "/boot/firmware";
+
+      # Root console over USB: connect the Pi's "USB" port, then `screen /dev/tty.usbmodem* 115200`
+      boot.kernelModules = [ "g_serial" ];
+      systemd.targets.getty.wants = [ "serial-getty@ttyGS0.service" ];
+      services.getty.autologinUser = "root";
 
       networking.hostName = "pi";
       networking.firewall.allowedTCPPorts = [ 1883 8631 ];
