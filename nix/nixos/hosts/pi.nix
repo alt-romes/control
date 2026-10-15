@@ -88,6 +88,13 @@
       # };
 
       hardware.bluetooth.enable = true;
+      # The app can't auto-pair without a BlueZ agent; pair new printers once by hand:
+      #   bluetoothctl: pairable on; agent NoInputNoOutput; default-agent; scan on;
+      #                 pair <MAC>; trust <MAC>
+      #   systemctl restart supvan-printer-app
+      # Then add it on the mac with
+      #   lpadmin -p supvan -E -v ipp://<pi-ip>:8631/ipp/print/<name> -m everywhere
+      # where <name> is listed at http://<pi-ip>:8631/
       systemd.services.supvan-printer-app = {
         wantedBy = [ "multi-user.target" ];
         after = [ "bluetooth.target" "network-online.target" ];
