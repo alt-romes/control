@@ -68,11 +68,6 @@
       networking.wireless.enable = true;
       networking.wireless.extraConfigFiles = [ "/boot/firmware/wifi.conf" ];
 
-      # Root console over USB: connect the Pi's "USB" port, then `screen /dev/tty.usbmodem* 115200`
-      boot.kernelModules = [ "g_serial" ];
-      systemd.targets.getty.wants = [ "serial-getty@ttyGS0.service" ];
-      services.getty.autologinUser = "root";
-
       networking.hostName = "pi";
       networking.firewall.allowedTCPPorts = [ 1883 8631 ];
       networking.firewall.allowedUDPPorts = [ 5353 ];
