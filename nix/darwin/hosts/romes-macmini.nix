@@ -31,6 +31,7 @@
       proxyTo  = "10.0.0.3"; # mogbit server on wireguard VPN
       bridge2  = true;       # we want mogbit msgs here too, for local dashboard
       nodeId   = "m4-macmini-2024";
+      system-healthcheck = true;
     };
 
     # --------------------------------------------------------------------------------

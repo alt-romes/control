@@ -19,6 +19,7 @@
       enable   = true;
       proxyTo  = "10.0.0.3"; # mogbit server on wireguard VPN
       nodeId   = "m4-mercury-mbp";
+      system-healthcheck = true;
     };
 
     home-manager.users.romes.programs.custom.doom-emacs = true;
