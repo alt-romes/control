@@ -105,7 +105,6 @@
   
           # Xperiments
           "claude"
-          "codex-app"
       ];
     };
 
