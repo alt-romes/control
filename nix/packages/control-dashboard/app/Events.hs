@@ -142,7 +142,7 @@ rootCause ix r = maybe r (rootCause ix) (r.start.e.reactTo >>= \e -> Map.lookup 
 -- | Whether a run is critical: marked so, or part of or reacting to a
 -- critical run.
 isCritical :: Index -> Run -> Bool
-isCritical ix r = r.start.e.rules.critical || any (isCritical ix) [p | Just e <- [r.start.e.scope, r.start.e.reactTo], Just p <- [Map.lookup e.correlationId ix.runs]]
+isCritical ix r = r.start.e.rules.critical == Just True || any (isCritical ix) [p | Just e <- [r.start.e.scope, r.start.e.reactTo], Just p <- [Map.lookup e.correlationId ix.runs]]
 
 -- | The top-level runs of a topic, i.e. not scoped to another, newest first.
 topLevel :: Index -> Topic -> [Run]
