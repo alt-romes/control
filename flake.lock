@@ -127,11 +127,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1791934322,
-        "narHash": "sha256-r5/1aZFqLsgUleI9LC20lcTERqKZtiaXjOzLIhmnDU0=",
+        "lastModified": 1792176430,
+        "narHash": "sha256-w935dv9p0+arGjsOFQ4VKg/XKhZhbZkVq5E+6U1OJcA=",
         "owner": "alt-romes",
         "repo": "control-events",
-        "rev": "f8e970e36232aeb102734f3daca47293cce69af0",
+        "rev": "5f122f0345c7cfd040002fbca7dbc7d7acb7a23d",
         "type": "github"
       },
       "original": {
