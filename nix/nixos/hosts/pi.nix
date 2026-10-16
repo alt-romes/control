@@ -27,6 +27,7 @@
       };
     in {
       imports = [
+        inputs.control-events.nixosModules.control-events
         (modulesPath + "/installer/sd-card/sd-image.nix")
         (modulesPath + "/profiles/minimal.nix")
       ];
@@ -72,20 +73,35 @@
       networking.firewall.allowedTCPPorts = [ 1883 8631 ];
       networking.firewall.allowedUDPPorts = [ 5353 ];
 
+      # Wireguard: place a private key (`wg genkey`) at the path below by hand,
+      # and add its public key as a peer on the macmini.
+      networking.wg-quick.interfaces.wg0 = {
+        autostart = true;
+        address = [ "10.0.0.6/32" ];
+        privateKeyFile = "/var/lib/wireguard/private.key";
+        peers = [
+          # wireguard-macmini
+          {
+            publicKey = "hroqsfMWbBsCYhZTiPLNeE/3AK+AdBV3Zn16EJspPX8=";
+            allowedIPs = [ "10.0.0.1/32" ];
+            endpoint = "192.168.68.137:55902";
+          }
+        ];
+      };
+
+      services.control-events-node = {
+        enable  = true;
+        proxyTo = "10.0.0.1"; # macmini on wireguard VPN
+        nodeId  = "pi-zero-w";
+        system-healthcheck = true;
+        package = null; # control-events (Haskell) does not build for armv6l
+      };
+
       services.openssh.enable = true;
       users.users.root.openssh.authorizedKeys.keys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIKdREVP76ISSwCnKzqMCeaMwgETLtnKqWPF7ORZSReZ romes@world"
       ];
       nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
-      # services.mosquitto = {
-      #   enable = true;
-      #   listeners = [{
-      #     omitPasswordAuth = true;
-      #     settings.allow_anonymous = true;
-      #     acl = [ "topic readwrite #" ];
-      #   }];
-      # };
 
       hardware.bluetooth.enable = true;
       # The app can't auto-pair without a BlueZ agent; pair new printers once by hand:

@@ -171,6 +171,11 @@
             publicKey = "L6GrOV6+CC/ghkmj5z8C6AKArkIb4LoB31QK4jb4cx0=";
             allowedIPs = [ "10.0.0.5/32" ];
           }
+          # pi
+          {
+            publicKey = "1ZXDTe2wQOUhyQ7CjwqhIxww4ft8NVNu9rFb8AVl+TQ=";
+            allowedIPs = [ "10.0.0.6/32" ];
+          }
         ];
       };
     };
