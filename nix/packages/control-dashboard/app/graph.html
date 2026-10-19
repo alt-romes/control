@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>control-dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f6f6f4; --fg: #1d1d1b; --muted: #8a8a85; --card: #ffffff; --box: #e6e6e2; --line: #0002;
+  --bad: #d62718; --run: #2f6fdf; --ok: #3a9a5b; --edge: #0004; --react: #c47a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111213; --fg: #e8e8e4; --card: #1c1d1f; --box: #2a2b2e; --line: #fff2; --edge: #fff4; }
+}
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.35 system-ui, sans-serif; overflow: hidden; }
+a { color: inherit; }
+#area { position: fixed; inset: 40px 0 0 0; }
+#hud { position: fixed; top: 0; left: 0; right: 0; height: 40px; box-sizing: border-box; display: flex; gap: 10px; align-items: center; white-space: nowrap;
+  padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--line); z-index: 10; }
+#hud h1 { font-size: 15px; margin: 0; overflow: hidden; text-overflow: ellipsis; }
+#crumbs a { text-decoration: none; }
+#crumbs a:last-child { font-weight: 600; }
+#hud .grow { flex: 1; }
+#hud button { font: inherit; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: inherit; }
+#hud summary { list-style: none; cursor: pointer; font-size: 18px; padding: 0 4px; }
+#hud nav { position: absolute; right: 8px; top: 40px; display: flex; flex-direction: column; gap: 8px; padding: 10px 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 16px #0003; }
+@media (max-width: 500px) { #updated { display: none; } }
+.bad { color: var(--bad); }
+.crisis { color: var(--bad); font-weight: 700; }
+.muted { color: var(--muted); }
+#chips { position: fixed; top: 46px; left: 8px; right: 8px; z-index: 9; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; }
+#chips button { pointer-events: auto; font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 12px; border: 1px solid var(--bad);
+  background: var(--card); color: var(--bad); }
+#sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 55vh; overflow: auto; z-index: 20; display: none;
+  background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -6px 24px #0003; padding: 12px 16px 24px; }
+#sheet.open { display: block; }
+#sheet h2 { font-size: 16px; margin: 0 0 6px; }
+#sheet .close { float: right; font-size: 18px; background: none; border: 0; color: inherit; }
+#sheet table { width: 100%; border-collapse: collapse; }
+#sheet td { border-bottom: 1px solid var(--line); padding: 3px 6px; vertical-align: top; }
+#sheet pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: #8881; padding: 6px; border-radius: 6px; }
+#feed { position: fixed; left: 8px; bottom: 8px; z-index: 9; display: flex; flex-direction: column; gap: 2px; font-size: 11px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; max-width: calc(100vw - 32px); }
+#feed div { cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+#feed .new { animation: fade 3s; }
+@keyframes fade { from { background: color-mix(in srgb, var(--run) 30%, var(--card)); } }
+#sheet.open ~ #feed { display: none; }
+#errors { position: fixed; bottom: 8px; left: 8px; right: 8px; z-index: 30; color: var(--bad); font: 12px monospace; white-space: pre-wrap; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="area"></div>
+<div id="hud">
+  <span id="crumbs"></span>
+  <h1 id="status">Loading…</h1>
+  <span id="broker"></span>
+  <span class="grow"></span>
+  <span id="updated" class="muted"></span>
+  <button id="fit">Fit</button>
+  <details><summary>☰</summary><nav id="links"><a href="/list">List</a></nav></details>
+</div>
+<div id="chips"></div>
+<div id="sheet"><button class="close" id="close">×</button><div id="sheet-body"></div></div>
+<div id="feed"></div>
+<div id="errors"></div>
+<script>
+  addEventListener('error', e => document.getElementById('errors').textContent += (e.message || e) + '\n')
+  addEventListener('unhandledrejection', e => document.getElementById('errors').textContent += (e.reason?.stack || e.reason) + '\n')
+</script>
+<script type="module">
+import { NodeEditor, ClassicPreset, AreaPlugin, AreaExtensions, LitPlugin, Presets, getDOMSocketPosition, LitElement, html, css, nothing } from '/js/vendor.js'
+
+const socket = new ClassicPreset.Socket('s')
+const ago = (now, t) => fmt((now - t) / 1000) + ' ago'
+const fmt = s => s < 1 ? Math.round(s * 1000) + 'ms' : s < 60 ? Math.round(s) + 's' : s < 3600 ? Math.round(s / 60) + 'm'
+  : s < 86400 ? Math.floor(s / 3600) + 'h ' + Math.round(s % 3600 / 60) + 'm' : Math.floor(s / 86400) + 'd ' + Math.round(s % 86400 / 3600) + 'h'
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+// Links, and paths with an extension, possibly at lines (e.g. an error's /a/b.journal:213-215).
+const ARTIFACT = /https?:\/\/[^\s"'<>]+|~?\/[\w.@%+\/-]+\.[A-Za-z0-9]{2,8}(?::\d+(?:-\d+)?)?/g
+const artifactsIn = v => typeof v === 'string' ? [...v.matchAll(ARTIFACT)].map(m => m[0])
+  : Array.isArray(v) ? v.flatMap(artifactsIn) : v && typeof v === 'object' ? Object.values(v).flatMap(artifactsIn) : []
+const ICONS = { pdf: '📄', png: '🖼', jpg: '🖼', jpeg: '🖼', svg: '🖼', csv: '📊', journal: '📒', json: '🧾', txt: '📝', log: '📝', zip: '📦' }
+const iconOf = a => /^https?:/.test(a) && !/\.\w{2,5}$/.test(a) ? '🔗' : ICONS[a.replace(/:[\d-]+$/, '').split('.').pop().toLowerCase()] ?? '📎'
+
+//------------------------------------------------------------------------------
+// Rendering: every node is the same card; a box is grey.
+
+class DashNode extends LitElement {
+  static properties = { data: { type: Object }, emit: { attribute: false } }
+  static styles = css`
+    :host { display: block; position: relative; }
+    .card { box-sizing: border-box; width: 220px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px;
+      box-shadow: 0 1px 3px #0002; transition: box-shadow .3s; }
+    .box .card { background: var(--box); cursor: zoom-in; }
+    .actionable .card { border-color: var(--bad); }
+    .crisis .card { border-color: var(--bad); border-width: 2px; }
+    .missing .card { border-style: dashed; }
+    .pulse .card { box-shadow: 0 0 0 6px color-mix(in srgb, var(--run) 35%, var(--bg)); }
+    .selected .card { outline: 2px solid var(--run); }
+    .title { font-weight: 600; display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sub { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
+    .dot.run { background: var(--run); animation: blink 1s infinite alternate; }
+    @keyframes blink { to { opacity: .3 } }
+    .problems { color: var(--bad); font-size: 11px; margin-top: 3px; }
+    .kv { font-size: 11px; color: var(--muted); margin-top: 3px; word-break: break-word; }
+    .spark { display: flex; height: 8px; margin-top: 6px; background: #8881; border-radius: 2px; overflow: hidden; }
+    .spark i { flex: 1; }
+    .spark i.ran { background: var(--muted); opacity: .55; }
+    .spark i.bad { background: var(--bad); }
+    .sock { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  `
+  render() {
+    const d = this.data, v = d.view
+    const sock = (side, key) => html`<div class="sock"><rete-ref .data=${{ type: 'socket', side, key, nodeId: d.id, payload: socket }} .emit=${this.emit}></rete-ref></div>`
+    return html`<div class="${d.kind} ${v.severity ?? ''} ${v.pulse ? 'pulse' : ''} ${d.selected ? 'selected' : ''}">
+      <div class="card">
+        <div class="title">${v.dot ? html`<span class="dot ${v.dot}"></span>` : nothing}${v.icon ?? nothing}<span>${v.title}</span></div>
+        ${v.sub ? html`<div class="sub">${v.sub}</div>` : nothing}
+        ${v.kv ? html`<div class="kv">${v.kv}</div>` : nothing}
+        ${v.problems?.length ? html`<div class="problems">${v.problems.join(', ')}</div>` : nothing}
+        ${v.spark?.some(x => x !== null) ? html`<div class="spark">${v.spark.map(x => html`<i class=${x === null ? '' : x ? 'bad' : 'ran'}></i>`)}</div>` : nothing}
+      </div>
+      ${sock('input', 'in')}${sock('output', 'out')}
+    </div>`
+  }
+}
+customElements.define('dash-node', DashNode)
+
+// Straight edges between node centres, behind the cards. A manual trigger is
+// a label on the edge between the event announcing it and the one it starts.
+class DashEdge extends LitElement {
+  static properties = { start: { type: Object }, end: { type: Object }, kind: { type: String }, label: { type: String } }
+  static styles = css`
+    svg { overflow: visible; position: absolute; pointer-events: none; width: 1px; height: 1px; z-index: -1; }
+    path { fill: none; stroke: var(--edge); stroke-width: 2px; }
+    .reaction path, .manual path { stroke: var(--react); stroke-width: 3px; }
+    .pending path { stroke: var(--muted); stroke-dasharray: 6 6; }
+    .bad path { stroke: var(--bad); }
+    .label { position: absolute; z-index: 1; transform: translate(-50%, -50%); max-width: 150px; padding: 2px 8px; border-radius: 10px; text-align: center;
+      font: 600 11px/1.3 system-ui; color: var(--react); background: var(--bg); border: 1px solid currentColor; }
+    .label.pending { color: var(--muted); border-style: dashed; }
+  `
+  render() {
+    if (!this.start || !this.end) return nothing
+    const { x: x1, y: y1 } = this.start, { x: x2, y: y2 } = this.end
+    return html`<svg class=${this.kind}><path d="M ${x1} ${y1} L ${x2} ${y2}"></path></svg>
+      ${this.label ? html`<div class="label ${this.kind}" style="left:${(x1 + x2) / 2}px;top:${(y1 + y2) / 2}px">${this.label}</div>` : nothing}`
+  }
+}
+customElements.define('dash-edge', DashEdge)
+
+const editor = new NodeEditor()
+const area = new AreaPlugin(document.getElementById('area'))
+const render = new LitPlugin()
+render.addPreset(Presets.classic.setup({
+  // Edges meet at node centres, not 12px to either side.
+  socketPositionWatcher: getDOMSocketPosition({ offset: p => p }),
+  customize: {
+    node: ctx => ({ emit }) => html`<dash-node .data=${ctx.payload} .emit=${emit}></dash-node>`,
+    socket: () => () => html`<span></span>`,
+    connection: ctx => ({ start, end }) => html`<dash-edge .start=${start} .end=${end} .kind=${ctx.payload.kind} .label=${ctx.payload.label ?? ''}></dash-edge>`,
+  }
+}))
+editor.use(area)
+area.use(render)
+const selector = AreaExtensions.selector()
+AreaExtensions.selectableNodes(area, selector, { accumulating: { active: () => false } })
+
+//------------------------------------------------------------------------------
+// From runs to the graph of one level. A topic is <kind>/<path...>, e.g.
+// healthcheck/finances/fava-server. Looking at path prefix `view`, events
+// sharing their next path segment with another are one box (whatever machine
+// sends them), which opens onto that segment; the rest are shown as they are.
+// Trigger events are not shown: they are the manual step between the event
+// announcing them and the one reacting to them, which shares their path.
+
+let state = null, g = null
+const view = () => location.pathname.split('/').slice(2).map(decodeURIComponent).join('/')
+const graphUrl = v => v ? '/graph/' + v.split('/').map(encodeURIComponent).join('/') : '/'
+const seen = new Set()
+const pulsing = new Map() // node id -> until
+const rank = { healthy: 0, actionable: 1, crisis: 2 }
+const worst = sevs => sevs.reduce((w, s) => rank[s] > rank[w] ? s : w, 'healthy')
+const dotOf = r => !r ? '' : !r.end ? (r.problems.length ? 'bad' : 'run') : r.end.e.success && !r.problems.length ? 'ok' : 'bad'
+// The last day in 15-minute slots, oldest first: empty when nothing ran, red
+// when a run failed. Gaps show for themselves, so being overdue doesn't colour
+// a slot.
+const sparkOf = rs => {
+  const now = Date.parse(state.now), slots = Array.from({ length: 96 }, () => null)
+  for (const r of rs) {
+    const i = 95 - Math.floor((now - Date.parse(r.start.at)) / 900e3)
+    if (i >= 0) slots[i] = (slots[i] ?? false) || r.problems.some(p => p.name !== 'overdue')
+  }
+  return slots
+}
+const dur = r => ((r.end ? Date.parse(r.end.at) : Date.parse(state.now)) - Date.parse(r.start.at)) / 1000
+const KINDS = { healthcheck: '♥', script: '▶', system: '⚙', server: '◆' }
+const pathOf = t => t.split('/').slice(1).join('/') || t
+const isTrigger = t => t.startsWith('trigger/')
+const under = (p, q) => !q || p === q || p.startsWith(q + '/')
+const severityOf = (rs, t, s) => rs[0]?.severity ?? (s.missing.includes(t) ? 'crisis' : 'healthy')
+
+// The node standing for a topic at a view: its box, or itself.
+const nodeAt = (t, v, topics) => {
+  const p = pathOf(t)
+  if (!under(p, v)) return null
+  if (p === v) return 'topic:' + t
+  const box = (v ? v + '/' : '') + p.slice(v ? v.length + 1 : 0).split('/')[0]
+  return topics.filter(u => under(pathOf(u), box)).length > 1 ? 'box:' + box : 'topic:' + t
+}
+// The view at which a topic is shown as itself.
+const viewOf = (t, topics) => {
+  let v = ''
+  for (let n; (n = nodeAt(t, v, topics)).startsWith('box:');) v = n.slice(4)
+  return v
+}
+
+function graphOf(s, v) {
+  const now = Date.parse(s.now)
+  const runs = s.runs.map(r => ({ ...r, at: Date.parse(r.start.at) })).sort((a, b) => b.at - a.at)
+  const byId = new Map(runs.map(r => [r.id.correlationId, r]))
+  const byTopic = new Map()
+  for (const r of runs) (byTopic.get(r.id.evtTopic) ?? byTopic.set(r.id.evtTopic, []).get(r.id.evtTopic)).push(r)
+  const topics = [...new Set([...byTopic.keys(), ...s.missing])].filter(t => !isTrigger(t))
+  const at = t => nodeAt(t, v, topics)
+  const nodes = new Map(), edges = new Map()
+  const edge = (a, b, kind, label) => {
+    if (!a || !b || a === b) return
+    const e = edges.get(`${a}>${b}`)
+    if (e && kind === 'reaction') { if (e.kind === 'reaction') e.label = String(+e.label + 1); return }
+    edges.set(`${a}>${b}`, { source: a, target: b, kind, label })
+  }
+  const rel = p => p === v ? p.split('/').pop() : p.slice(v ? v.length + 1 : 0)
+
+  for (const t of topics) {
+    const id = at(t)
+    if (!id) continue
+    const rs = byTopic.get(t) ?? []
+    if (id.startsWith('box:')) {
+      const b = nodes.get(id) ?? nodes.set(id, { kind: 'box', path: id.slice(4), topics: [], runs: [] }).get(id)
+      b.topics.push(t); b.runs.push(...rs)
+      continue
+    }
+    const latest = rs[0], content = latest?.start.e.content
+    const kv = content && typeof content === 'object' && !Array.isArray(content)
+      ? Object.entries(content).filter(([, x]) => typeof x !== 'object').slice(0, 4).map(([k, x]) => `${k}: ${x}`).join(' · ') : null
+    nodes.set(id, { kind: 'event', topic: t, runs: rs, view: latest ? {
+      icon: KINDS[t.split('/')[0]], title: rel(pathOf(t)), dot: dotOf(latest), severity: latest.severity,
+      sub: `${latest.start.e.label} · ${ago(now, latest.at)}${latest.start.e.rules.expected ? ' / ' + fmt(latest.start.e.rules.expected) : ''}`,
+      problems: latest.problems.map(p => p.name), kv, spark: sparkOf(rs)
+    } : { icon: KINDS[t.split('/')[0]], title: rel(pathOf(t)), dot: 'bad', severity: 'crisis missing', sub: 'required, never seen' } })
+  }
+  for (const [id, b] of nodes) if (b.kind === 'box') {
+    b.runs.sort((x, y) => y.at - x.at)
+    const bad = b.topics.filter(t => severityOf(byTopic.get(t) ?? [], t, s) !== 'healthy')
+    b.view = { icon: '▣', title: rel(b.path), dot: bad.length ? 'bad' : 'ok', severity: worst(b.topics.map(t => severityOf(byTopic.get(t) ?? [], t, s))),
+      sub: `${b.topics.length} events${bad.length ? ` · ${bad.length} need attention` : ''}`,
+      problems: bad.map(t => pathOf(t).slice(b.path.length + 1)), spark: sparkOf(b.runs) }
+  }
+
+  // Reactions, seen through any manual trigger in between.
+  for (const r of runs) {
+    const cause = r.start.e.reactTo && byId.get(r.start.e.reactTo.correlationId)
+    if (!cause || isTrigger(r.id.evtTopic)) continue
+    if (!isTrigger(cause.id.evtTopic)) { edge(at(cause.id.evtTopic), at(r.id.evtTopic), 'reaction', '1'); continue }
+    const announcer = cause.start.e.reactTo && byId.get(cause.start.e.reactTo.correlationId)
+    if (announcer) edge(at(announcer.id.evtTopic), at(r.id.evtTopic), 'manual', '⏵ ' + cause.start.e.label)
+  }
+  // Triggers announced and not yet sent, to the event they would start.
+  for (const [t, rs] of byTopic) for (const p of rs[0].pending) {
+    const target = topics.find(u => pathOf(u) === pathOf(p.topic))
+    edge(at(t), target && at(target), 'manual pending', '⏵ ' + p.label)
+  }
+  // Files and links the latest runs mention.
+  for (const [t, rs] of byTopic) {
+    const from = at(t), latest = rs[0]
+    if (!from || isTrigger(t)) continue
+    for (const a of [...new Set([latest.start.e.content, latest.end?.e.result].flatMap(artifactsIn))].slice(0, 6)) {
+      nodes.set('artifact:' + a, { kind: 'artifact', artifact: a, run: latest,
+        view: { icon: iconOf(a), title: a.split('/').filter(Boolean).pop(), sub: ago(now, latest.at) } })
+      edge(from, 'artifact:' + a, dotOf(latest) === 'bad' ? 'artifact bad' : 'artifact')
+    }
+  }
+  return { nodes, edges, runs, topics, now }
+}
+
+//------------------------------------------------------------------------------
+// Layout: linked cards in layers along the screen's long side, each after
+// what links to it and near it, so edges don't cross cards; the rest in rows
+// beside them. Boxes come first, then events, then files.
+
+const GAP = 40, STEP = 170
+function layout({ nodes, edges }) {
+  const order = { box: 0, event: 1, artifact: 2 }
+  const ids = [...nodes.keys()].sort((a, b) => order[nodes.get(a).kind] - order[nodes.get(b).kind] || nodes.get(a).view.title.localeCompare(nodes.get(b).view.title))
+  const size = id => { const el = area.nodeViews.get(id)?.element.querySelector('dash-node')?.shadowRoot?.querySelector('.card'); return [el?.offsetWidth || 220, el?.offsetHeight || 60] }
+  const wide = innerWidth >= innerHeight
+  const preds = new Map(ids.map(id => [id, [...edges.values()].filter(e => e.target === id).map(e => e.source)]))
+  const linked = ids.filter(id => [...edges.values()].some(e => e.source === id || e.target === id))
+  const depth = new Map()
+  const depthOf = (id, seen = new Set()) => depth.get(id) ?? (seen.has(id) ? 0 :
+    depth.set(id, Math.max(-1, ...preds.get(id).map(p => depthOf(p, new Set([...seen, id])))) + 1).get(id))
+  const layers = []
+  for (const id of linked) (layers[depthOf(id)] ??= []).push(id)
+  const index = new Map()
+  for (const layer of layers.filter(Boolean)) {
+    const at = id => preds.get(id).length ? preds.get(id).reduce((s, p) => s + (index.get(p) ?? 0), 0) / preds.get(id).length : ids.indexOf(id)
+    layer.sort((a, b) => at(a) - at(b)).forEach((id, i) => index.set(id, i))
+  }
+  // Along: the layer's position; across: the card's within it.
+  const pos = new Map()
+  let along = 0
+  for (const layer of layers.filter(Boolean)) {
+    let across = 0
+    for (const id of layer) {
+      const [w, h] = size(id)
+      pos.set(id, wide ? [along, across] : [across, along])
+      across += (wide ? h : w) + GAP
+    }
+    along += Math.max(...layer.map(id => size(id)[wide ? 0 : 1])) + STEP
+  }
+  // The rest in rows past the layers.
+  const rest = ids.filter(id => !pos.has(id)), start = linked.length ? along : 0
+  const total = rest.reduce((s, id) => s + (size(id)[0] + GAP) * (size(id)[1] + GAP), 0)
+  const width = Math.max(220, Math.sqrt(total * (wide ? innerHeight / innerWidth : innerWidth / innerHeight)))
+  let x = 0, y = 0, row = 0
+  for (const id of rest) {
+    const [w, h] = size(id)
+    if (x > 0 && x + w > width) { x = 0; y += row + GAP; row = 0 }
+    pos.set(id, wide ? [start + x, y] : [x, start + y])
+    x += w + GAP; row = Math.max(row, h)
+  }
+  return pos
+}
+
+//------------------------------------------------------------------------------
+// Keeping the editor in sync
+
+let structure = ''
+async function sync(g) {
+  const now = Date.now(), first = !seen.size
+  for (const r of g.runs) if (!seen.has(r.id.correlationId)) {
+    if (!first) pulsing.set(nodeAt(r.id.evtTopic, view(), g.topics), now + 2500)
+    seen.add(r.id.correlationId)
+  }
+  for (const c of editor.getConnections()) if (!g.edges.has(c.id)) await editor.removeConnection(c.id)
+  for (const n of editor.getNodes()) if (!g.nodes.has(n.id)) await editor.removeNode(n.id)
+  for (const [id, d] of g.nodes) {
+    d.view.pulse = (pulsing.get(id) ?? 0) > now
+    const n = editor.getNode(id)
+    if (n) { Object.assign(n, d); await area.update('node', id) }
+    else {
+      const node = Object.assign(new ClassicPreset.Node(d.view.title), d, { id })
+      node.addInput('in', new ClassicPreset.Input(socket))
+      node.addOutput('out', new ClassicPreset.Output(socket))
+      await editor.addNode(node)
+    }
+  }
+  for (const [id, e] of g.edges) {
+    const c = editor.getConnections().find(c => c.id === id)
+    if (c) { if (c.kind !== e.kind || c.label !== e.label) { Object.assign(c, e); await area.update('connection', id) } }
+    else await editor.addConnection({ id, source: e.source, sourceOutput: 'out', target: e.target, targetInput: 'in', kind: e.kind, label: e.label })
+  }
+  const shape = [...g.nodes.keys()].sort().join() + '|' + [...g.edges.keys()].sort().join()
+  if (shape !== structure) {
+    const first = !structure
+    structure = shape
+    await new Promise(requestAnimationFrame)
+    for (const [id, [x, y]] of layout(g)) await area.translate(id, { x, y })
+    if (first) fit()
+  }
+}
+
+const fit = () => AreaExtensions.zoomAt(area, editor.getNodes())
+document.getElementById('fit').onclick = fit
+// Show a topic as itself, opening the boxes it is in.
+const focus = async t => {
+  const v = viewOf(t, g.topics)
+  if (v !== view()) { location.href = graphUrl(v) + '?focus=' + encodeURIComponent(t); return }
+  const node = editor.getNode('topic:' + t)
+  if (!node) return
+  await AreaExtensions.zoomAt(area, [node], { scale: .6 })
+  selector.unselectAll(); selected = node.id; showSheet()
+}
+
+//------------------------------------------------------------------------------
+// The header and the details sheet
+
+function header(s, g) {
+  const v = view()
+  document.getElementById('crumbs').innerHTML = ['', ...(v ? v.split('/').map((_, i, xs) => xs.slice(0, i + 1).join('/')) : [])]
+    .map(p => `<a href="${graphUrl(p)}">${esc(p ? p.split('/').pop() : 'control')}</a>`).join(' › ')
+  const flagged = g.topics.filter(t => /actionable|crisis/.test(severityOf(g.runs.filter(r => r.id.evtTopic === t), t, s)))
+  const st = document.getElementById('status')
+  st.textContent = flagged.length ? `· ${flagged.length} need attention` : '· All clear'
+  st.className = flagged.some(t => s.missing.includes(t)) ? 'crisis' : flagged.length ? 'bad' : ''
+  document.getElementById('chips').replaceChildren(...flagged.map(t => {
+    const b = document.createElement('button')
+    const r = g.runs.find(r => r.id.evtTopic === t)
+    Object.assign(b, { textContent: `${pathOf(t)}: ${r ? r.problems.map(p => p.name).join(', ') : 'never seen'}`, onclick: () => focus(t) })
+    return b
+  }))
+  const count = flagged.length + (s.connected ? 0 : 1)
+  document.title = (count ? `(${count}) ` : '') + 'control-dashboard'
+  document.getElementById('broker').innerHTML = s.connected ? '' : '<span class="crisis">Broker unreachable: this may be stale</span>'
+  document.getElementById('updated').textContent = 'Updated ' + new Date(s.now).toLocaleTimeString()
+  const links = document.getElementById('links')
+  if (links.children.length === 1) for (const u of s.links) links.insertAdjacentHTML('beforeend', `<a href="${esc(u)}">${esc(u.split('://').pop())}</a>`)
+}
+
+// The latest runs, newest first, highlighting those that just arrived.
+let fed = null
+function feed(g) {
+  const rows = g.runs.slice(0, 5).map(r => {
+    const d = document.createElement('div')
+    const mark = { ok: '✓', bad: '<span class="bad">✗</span>', run: '…' }[dotOf(r)] ?? ''
+    d.innerHTML = `<span class="muted">${new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> ${mark} ${esc(r.id.evtTopic)}${r.start.e.reactTo ? ' <span class="muted">↩</span>' : ''}`
+    if (fed && !fed.has(r.id.correlationId)) d.className = 'new'
+    if (!isTrigger(r.id.evtTopic)) d.onclick = () => focus(r.id.evtTopic)
+    return d
+  })
+  fed = new Set(g.runs.map(r => r.id.correlationId))
+  document.getElementById('feed').replaceChildren(...rows)
+}
+
+let selected = null
+function showSheet() {
+  const n = selected && editor.getNode(selected), body = document.getElementById('sheet-body')
+  document.getElementById('sheet').classList.toggle('open', !!n)
+  if (!n) return
+  const now = Date.parse(state.now)
+  const mark = r => ({ ok: '✓', bad: '<span class="bad">✗</span>', run: '…' })[dotOf(r)] ?? ''
+  const pretty = x => x == null ? '' : `<pre>${esc(typeof x === 'string' ? x : JSON.stringify(x, null, 2))}</pre>`
+  if (n.kind === 'artifact') {
+    const a = n.artifact
+    body.innerHTML = `<h2>${iconOf(a)} ${esc(a.split('/').pop())}</h2><p>${/^https?:/.test(a) ? `<a href="${esc(a)}">${esc(a)}</a>` : `<code>${esc(a)}</code>`}</p>
+      <p class="muted">From <a href="/run/${n.run.id.correlationId}">${esc(n.run.id.evtTopic)}</a>, ${ago(now, n.run.at)}</p>`
+  } else {
+    const latest = n.runs[0]
+    body.innerHTML = `<h2>${esc(n.view.title)}</h2>
+      ${n.topic ? `<p><a href="/topic/${n.topic.split('/').map(encodeURIComponent).join('/')}">${esc(n.topic)}</a> ${latest ? '· ' + esc(latest.start.e.label) : ''}</p>` : ''}
+      ${n.topic && latest ? latest.problems.map(p => `<p class="bad"><b>${esc(p.name)}</b> ${esc(p.why)}</p>`).join('') + pretty(latest.start.e.content) + pretty(latest.end?.e.result) : ''}
+      ${latest?.pending.map(p => `<p><a href="/run/${latest.id.correlationId}">⏵ ${esc(p.label)}</a> <span class="muted">not yet sent</span></p>`).join('') ?? ''}
+      <table>${n.runs.slice(0, 30).map(r => `<tr><td>${mark(r)}</td><td><a href="/run/${r.id.correlationId}">${ago(now, r.at)}</a></td>
+        <td>${n.topic ? '' : esc(pathOf(r.id.evtTopic))}</td><td>${r.end ? fmt(dur(r)) : 'running'}</td><td>${esc(r.end?.e.summary)}</td></tr>`).join('')}</table>`
+  }
+}
+area.addPipe(ctx => {
+  if (ctx.type === 'nodepicked') {
+    const n = editor.getNode(ctx.data.id)
+    if (n?.kind === 'box') location.href = graphUrl(n.path)
+    else { selected = ctx.data.id; showSheet() }
+  }
+  return ctx
+})
+document.getElementById('close').onclick = () => { selected = null; selector.unselectAll(); showSheet() }
+
+let busy = false
+async function refresh() {
+  if (busy) return
+  busy = true
+  try {
+    state = await (await fetch('/api/state?hours=24')).json()
+    g = graphOf(state, view())
+    await sync(g)
+    header(state, g)
+    feed(g)
+    if (selected) showSheet()
+  } catch (e) {
+    document.getElementById('broker').innerHTML = `<span class="crisis">Dashboard unreachable: ${esc(e.message)}</span>`
+  } finally { busy = false }
+}
+await refresh()
+const focused = new URLSearchParams(location.search).get('focus')
+if (focused) focus(focused)
+setInterval(refresh, 5000)
+</script>
+</body>
+</html>

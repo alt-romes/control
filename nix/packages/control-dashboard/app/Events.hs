@@ -6,13 +6,13 @@ module Events
   , State (..), newState, mqttLoop, sendTrigger
   , Index (..), index, topLevel, latestRuns, isCritical
   , problems, duration, timedOut, prune
-  , fmtDuration
+  , fmtDuration, trySync
   ) where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeAsyncException, SomeException, fromException, throwIO, try)
 import Control.Monad (forever, unless)
 import Data.Aeson (Value (..))
 import Data.List (sortOn, unsnoc)
@@ -50,17 +50,18 @@ newState = State <$> newTVarIO Map.empty <*> newTVarIO False
 -- A finish arriving over twice its timeout after its start, or whose start
 -- came before a restart, is lost (see control-events).
 --
--- A persistent session keeps a fixed client id, and the broker queues messages
--- for up to a day while we're away. Otherwise the broker assigns a fresh id, so
--- other instances (e.g. dev runs) can't take over the persistent session.
-mqttLoop :: Bool -> State -> IO ()
+-- A persistent session keeps the given client id, and the broker queues
+-- messages for up to a day while we're away. Otherwise the broker assigns a
+-- fresh id, so other instances (e.g. dev runs) can't take over the persistent
+-- session.
+mqttLoop :: Maybe String -> State -> IO ()
 mqttLoop persistent st = do
-  session <- newPersistentSession "control-dashboard"
+  session <- traverse newPersistentSession persistent
   forever $ do
-    r <- try @SomeException $
-      if persistent
-        then withPersistentConn session base listen
-        else withConn base listen
+    r <- trySync $
+      case session of
+        Just s -> withPersistentConn s base listen
+        Nothing -> withConn base listen
     atomically $ writeTVar st.connected False
     putStrLn ("mqtt: " <> either show (const "disconnected") r)
     threadDelay 5_000_000
@@ -73,6 +74,13 @@ mqttLoop persistent st = do
       waitConnDisconnect c
     started eid s = unless (isTest eid.evtTopic) $ atomically $ modifyTVar' st.runs (prune . Map.insert eid.correlationId (Run eid s Nothing))
     finished eid e = atomically $ modifyTVar' st.runs (Map.adjust (\r -> r {end = Just e}) eid.correlationId)
+
+-- | Like @try \@SomeException@, but rethrowing asynchronous exceptions (e.g.
+-- Ctrl-C, or 'killThread'), so the thread still stops when told to.
+trySync :: IO a -> IO (Either SomeException a)
+trySync act = try act >>= \case
+  Left e | Just _ <- fromException @SomeAsyncException e -> throwIO e
+  r -> pure r
 
 -- | Events on test/... topics are ignored.
 isTest :: Topic -> Bool

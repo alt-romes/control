@@ -3,7 +3,7 @@ name:               control-dashboard
 version:            0.1.0
 synopsis:           Trivially simple HTML dashboard server
 build-type:         Simple
-extra-source-files: app/style.css
+extra-source-files: app/style.css app/graph.html app/js/*.js
 
 common shared
   ghc-options:      -Wall
@@ -38,6 +38,8 @@ executable control-dashboard
     , process
     , servant-blaze
     , servant-server
+    , wai
+    , wai-extra
     , warp
   default-extensions:
     DataKinds
