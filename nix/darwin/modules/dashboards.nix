@@ -16,10 +16,13 @@
           type = lib.types.listOf lib.types.str;
           default = [ ];
         };
-        links = lib.mkOption {
-          description = "URLs linked to in the dashboard's header";
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
+        logPattern = lib.mkOption {
+          description = ''
+            Where scripts' logs are, with `%s` for the last level of their
+            topic: a failed run shows the end of its log.
+          '';
+          type = lib.types.nullOr lib.types.str;
+          default = null;
         };
         alertCommand = lib.mkOption {
           description = ''
@@ -41,7 +44,7 @@
                 --host 127.0.0.1 \
                 --persistent \
                 ${flags "require" cfg.requiredHealthchecks} \
-                ${flags "link" cfg.links} \
+                ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)} \
                 ${flags "alert" (lib.optional (cfg.alertCommand != null) cfg.alertCommand)}
             '';
 

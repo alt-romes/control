@@ -1,5 +1,7 @@
 export { NodeEditor, ClassicPreset } from 'rete'
 export { AreaPlugin, AreaExtensions } from 'rete-area-plugin'
 export { LitPlugin, Presets } from '@retejs/lit-plugin'
-export { LitElement, html, svg, css, nothing } from 'lit'
+export { AutoArrangePlugin } from 'rete-auto-arrange-plugin'
+export { ScopesPlugin, Presets as ScopesPresets } from 'rete-scopes-plugin'
+export { LitElement, html, render, nothing } from 'lit'
 export { getDOMSocketPosition } from 'rete-render-utils'

@@ -3,7 +3,7 @@ name:               control-dashboard
 version:            0.1.0
 synopsis:           Trivially simple HTML dashboard server
 build-type:         Simple
-extra-source-files: app/style.css app/graph.html app/js/*.js
+extra-source-files: app/graph.html app/js/*.js
 
 common shared
   ghc-options:      -Wall
@@ -17,6 +17,7 @@ common shared
     , containers
     , control-events
     , net-mqtt
+    , network-uri
     , stm
     , text
     , time
@@ -25,18 +26,15 @@ common shared
 executable control-dashboard
   import:           shared
   main-is:          Main.hs
-  other-modules:    Events, Views
+  other-modules:    Events, Tree
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   hs-source-dirs:   app
   build-depends:
-      aeson-pretty
-    , blaze-html
-    , blaze-markup
-    , file-embed
+      file-embed
+    , filepath
     , http-types
     , optparse-generic
     , process
-    , servant-blaze
     , servant-server
     , wai
     , wai-extra
@@ -50,4 +48,4 @@ test-suite spec
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test app
-  other-modules:    Events
+  other-modules:    Events, Tree
