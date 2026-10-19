@@ -60,7 +60,11 @@ numbered rs = Map.fromList [(uuid n, r {eid = r.eid {correlationId = uuid n}}) |
 
 -- | The problems of the run numbered @n@, among the given runs.
 problemsOf :: NominalDiffTime -> [(Int, Run)] -> Int -> [(Text, Text)]
-problemsOf now rs n = let m = numbered rs in problems (sec now) (index m) (m Map.! uuid n)
+problemsOf = problemsAsleep []
+
+-- | Like 'problemsOf', with the machine asleep between the given seconds.
+problemsAsleep :: [(NominalDiffTime, NominalDiffTime)] -> NominalDiffTime -> [(Int, Run)] -> Int -> [(Text, Text)]
+problemsAsleep sleeps now rs n = let m = numbered rs in problems [(sec a, sec b) | (a, b) <- sleeps] (sec now) (index m) (m Map.! uuid n)
 
 ids :: [Run] -> [UUID]
 ids = map (.eid.correlationId)
@@ -82,6 +86,8 @@ main = do
         , ("the next run within expected + grace is fine", let r = expecting 60 a; n = run "script/a" 100 ok in names 200 [(1, r), (2, n)] 1 == [])
         , ("the next run after expected + grace is overdue", let r = expecting 60 a; n = run "script/a" 130 ok in names 200 [(1, r), (2, n)] 1 == ["overdue"])
         , ("the latest run within grace is fine", let r = expecting 60 a in names 90 [(1, r)] 1 == [])
+        , ("time asleep isn't overdue", let r = expecting 60 a; n = run "script/a" 1000 ok in map fst (problemsAsleep [(50, 950)] 1100 [(1, r), (2, n)] 1) == [])
+        , ("time awake around a sleep is overdue", let r = expecting 60 a in map fst (problemsAsleep [(50, 950)] 1100 [(1, r)] 1) == ["overdue"])
         , ("the latest run past grace is overdue", let r = expecting 60 a in names 121 [(1, r)] 1 == ["overdue"])
         , ("all expected subtasks is fine",
             let r = expectingSubtasks ["x", "y"] a in names 400 [(1, r), (2, partOf 1 (run "script/a/x" 0 ok)), (3, partOf 1 (run "script/a/y" 0 ok))] 1 == [])

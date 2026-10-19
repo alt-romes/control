@@ -3,7 +3,7 @@
 -- what's wrong with them.
 module Events
   ( Run (..), pendingTriggers, rootCause
-  , State (..), newState, mqttLoop, sendTrigger
+  , State (..), newState, mqttLoop, sleepLoop, sendTrigger
   , Index (..), index, topLevel, latestRuns, isCritical
   , problems, duration, timedOut, prune
   , fmtDuration, trySync
@@ -13,7 +13,7 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (SomeAsyncException, SomeException, fromException, throwIO, try)
-import Control.Monad (forever, unless)
+import Control.Monad (forever, unless, when)
 import Data.Aeson (Value (..))
 import Data.List (sortOn, unsnoc)
 import Data.Map.Strict (Map)
@@ -24,7 +24,7 @@ import qualified Data.Set as Set
 import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
+import Data.Time (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Network.MQTT.Topic (Filter, Topic, match, split, unFilter, unTopic)
 
@@ -40,10 +40,22 @@ data Run = Run
 data State = State
   { runs :: TVar (Map UUID Run) -- ^ by correlation id
   , connected :: TVar Bool -- ^ to the broker
+  , sleeps :: TVar [(UTCTime, UTCTime)] -- ^ when this machine slept
   }
 
 newState :: IO State
-newState = State <$> newTVarIO Map.empty <*> newTVarIO False
+newState = State <$> newTVarIO Map.empty <*> newTVarIO False <*> newTVarIO []
+
+-- | Record the latest 1000 sleeps of this machine, seen as the clock jumping
+-- ahead.
+sleepLoop :: State -> IO ()
+sleepLoop st = getCurrentTime >>= go
+  where
+    go t = do
+      threadDelay 5_000_000
+      t' <- getCurrentTime
+      when (diffUTCTime t' t > 30) $ atomically (modifyTVar' st.sleeps (take 1000 . ((t, t') :)))
+      go t'
 
 -- | Stay subscribed to every event, reconnecting if the broker goes away.
 --
@@ -169,9 +181,10 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 -- run on its topic, which may not have started yet, started too late after
 -- it. Subtasks are given the run's timeout to show up; a reaction is missing
 -- until it arrives, and awaits the trigger the run announced for it, if any.
--- A subtask's problems are the run's too.
-problems :: UTCTime -> Index -> Run -> [(Text, Text)]
-problems now ix r =
+-- A subtask's problems are the run's too. Time asleep doesn't count towards
+-- being overdue, since nothing could run then.
+problems :: [(UTCTime, UTCTime)] -> UTCTime -> Index -> Run -> [(Text, Text)]
+problems sleeps now ix r =
   [ ("failed", "Finished unsuccessfully" <> foldMap (": " <>) (nonEmpty e.e.summary) <> foldMap (" — " <>) (firstLine e.e.result))
     | Just e <- [r.end], not e.e.success ]
     ++ [ ("timed out", (if isJust r.end then "Took " else "No finish after ") <> fmtDuration taken <> "; the limit is " <> fmtDuration limit <> ".") | timedOut now r ]
@@ -185,7 +198,7 @@ problems now ix r =
     taken = duration now r
     limit = fromIntegral rules.timeout
     next = listToMaybe (reverse (takeWhile (> r.start.at) [s.start.at | s <- Map.findWithDefault [] r.eid.evtTopic ix.byTopic]))
-    gap = diffUTCTime (fromMaybe now next) r.start.at
+    gap = awake sleeps r.start.at (fromMaybe now next)
     overdue d = "The next run was expected within " <> fmtDuration d <> " (+" <> fmtDuration grace <> " grace)" <> case next of
       Nothing -> ", but none has started in " <> fmtDuration gap <> "."
       Just _ -> ", but it started " <> fmtDuration gap <> " later."
@@ -196,11 +209,15 @@ problems now ix r =
     -- A missing reaction a pending trigger would provide is waiting on it.
     reactions = unmatched (fromMaybe [] rules.reactions) ix.reactingTo
     awaited = [t | (_, t) <- pendingTriggers ix r, any (`match` t.triggerTopic) reactions]
-    failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- Map.findWithDefault [] r.eid.correlationId ix.scopedTo, let ps = problems now ix s, not (null ps)]
+    failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- Map.findWithDefault [] r.eid.correlationId ix.scopedTo, let ps = problems sleeps now ix s, not (null ps)]
     nonEmpty s = if null s then Nothing else Just (T.pack s)
     firstLine = \case
       Just (String t) | not (T.null t) -> Just (T.takeWhile (/= '\n') t)
       _ -> Nothing
+
+-- | Time between two instants not spent asleep.
+awake :: [(UTCTime, UTCTime)] -> UTCTime -> UTCTime -> NominalDiffTime
+awake sleeps a b = diffUTCTime b a - sum [diffUTCTime (min b s1) (max a s0) | (s0, s1) <- sleeps, s0 < b, s1 > a]
 
 -- | Whether a run took, or has been running for, longer than its timeout.
 timedOut :: UTCTime -> Run -> Bool

@@ -43,6 +43,7 @@ data Ctx = Ctx
   , tz :: TimeZone
   , ix :: Index
   , connected :: Bool
+  , sleeps :: [(UTCTime, UTCTime)] -- ^ when this machine slept
   , required :: [Topic] -- ^ topics that must have run
   , links :: [Text] -- ^ URLs linked to in the header
   }
@@ -199,7 +200,7 @@ missing :: Ctx -> [Topic]
 missing c = filter (`Map.notMember` c.ix.byTopic) c.required
 
 problemsOf :: Ctx -> Run -> [(Text, Text)]
-problemsOf c = problems c.now c.ix
+problemsOf c = problems c.sleeps c.now c.ix
 
 bad :: Ctx -> Run -> Bool
 bad c = not . null . problemsOf c

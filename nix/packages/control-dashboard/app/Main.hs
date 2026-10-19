@@ -101,7 +101,8 @@ ctx opts st = do
   atomically $ do
     ix <- index <$> readTVar st.runs
     connected <- readTVar st.connected
-    pure Ctx {now, tz, ix, connected, required = map fromString opts.require, links = opts.link}
+    sleeps <- readTVar st.sleeps
+    pure Ctx {now, tz, ix, connected, sleeps, required = map fromString opts.require, links = opts.link}
 
 -- | Run the command for each thing newly needing attention, checking every 5s.
 alertLoop :: String -> IO Ctx -> IO ()
@@ -121,6 +122,7 @@ main = do
   let theHost = fromMaybe "127.0.0.1" opts.host
       thePort = fromMaybe 8080 opts.port
   st <- newState
+  void (forkIO (sleepLoop st))
   void (forkIO (mqttLoop (fromMaybe "control-dashboard" opts.session <$ guard opts.persistent) st))
   forM_ opts.alert $ \cmd -> forkIO (alertLoop cmd (ctx opts st))
   putStrLn $ "Serving on http://" <> theHost <> ":" <> show thePort
