@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "description": "The JS the graph page imports, bundled into ../app/js by build.sh",
+  "dependencies": {
+    "@retejs/lit-plugin": "2.0.8",
+    "lit": "3.3.3",
+    "rete": "2.0.6",
+    "rete-area-plugin": "2.3.2",
+    "rete-render-utils": "2.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

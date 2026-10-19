@@ -7,15 +7,16 @@
 module Views
   ( Ctx (..), Page, render
   , overviewPage, topicPage, runPage
-  , alerts
+  , alerts, stateJson, graphPage, jsFiles
   ) where
 
 import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..))
 import Control.Monad (forM_, guard, unless, when)
-import Data.Aeson (Value (..), encode, toJSON)
+import Data.Aeson (Value (..), encode, object, toJSON, (.=))
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy as BL
-import Data.FileEmbed (embedStringFile)
+import Data.ByteString (ByteString)
+import Data.FileEmbed (embedDir, embedStringFile)
 import Data.Containers.ListUtils (nubOrdOn)
 import Data.List (partition, sortOn)
 import qualified Data.Map.Strict as Map
@@ -24,7 +25,8 @@ import Data.Ord (Down (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8Lenient, encodeUtf8)
-import Data.Time (TimeZone, UTCTime, defaultTimeLocale, diffUTCTime, formatTime, utcToLocalTime)
+import qualified Data.Set as Set
+import Data.Time (NominalDiffTime, TimeZone, UTCTime, defaultTimeLocale, diffUTCTime, formatTime, utcToLocalTime)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Events
@@ -65,7 +67,7 @@ render c live p
           $ mempty
       H.body $ do
         H.header $ do
-          H.nav $ H.a ! A.href "/" $ "Overview"
+          H.nav $ (H.a ! A.href "/" $ "Graph") >> (H.a ! A.href "/list" $ "List")
           H.nav $ forM_ c.links $ \u -> H.a ! A.href (toValue u) $ toHtml (snd (T.breakOnEnd "://" u))
         H.main ! customAttribute "hx-get" "?live" ! customAttribute "hx-trigger" "every 5s" ! customAttribute "hx-swap" "innerMorph" $ body
   where
@@ -135,6 +137,33 @@ runPage u c = case Map.lookup u c.ix.runs of
   where
     field :: Text -> Html -> Html
     field k v = H.dt (toHtml k) >> H.dd v
+
+-- | The graph of the whole system, drawn by the page itself from 'stateJson'.
+graphPage :: Html
+graphPage = H.preEscapedString $(embedStringFile "app/graph.html")
+
+-- | The JS libraries 'graphPage' imports, bundled by @vendor/build.sh@.
+jsFiles :: [(FilePath, ByteString)]
+jsFiles = $(embedDir "app/js")
+
+-- | The runs started in the last @since@ and the latest run of every topic,
+-- each with its severity, problems and pending triggers, for 'graphPage'.
+stateJson :: Ctx -> NominalDiffTime -> Value
+stateJson c since = object
+  [ "now" .= c.now
+  , "connected" .= c.connected
+  , "links" .= c.links
+  , "missing" .= map unTopic (missing c)
+  , "runs" .= [run r | r <- Map.elems c.ix.runs, diffUTCTime c.now r.start.at < since || Set.member r.eid.correlationId latest]
+  ]
+  where
+    latest = Set.fromList [r.eid.correlationId | rs <- Map.elems c.ix.byTopic, r <- take 1 rs]
+    run r = object
+      [ "id" .= r.eid, "start" .= r.start, "end" .= r.end
+      , "severity" .= case severity c r of Crisis -> "crisis" :: Text; Actionable -> "actionable"; Healthy -> "healthy"
+      , "problems" .= [object ["name" .= n, "why" .= w] | (n, w) <- problemsOf c r]
+      , "pending" .= [object ["index" .= i, "topic" .= t.triggerTopic, "label" .= t.triggerLabel] | (i, t) <- pendingTriggers c.ix r]
+      ]
 
 --------------------------------------------------------------------------------
 -- What needs attention
