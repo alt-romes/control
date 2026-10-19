@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>control</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f6f6f4; --fg: #1d1d1b; --muted: #85857f; --card: #fff; --line: #00000018;
+  --bad: #d62718; --warn: #b86e00; --run: #2f6fdf; --ok: #3a9a5b;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111213; --fg: #e8e8e4; --card: #1c1d1f; --line: #ffffff1c; --warn: #e0a040; }
+}
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
+a { color: inherit; }
+h1 { font-size: 22px; margin: 4px 0 6px; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 28px 0 8px; display: flex; gap: 8px; }
+h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.muted, .meta { color: var(--muted); }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+#trust { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+#trust .bad { font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.card.crisis { border: 2px solid var(--bad); }
+.card.actionable { border-left: 4px solid var(--bad); }
+.card.action { border-left: 4px solid var(--run); }
+.head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.topic { font-weight: 600; word-break: break-word; }
+.badge { font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 1px 6px; border-radius: 4px; color: #fff; background: var(--bad); }
+.meta { font-size: 12px; }
+.problem { margin: 4px 0 0; }
+.buttons { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.buttons form { margin: 0; }
+button { font: inherit; padding: 5px 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: inherit; cursor: pointer; }
+button.primary { background: var(--run); border-color: var(--run); color: #fff; font-weight: 600; }
+details > summary { cursor: pointer; }
+.card details { margin-top: 6px; font-size: 13px; }
+.run { border-top: 1px solid var(--line); padding: 4px 0; }
+pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: #8881; padding: 6px 8px; border-radius: 6px; margin: 4px 0; }
+.row { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: baseline; padding: 6px 2px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .spark { grid-column: 2 / 4; }
+.when { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dot { color: var(--ok); font-size: 11px; }
+.dot.acked { color: var(--muted); }
+.dot.run { color: var(--run); }
+.spark { display: flex; height: 6px; margin-top: 4px; background: #8881; border-radius: 2px; overflow: hidden; }
+.spark i { flex: 1; }
+.spark i.ran { background: var(--muted); opacity: .5; }
+.spark i.bad { background: var(--bad); }
+.clear { text-align: center; padding: 28px 12px; }
+.clear b { font-size: 18px; display: block; margin-bottom: 4px; }
+.group { font-size: 12px; font-weight: 600; margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script type="module">
+import { html, render, nothing } from '/js/lit.js'
+
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
+const service = t => t.split('/')[1] ?? t
+const mapUrl = t => `/graph/${encodeURIComponent(service(t))}?focus=${encodeURIComponent(t)}`
+const post = (action, label, confirmText, primary) => html`<form method="post" action=${action}
+  @submit=${e => !confirmText || confirm(confirmText) || e.preventDefault()}><button class=${primary ? 'primary' : ''}>${label}</button></form>`
+const spark = s => s?.some(x => x !== null) ? html`<div class="spark" title="Last 24h">${s.map(x => html`<i class=${x === null ? '' : x ? 'bad' : 'ran'}></i>`)}</div>` : nothing
+const pretty = x => x == null || (typeof x === 'object' && !Object.keys(x).length) ? nothing : html`<pre>${typeof x === 'string' ? x : JSON.stringify(x, null, 2)}</pre>`
+const run = r => html`<div class="run">
+  ${r.severity === 'healthy' ? '✓' : html`<span class="bad">✗</span>`} <span title=${new Date(r.at).toLocaleString()}>${r.ago}</span> · ${r.label} · ${r.took} <span class="muted">${r.summary}</span>
+  ${r.problems.map(p => html`<div class="bad"><b>${p.name}</b> ${p.why}</div>`)}${pretty(r.content)}${pretty(r.result)}
+</div>`
+
+function trust(g) {
+  return html`<div id="trust">
+    ${g.connected ? html`<span><span class="dot">●</span> Broker connected</span>` : html`<span class="bad">● Broker unreachable: this may be stale</span>`}
+    ${g.quiet ? html`<span class="bad">No events ${g.lastEvent ? 'since ' + g.lastEvent : 'yet'}: is anything reporting?</span>` : html`<span>Last event ${g.lastEvent}</span>`}
+    <span title="Runs are kept in memory, so jobs rarer than this show up once they next run">Watching since ${g.sinceAgo}</span>
+    ${g.alerting ? html`<span>Push alerts on</span>` : html`<span class="warn" title="Set control-dashboard.alertCommand to be told without looking">Push alerts off</span>`}
+    <a href="/graph">Map</a>${g.links.map(u => html`<a href=${u}>${u.split('://').pop()}</a>`)}
+  </div>`
+}
+
+const action = a => html`<div class="card action">
+  <div class="head"><span class="topic">${a.topic}</span><span class="meta">${a.run.label} · ${a.run.ago}</span></div>
+  ${a.run.summary ? html`<div>${a.run.summary}</div>` : nothing}
+  ${a.run.content != null ? html`<details open><summary class="meta">Context</summary>${pretty(a.run.content)}${pretty(a.run.result)}</details>` : nothing}
+  <div class="buttons">${post(`/run/${a.run.id}/trigger/${a.index}`, '⏵ ' + a.label, a.label + '?', true)}</div>
+</div>`
+
+const broken = b => html`<div class="card ${b.severity}">
+  <div class="head">${b.severity === 'crisis' ? html`<span class="badge">CRISIS</span>` : nothing}<span class="topic">${b.topic}</span>
+    ${b.streak ? html`<span class="meta">${b.streak > 1 ? `${b.streak} bad runs in a row, since ${b.since}` : `since ${b.since}`} · ${b.lastOk ? 'last OK ' + b.lastOk : 'never OK yet'}</span>` : nothing}</div>
+  ${b.problems.map(p => html`<p class="problem"><b class="bad">${p.name}</b> ${p.why}</p>`)}
+  ${spark(b.spark)}
+  <div class="buttons">
+    ${b.id ? post(`/run/${b.id}/ack`, 'Acknowledge', null) : nothing}
+    <a href=${mapUrl(b.topic)} class="meta">Show on map</a>
+  </div>
+  ${b.runs.length ? html`<details><summary class="meta">Recent runs</summary>${b.runs.map(run)}</details>` : nothing}
+</div>`
+
+const waiting = w => html`<div class="row">
+  <span class="dot ${w.run?.acked ? 'acked' : 'run'}">●</span>
+  <span><span class="topic">${w.topic}</span> <span class="meta">${w.why}</span></span>
+  ${w.run?.acked ? post(`/run/${w.run.id}/unack`, 'Flag again', null) : html`<span></span>`}
+</div>`
+
+const upcoming = u => html`<div class="row">
+  <span class="when">in ${u.in}</span>
+  <span><span class="topic">${u.topic}</span> <span class="meta">${new Date(u.due).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></span>
+  <span></span>
+</div>`
+
+const ok = r => html`<div class="row">
+  <span class="dot">●</span>
+  <span title=${r.topic}>${r.title || r.topic} <span class="meta">${[r.summary, r.kv].filter(Boolean).join(' · ')}</span></span>
+  <span class="meta when">${r.ago}${r.every ? ' / ' + r.every : ''}</span>
+  ${spark(r.spark)}
+</div>`
+
+function view(g) {
+  const healthy = g.healthy.reduce((n, s) => n + s.items.length, 0)
+  const crises = g.broken.filter(b => b.severity === 'crisis').length
+  const headline = [g.actions.length && plural(g.actions.length, 'decision'), g.broken.length && `${g.broken.length} broken`].filter(Boolean).join(' · ')
+  document.title = (g.actions.length + g.broken.length ? `(${g.actions.length + g.broken.length}) ` : '') + 'control'
+  return html`
+    <h1 class=${crises ? 'bad' : ''}>${headline || 'Nothing needs you'}</h1>
+    ${trust(g)}
+    ${!g.actions.length && !g.broken.length ? html`<div class="clear"><b>✓ All clear</b><span class="muted">${plural(healthy, 'thing')} healthy${g.waiting.length ? `, ${g.waiting.length} waiting` : ''}.</span></div>` : nothing}
+    ${g.actions.length ? html`<h2>Your move <small>decisions only you can make</small></h2>${g.actions.map(action)}` : nothing}
+    ${g.broken.length ? html`<h2>Broken <small>acknowledge to set aside until the next run</small></h2>${g.broken.map(broken)}` : nothing}
+    ${g.waiting.length ? html`<h2>Waiting</h2><div class="card">${g.waiting.map(waiting)}</div>` : nothing}
+    ${g.upcoming.length ? html`<h2>Coming up</h2><div class="card">${g.upcoming.map(upcoming)}</div>` : nothing}
+    <h2>Healthy <small>${healthy}</small></h2>
+    <div class="card">${g.healthy.map(s => html`<div class="group">${s.service}</div>${s.items.map(ok)}`)}</div>
+    <p class="meta">Updated ${new Date(g.now).toLocaleTimeString()}</p>`
+}
+
+async function refresh() {
+  try {
+    render(view(await (await fetch('/api/home')).json()), document.getElementById('app'))
+  } catch (e) {
+    document.title = '(!) control'
+    render(html`<h1 class="bad">Dashboard unreachable</h1><p>${e.message}</p>`, document.getElementById('app'))
+  }
+}
+await refresh()
+setInterval(refresh, 5000)
+</script>
+</body>
+</html>

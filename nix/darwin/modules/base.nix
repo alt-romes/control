@@ -13,7 +13,7 @@
 
     control-dashboard = {
       requiredHealthchecks = [ "healthcheck/kanjideck/fulfillment-server" "healthcheck/scrollsent" ];
-      links = [ "https://alt-romes.github.io" "https://analytics.mogbit.com" "https://dashboard.stripe.com" "http://ledger.control.mogbit.com" "http://satisago.control.mogbit.com" ];
+      logPattern = "/tmp/org.romes.%s.err.log"; # the launchd agents' stderr
     };
 
     homebrew = {
