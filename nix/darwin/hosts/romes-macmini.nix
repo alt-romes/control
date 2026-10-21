@@ -69,6 +69,7 @@
     services.caddy.enable = true;
   
     home-manager.users.romes.programs.custom.doom-emacs = true;
+    home-manager.users.romes.programs.custom.mail-events = true;
 
     # --- Users ------------------------------------------------------------------
 
