@@ -144,7 +144,8 @@ function side() {
   render(selected
     ? html`<div><button class="close" @click=${() => select(null)}>×</button><h3>${selected}</h3>
         ${runs.map((r, i) => html`<details ?open=${i === 0}>
-          <summary title=${new Date(r.at).toLocaleString()}>${r.ago} · ${r.took}${r.summary ? ' · ' + r.summary : ''}</summary>
+          <summary title=${new Date(r.at).toLocaleString()}>${r.ago} · ${r.took}${r.summary ? ' · ' + (r.summary.length > 80 ? r.summary.slice(0, 80) + '…' : r.summary) : ''}</summary>
+          ${r.summary.length > 80 ? pretty(r.summary) : nothing}
           ${r.problems.map(p => html`<div class="problem">${p}</div>`)}${pretty(r.content)}${pretty(r.result)}
         </details>`)}
         ${runs.length ? nothing : html`<p class="sub">No runs seen.</p>`}</div>`

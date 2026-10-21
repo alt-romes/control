@@ -224,6 +224,18 @@ main = do
             let disk s' = with (\e -> e {content = Just (object ["diskUsed" .= ("98%" :: Text)])}) (run "system/m" s' ok)
                 c = ctxOf 7200 [(1, disk 0), (2, disk 3600), (3, disk 7200)]
              in null (filling c (Map.findWithDefault [] (tp "system/m") c.ix.byTopic)))
+        , ("a JSON error's message is the gist of a failure",
+            let r = a {end = (\d -> d {e = d.e {success = False, summary = "{\"Message\":\"There was an error.\",\"StackTrace\":\"\"}"}}) <$> a.end}
+             in problemsOf 10 [(1, r)] 1 == [("failed", "There was an error.")])
+        , ("a long result is cut short in a failure",
+            let r = resulting (String (T.replicate 100 "x")) (run "script/a" 0 (Just (1, False)))
+             in map snd (problemsOf 10 [(1, r)] 1) == ["Failed — " <> T.replicate 80 "x" <> "…"])
+        , ("a failure's gist skips headings and blank lines",
+            let r = resulting (String "IOException:\n\nuser error (login failed)") (run "script/a" 0 (Just (1, False)))
+             in map snd (problemsOf 10 [(1, r)] 1) == ["Failed — user error (login failed)"])
+        , ("a long summary is cut short in a failure",
+            let r = a {end = (\d -> d {e = d.e {success = False, summary = replicate 100 'y'}}) <$> a.end}
+             in map snd (problemsOf 10 [(1, r)] 1) == [T.replicate 80 "y" <> "…"])
         , ("an exit code isn't output", let c = ctxOf 10 [(1, resulting (Number 0) a)] in isNothing (outputOf c (resulting (Number 0) a)))
         , ("a summary of many lines is output", let r = a {end = (\d -> d {e = d.e {summary = "a\nb"}}) <$> a.end} in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "a\nb"), []))
         , ("text is output", let r = resulting (String "oops") a in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "oops"), []))

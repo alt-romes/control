@@ -12,7 +12,9 @@ import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, reactedMany, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~), (^.))
 import Control.Exception (SomeAsyncException, SomeException, fromException, throwIO, try)
 import Control.Monad (forM_, forever, unless, when)
-import Data.Aeson (Value (..))
+import Data.Aeson (Value (..), decodeStrict)
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as KM
 import Data.List (sortOn, unsnoc)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -22,6 +24,7 @@ import qualified Data.Set as Set
 import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Network.MQTT.Client (MessageCallback (..), ProtocolLevel (..), connectURI, mqttConfig, subOptions, subscribe, waitForClient, _msgCB, _protocol)
@@ -168,7 +171,7 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 -- asleep. Subtasks get the run's timeout to show up.
 problems :: [(UTCTime, UTCTime)] -> UTCTime -> Index -> Run -> [(Text, Text)]
 problems sleeps now ix r =
-  [ ("failed", fromMaybe "Failed" (nonEmpty e.e.summary) <> foldMap (" — " <>) (firstLine e.e.result))
+  [ ("failed", fromMaybe "Failed" (nonEmpty e.e.summary >>= gist . said) <> foldMap (" — " <>) (case e.e.result of Just (String t) -> gist t; _ -> Nothing))
     | Just e <- [r.end], not e.e.success ]
     ++ [ ("timed out", (if isJust r.end then "Took " else "No finish after ") <> fmtDuration taken <> "; the limit is " <> fmtDuration limit <> ".") | timedOut now r ]
     ++ [ ("overdue", overdue d) | Just d <- [rules.expected], gap > d + grace ]
@@ -192,9 +195,14 @@ problems sleeps now ix r =
     awaited = [t | (_, t) <- pendingTriggers ix r, any (`match` t.triggerTopic) reactions]
     failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- Map.findWithDefault [] r.eid.correlationId ix.scopedTo, let ps = problems sleeps now ix s, not (null ps)]
     nonEmpty s = if null s then Nothing else Just (T.pack s)
-    firstLine = \case
-      Just (String t) | not (T.null t) -> Just (T.takeWhile (/= '\n') t)
-      _ -> Nothing
+    -- The gist: a JSON error says it in its message, and the rest is in the run.
+    said t = case decodeStrict (T.encodeUtf8 t) of
+      Just (Object o) | m : _ <- [m | (k, String m) <- KM.toList o, T.toLower (K.toText k) `elem` ["message", "error"]] -> m
+      _ -> t
+    -- The first line saying something, not blank nor a heading for what follows, cut short.
+    gist t = case [l | l <- map T.strip (T.lines t), not (T.null l), not (":" `T.isSuffixOf` l)] of
+      l : _ -> Just (if T.length l > 80 then T.take 80 l <> "…" else l)
+      [] -> Nothing
 
 awake :: [(UTCTime, UTCTime)] -> UTCTime -> UTCTime -> NominalDiffTime
 awake sleeps a b = diffUTCTime b a - sum [diffUTCTime (min b s1) (max a s0) | (s0, s1) <- sleeps, s0 < b, s1 > a]
