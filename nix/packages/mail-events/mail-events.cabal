@@ -1,0 +1,18 @@
+cabal-version:      3.0
+name:               mail-events
+version:            0.1.0
+synopsis:           Publish a control-events event per newly arrived mail
+build-type:         Simple
+
+executable mail-received
+  main-is:          Main.hs
+  hs-source-dirs:   .
+  ghc-options:      -Wall -threaded
+  default-language: GHC2021
+  build-depends:
+      aeson
+    , base
+    , bytestring
+    , control-events
+    , time
+    , typed-process
