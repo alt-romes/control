@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot, DuplicateRecordFields, LambdaCase #-}
 module Events
-  ( Run (..), pendingTriggers
+  ( Run (..), pendingTriggers, missingReactions, missingSubtasks
   , State (..), newState, mqttLoop, sleepLoop, willLoop, sendTrigger, started, finished, willed
   , Index (..), index, topLevel, latestRuns, isCritical
   , problems, duration, timedOut, prune
@@ -12,8 +12,11 @@ import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, reactedMany, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~), (^.))
 import Control.Exception (SomeAsyncException, SomeException, fromException, throwIO, try)
 import Control.Monad (forM_, forever, unless, when)
-import Data.Aeson (Value (..))
-import Data.List (sortOn, unsnoc)
+import Data.Aeson (Value (..), decodeStrict)
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as KM
+import Data.Function (on)
+import Data.List (nubBy, sortOn, unsnoc)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust, fromMaybe, isJust, isNothing, listToMaybe, maybeToList)
@@ -22,6 +25,7 @@ import qualified Data.Set as Set
 import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Time (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Network.MQTT.Client (MessageCallback (..), ProtocolLevel (..), connectURI, mqttConfig, subOptions, subscribe, waitForClient, _msgCB, _protocol)
@@ -147,6 +151,20 @@ index runs = Index
     by k = byMany (maybeToList . k)
     byMany k = Map.fromListWith (flip (++)) [(p, [r]) | r <- sortOn (Down . (.start.at)) (Map.elems runs), p <- k r]
 
+-- | The reactions a run expects that haven't happened, besides those a
+-- pending trigger would make.
+missingReactions :: Index -> Run -> [Filter]
+missingReactions ix r = [f | f <- reactions, not (any (match f . (.triggerTopic)) awaited)]
+  where
+    reactions = [f | f <- fromMaybe [] r.start.e.rules.reactions, not (any (match f . (.eid.evtTopic)) (Map.findWithDefault [] r.eid.correlationId ix.reactingTo))]
+    awaited = [t | (_, t) <- pendingTriggers ix r, any (`match` t.triggerTopic) reactions]
+
+-- | The subtasks a run expects that haven't happened, yet or at all.
+missingSubtasks :: Index -> Run -> [Filter]
+missingSubtasks ix r =
+  [ f | s <- fromMaybe [] r.start.e.rules.subtasks, let f = fromString (T.unpack (unTopic r.eid.evtTopic) <> "/" <> s)
+  , not (any (match f . (.eid.evtTopic)) (Map.findWithDefault [] r.eid.correlationId ix.scopedTo)) ]
+
 -- | Triggers are one-shot: sent once a run reacting to the run is seen on its topic.
 pendingTriggers :: Index -> Run -> [(Int, Trigger)]
 pendingTriggers ix r = [(i, t) | (i, t) <- zip [0 ..] (foldMap (fromMaybe [] . (.e.triggers)) r.end), t.triggerTopic `notElem` sent]
@@ -168,14 +186,14 @@ duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 -- asleep. Subtasks get the run's timeout to show up.
 problems :: [(UTCTime, UTCTime)] -> UTCTime -> Index -> Run -> [(Text, Text)]
 problems sleeps now ix r =
-  [ ("failed", fromMaybe "Failed" (nonEmpty e.e.summary) <> foldMap (" — " <>) (firstLine e.e.result))
+  [ ("failed", fromMaybe "Failed" (nonEmpty e.e.summary >>= gist . said) <> foldMap (" — " <>) (case e.e.result of Just (String t) -> gist t; _ -> Nothing))
     | Just e <- [r.end], not e.e.success ]
     ++ [ ("timed out", (if isJust r.end then "Took " else "No finish after ") <> fmtDuration taken <> "; the limit is " <> fmtDuration limit <> ".") | timedOut now r ]
     ++ [ ("overdue", overdue d) | Just d <- [rules.expected], gap > d + grace ]
-    ++ [p | diffUTCTime now r.start.at > limit, p <- none "subtasks" "No subtask yet matching " (unmatched [fromString (T.unpack (unTopic r.eid.evtTopic) <> "/" <> s) | s <- fromMaybe [] rules.subtasks] ix.scopedTo)]
+    ++ [p | diffUTCTime now r.start.at > limit, p <- none "subtasks" "No subtask yet matching " (missingSubtasks ix r)]
     ++ [("failed subtasks", "Subtasks with problems: " <> T.intercalate "; " fs <> ".") | let fs = failedSubtasks, not (null fs)]
     ++ [("awaiting trigger", "Not yet sent: " <> T.intercalate ", " (map (T.pack . (.triggerLabel)) awaited) <> ".") | not (null awaited)]
-    ++ none "reactions" "No reaction yet matching " [f | f <- reactions, not (any (match f . (.triggerTopic)) awaited)]
+    ++ none "reactions" "No reaction yet matching " (missingReactions ix r)
   where
     rules = r.start.e.rules
     taken = duration now r
@@ -190,10 +208,21 @@ problems sleeps now ix r =
     none name what fs = [(name, what <> T.intercalate ", " (map unFilter fs) <> ".") | not (null fs)]
     reactions = unmatched (fromMaybe [] rules.reactions) ix.reactingTo
     awaited = [t | (_, t) <- pendingTriggers ix r, any (`match` t.triggerTopic) reactions]
-    failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- Map.findWithDefault [] r.eid.correlationId ix.scopedTo, let ps = problems sleeps now ix s, not (null ps)]
+    -- A subtask retried is judged by its latest attempt.
+    failedSubtasks = [unTopic s.eid.evtTopic <> ": " <> T.intercalate ", " (map fst ps) | s <- nubBy ((==) `on` (.eid.evtTopic)) (Map.findWithDefault [] r.eid.correlationId ix.scopedTo), let ps = problems sleeps now ix s, not (null ps)]
     nonEmpty s = if null s then Nothing else Just (T.pack s)
-    firstLine = \case
-      Just (String t) | not (T.null t) -> Just (T.takeWhile (/= '\n') t)
+    -- The gist: a JSON error says it in its message, and the rest is in the run.
+    said t = case decodeStrict (T.encodeUtf8 t) of
+      Just (Object o) | m : _ <- [m | (k, String m) <- KM.toList o, T.toLower (K.toText k) `elem` ["message", "error"]] -> m
+      _ -> t
+    -- The first line saying something, not blank nor a heading for what follows, cut short.
+    gist t = case [l | l <- map T.strip (T.lines t), not (T.null l), not (":" `T.isSuffixOf` l)] of
+      l : _ | Just code <- after "statusCode = " l -> Just ("HTTP " <> code <> foldMap (" from " <>) (T.dropAround (== '"') <$> after "Host = " l))
+            | otherwise -> Just (if T.length l > 80 then T.take 80 l <> "…" else l)
+      [] -> Nothing
+    -- The word after a marker, as in a shown HTTP request or response.
+    after m l = case T.breakOn m l of
+      (_, rest) | not (T.null rest) -> Just (T.takeWhile (\ch -> ch /= ',' && ch /= '}' && ch /= ' ') (T.drop (T.length m) rest))
       _ -> Nothing
 
 awake :: [(UTCTime, UTCTime)] -> UTCTime -> UTCTime -> NominalDiffTime

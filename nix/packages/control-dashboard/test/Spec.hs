@@ -3,7 +3,7 @@
 -- and of the tree the dashboard shows them in.
 module Main (main) where
 
-import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Timed (..), Trigger (..), done, evtCritical, evtExpected, evtReactions, evtSubtasks, failed, reacted, scoped, simple, withMsg, (&), (.~), (?~))
+import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Timed (..), Trigger (..), done, evtCritical, evtExpected, evtReactions, evtSubtasks, failed, reacted, reactedMany, scoped, simple, withMsg, (&), (.~), (?~))
 import Control.Monad (forM_, unless)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -16,7 +16,7 @@ import Data.Time (NominalDiffTime, UTCTime (..), addUTCTime, fromGregorian)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Events
-import Network.MQTT.Topic (Topic, mkFilter, mkTopic)
+import Network.MQTT.Topic (Topic, mkFilter, mkTopic, unFilter)
 import System.Exit (exitFailure)
 import Tree
 
@@ -212,7 +212,9 @@ main = do
         , ("a list of records is a table", map (.viewKind) (shapes [toJSON [object ["date" .= ("d1" :: Text), "amount" .= (1 :: Int)], object ["date" .= ("d2" :: Text), "amount" .= (2 :: Int)]]]) == ["records"])
         , ("numbers are a trend across runs, oldest first",
             map (\v -> (v.viewKind, v.viewValue)) (shapes [object ["usd" .= (3 :: Int)], object ["usd" .= (1 :: Int)]]) == [("trend", object ["usd" .= [1, 3 :: Double]])])
-        , ("an email sent is recognised", map (.viewKind) (shapes [object ["to" .= ["a@b.c" :: Text], "subject" .= ("Invoice" :: Text)]]) == ["mail"])
+        , ("emails sent or received are a mailbox, newest first",
+            map (\v -> (v.viewKind, v.viewValue)) (shapes [object ["from" .= ("b" :: Text), "subject" .= ("2" :: Text)], object ["to" .= ("a" :: Text), "subject" .= ("1" :: Text)]])
+              == [("mail", toJSON [object ["from" .= ("b" :: Text), "subject" .= ("2" :: Text)], object ["to" .= ("a" :: Text), "subject" .= ("1" :: Text)]])])
         , ("fields of an object are recognised in turn, by name",
             map (\v -> (v.viewKind, v.viewTitle)) (shapes [object ["balances" .= object ["a" .= (1 :: Int)], "note" .= ("x" :: Text)]]) == [("trend", Just "balances")])
         , ("plain fields aren't anything", null (shapes [object ["Order Item" .= ("132391" :: Text), "Resource" .= ("Access Link" :: Text)]]))
@@ -224,6 +226,48 @@ main = do
             let disk s' = with (\e -> e {content = Just (object ["diskUsed" .= ("98%" :: Text)])}) (run "system/m" s' ok)
                 c = ctxOf 7200 [(1, disk 0), (2, disk 3600), (3, disk 7200)]
              in null (filling c (Map.findWithDefault [] (tp "system/m") c.ix.byTopic)))
+        , ("a JSON error's message is the gist of a failure",
+            let r = a {end = (\d -> d {e = d.e {success = False, summary = "{\"Message\":\"There was an error.\",\"StackTrace\":\"\"}"}}) <$> a.end}
+             in problemsOf 10 [(1, r)] 1 == [("failed", "There was an error.")])
+        , ("a long result is cut short in a failure",
+            let r = resulting (String (T.replicate 100 "x")) (run "script/a" 0 (Just (1, False)))
+             in map snd (problemsOf 10 [(1, r)] 1) == ["Failed — " <> T.replicate 80 "x" <> "…"])
+        , ("a failure's gist skips headings and blank lines",
+            let r = resulting (String "IOException:\n\nuser error (login failed)") (run "script/a" 0 (Just (1, False)))
+             in map snd (problemsOf 10 [(1, r)] 1) == ["Failed — user error (login failed)"])
+        , ("a long summary is cut short in a failure",
+            let r = a {end = (\d -> d {e = d.e {success = False, summary = replicate 100 'y'}}) <$> a.end}
+             in map snd (problemsOf 10 [(1, r)] 1) == [T.replicate 80 "y" <> "…"])
+        , ("an HTTP failure's gist is its status and host",
+            let r = resulting (String "FailureResponse (Request {requestPath = (BaseUrl {baseUrlScheme = Https, baseUrlHost = \"bank.pt\", baseUrlPort = 443}) (Response {responseStatusCode = Status {statusCode = 500, statusMessage = \"x\"}})") (run "script/a" 0 (Just (1, False)))
+             in map snd (problemsOf 10 [(1, r)] 1) == ["Failed — HTTP 500 from bank.pt"])
+        , ("the reactions a run still waits for are expected of it",
+            let r = expectingReactions ["script/b", "script/c"] a
+             in map (fmap unFilter) (awaitedReactions (ctxOf 10 [(1, r), (2, reactionTo 1 (run "script/b" 5 ok))])) == [(tp "script/a", "script/c")])
+        , ("nothing is expected of a run whose process died",
+            null (awaitedReactions (ctxWills 10 [(tp "script", sec 5)] [(1, announcing "trigger/x" (expectingReactions ["script/b"] a))])))
+        , ("a run's subtasks not yet seen are missing inside it, late once it timed out",
+            let r = expectingSubtasks ["x", "y"] (run "script/a" 0 Nothing); rs = [(1, r), (2, partOf 1 (run "script/a/x" 1 ok))]
+                at now = [(m.missingId, m.missingParent, m.missingLate) | m <- missingNodes (ctxOf now rs)]
+             in at 10 == [("script/a/y?", Just "script/a", False)] && at 400 == [("script/a/y?", Just "script/a", True)])
+        , ("a schedule's late next run is missing", map (.missingId) (missingNodes (ctxOf 200 [(1, expecting 60 a)])) == ["script/a#next"])
+        , ("a schedule on time isn't", null (missingNodes (ctxOf 100 [(1, expecting 60 a)])))
+        , ("what a trigger never sent before starts is missing, and the trigger is sent from its arrow",
+            [(m.missingId, fmap fst m.missingFrom) | m <- missingNodes (ctxOf 10 [(1, announcing "trigger/b" a)])] == [("trigger/b?", Just (tp "script/a"))])
+        , ("waiting for reactions isn't failing",
+            let w s' = expectingReactions ["script/b"] (run "script/a" s' ok); c = ctxOf 400 [(1, w 0), (2, w 10)]
+             in isNothing (failingSince c (Map.findWithDefault [] (tp "script/a") c.ix.byTopic)))
+        , ("a run reacting to several is linked from each",
+            let r = with (reactedMany ?~ [EventId (uuid 1) (tp "script/a"), EventId (uuid 2) (tp "script/b")]) (run "script/c" 5 ok)
+             in sort (map (\l -> (l.source, l.target)) (links (ctxOf 10 [(1, a), (2, run "script/b" 1 ok), (3, r)]))) == [(tp "script/a", tp "script/c"), (tp "script/b", tp "script/c")])
+        , ("a subtask retried successfully isn't a failed subtask",
+            names 10 [(1, a), (2, partOf 1 (run "script/a/x" 0 (Just (1, False)))), (3, partOf 1 (run "script/a/x" 2 ok))] 1 == [])
+        , ("a run missing as a subtask and as a reaction is placed inside its run, and linked from the other",
+            let w = expectingReactions ["script/a/x"] (run "script/w" 0 ok); i = reactionTo 1 (expectingSubtasks ["x"] (run "script/a" 1 ok))
+                ms = missingNodes (ctxOf 10 [(1, w), (2, i)])
+             in [(m.missingParent, fmap fst m.missingFrom) | m <- ms, m.missingId == "script/a/x?"] == [(Just "script/a", Nothing), (Nothing, Just (tp "script/w"))])
+        , ("the web addresses a run mentions are its links",
+            urlsOf (with (\e -> e {content = Just (object ["url" .= ("http://ledger.x" :: Text), "port" .= (5000 :: Int), "note" .= ("hi" :: Text)])}) a) == ["http://ledger.x"])
         , ("an exit code isn't output", let c = ctxOf 10 [(1, resulting (Number 0) a)] in isNothing (outputOf c (resulting (Number 0) a)))
         , ("a summary of many lines is output", let r = a {end = (\d -> d {e = d.e {summary = "a\nb"}}) <$> a.end} in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "a\nb"), []))
         , ("text is output", let r = resulting (String "oops") a in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "oops"), []))

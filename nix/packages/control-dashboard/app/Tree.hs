@@ -4,15 +4,16 @@
 -- topics of its service, linked from the run it @reactTo@s (through the
 -- trigger, if it was triggered), and followed by a node showing its output.
 -- Machines and healthchecks are listed apart.
-module Tree (Ctx (..), Severity (..), Link (..), View (..), events, holder, links, outputOf, views, shapes, tableOf, files, failingSince, orphaned, filling, dailyCount, perDay, madeUp, graphJson, runsJson, alerts) where
+module Tree (Ctx (..), Severity (..), Link (..), View (..), events, holder, links, outputOf, views, shapes, tableOf, files, urlsOf, failingSince, orphaned, filling, awaitedReactions, Missing (..), missingNodes, dailyCount, perDay, madeUp, graphJson, runsJson, alerts) where
 
-import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), reacted, (^.))
+import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), reactedMany, (^.))
 import Data.Aeson (ToJSON (..), Value (..), object, (.=))
+import Data.Aeson.Types (Pair)
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.Foldable (toList)
 import Data.Function (on)
-import Data.List (nub, nubBy)
+import Data.List (find, nub, nubBy)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, mapMaybe, maybeToList)
 import Data.Char (isDigit, isLetter)
@@ -21,7 +22,7 @@ import qualified Data.Text as T
 import Data.Time (NominalDiffTime, UTCTime (..), diffUTCTime, fromGregorian)
 import Data.UUID (UUID)
 import Events
-import Network.MQTT.Topic (Topic, split, unTopic)
+import Network.MQTT.Topic (Filter, Topic, split, unFilter, unTopic)
 
 data Ctx = Ctx
   { now :: UTCTime
@@ -103,11 +104,13 @@ links c = nubBy ((==) `on` ends) (pendings ++ sent)
     shown = events c
     sent =
       [ l
-      | t <- shown, Just r <- [latest c t], Just p <- [via c (^. reacted) r]
+      | t <- shown, Just r <- [latest c t], p <- causes r
       , l <- if kind "trigger" p.eid.evtTopic
-               then [Link q.eid.evtTopic t (Just (T.pack p.start.e.label)) Nothing | Just q <- [via c (^. reacted) p]]
+               then [Link q.eid.evtTopic t (Just (T.pack p.start.e.label)) Nothing | q <- causes p]
                else [Link p.eid.evtTopic t Nothing Nothing]
       , l.source `elem` shown, l.source /= t ]
+    -- A run may react to several.
+    causes r = [p | e <- fromMaybe [] (r.start.e ^. reactedMany), Just p <- [Map.lookup e.correlationId c.ix.runs]]
     pendings = [Link t u (Just (T.pack tr.triggerLabel)) (Just (r.eid.correlationId, i)) | t <- shown, Just r <- [latest c t], isNothing (orphaned c r), (i, tr) <- pendingTriggers c.ix r, Just u <- [reactor c tr.triggerTopic]]
 
 -- | An event topic that reacted to a trigger sent on this topic before.
@@ -148,11 +151,12 @@ views :: Ctx -> Topic -> [View]
 views c t = case Map.findWithDefault [] t c.ix.byTopic of
   [] -> []
   rs@(r : _) ->
-    shapes (mapMaybe (.start.e.content) rs)
+    contentViews
       ++ [v | Just (shown, fs) <- [outputOf c r], v <- resultViews shown ++ map fileView fs]
       ++ [View "log" Nothing (String l) | Just l <- [Map.lookup t c.logs]]
       ++ [View "people" Nothing (toJSON ps) | let ps = people rs, not (null ps)]
-      ++ [View "runs" Nothing (toJSON (map recent latest8)) | isJust (dailyCount c rs), isNothing (scopeParent c t), length (nub (map said latest8)) > 1]
+      -- Runs say what they were, unless what they hold says it better.
+      ++ [View "runs" Nothing (toJSON (map recent latest8)) | null contentViews, isJust (dailyCount c rs), isNothing (scopeParent c t), length (nub (map said latest8)) > 1]
   where
     -- A result is shown as whatever it's laid out as, or else as it is.
     resultViews = \case
@@ -163,6 +167,7 @@ views c t = case Map.findWithDefault [] t c.ix.byTopic of
       Nothing -> []
     fileView f = View (if ".pdf" `T.isSuffixOf` T.toLower (T.pack f) then "document" else "image") Nothing (String (T.pack f))
     allRuns = Map.findWithDefault [] t c.ix.byTopic
+    contentViews = shapes (mapMaybe (.start.e.content) allRuns)
     latest8 = take 8 allRuns
     -- Requests come with what they were and how they went.
     said r = (r.start.e.label, foldMap (.e.summary) r.end)
@@ -180,7 +185,7 @@ data View = View {viewKind :: Text, viewTitle :: Maybe Text, viewValue :: Value}
 
 -- | Data recognised by how it's laid out, not by what it's called, from the
 -- same place in the latest runs, newest first: a list of records is a table,
--- numbers are a trend across runs, an email is one sent, an inline image is
+-- numbers are a trend across runs, emails are a mailbox, an inline image is
 -- one. Fields of an object are recognised in turn.
 shapes :: [Value] -> [View]
 shapes vs = case vs of
@@ -191,10 +196,11 @@ shapes vs = case vs of
     shape = \case
       Array xs : _ | Just tbl <- records (toList xs) -> Just ("records", tbl)
       older@(Object o : _) | not (KM.null o), all isNumber o -> Just ("trend", toJSON (trend older))
-                           | KM.member "to" o && KM.member "subject" o -> Just ("mail", Object o)
+                           | mail o -> Just ("mail", toJSON (take 8 [o' | Object o' <- older, mail o']))
       String s : _ | "data:image/" `T.isPrefixOf` s -> Just ("image", String s)
       _ -> Nothing
     isNumber = \case Number _ -> True; _ -> False
+    mail o = KM.member "subject" o && (KM.member "to" o || KM.member "from" o)
     trend older = Map.fromListWith (flip (++)) [(K.toText k, [realToFrac n :: Double]) | Object o <- reverse (take 288 older), (k, Number n) <- KM.toList o]
     records = \case
       xs@(Object o : _) | all ((== KM.keys o) . keysOf) xs, all (all scalar) [o' | Object o' <- xs] ->
@@ -246,21 +252,25 @@ graphJson c = object
   , "healthchecks" .= listed "healthcheck"
   , "nodes" .= ( [ object ["id" .= (s <> "/"), "title" .= s, "group" .= True, "severity" .= maximum (map (severity c) ts)]
                  | (s, ts) <- Map.toList (groups c), length ts > 1 ]
-                 ++ concatMap node (events c) )
+                 ++ concatMap node (events c)
+                 ++ [ object ["id" .= m.missingId, "parent" .= m.missingParent, "title" .= m.missingTitle, "sub" .= m.missingSub, "missing" .= True
+                             , "severity" .= if m.missingLate then Actionable else Healthy]
+                    | m <- nubBy ((==) `on` (.missingId)) (missingNodes c) ] )
   , "edges" .= ( [ object ["source" .= unTopic l.source, "target" .= unTopic l.target, "kind" .= linkKind l
                           , "label" .= l.trigger, "run" .= fmap fst l.pending, "index" .= fmap snd l.pending]
                  | l <- links c ]
-                 ++ [object ["source" .= unTopic t, "target" .= viewId t i, "kind" .= ("output" :: Text)] | t <- events c, (i, _) <- zip [0 :: Int ..] (views c t)] )
+                 ++ [object ["source" .= unTopic t, "target" .= viewId t i, "kind" .= ("output" :: Text)] | t <- events c, (i, _) <- zip [0 :: Int ..] (views c t)]
+                 ++ [object (["source" .= unTopic from, "target" .= m.missingId] ++ how) | m <- missingNodes c, Just (from, how) <- [m.missingFrom]]
+                 ++ [object ["source" .= unTopic t, "target" .= unTopic u, "kind" .= ("expected" :: Text)] | (t, f) <- awaitedReactions c, Just u <- [find ((== unFilter f) . unTopic) (events c)]] )
   ]
   where
-    linked = [p | Link {pending = Just p} <- links c]
     viewId t i = unTopic t <> "#" <> T.pack (show i)
     runsOf t = Map.findWithDefault [] t c.ix.byTopic
     -- A subtask runs when its run does, so how often isn't news.
     daily t = if isJust (scopeParent c t) then Nothing else dailyCount c (runsOf t)
     since at = fmtDuration (max 1 (fromInteger (floor (diffUTCTime c.now at))))
     listed k =
-      [ card t (T.drop (T.length k + 1) (unTopic t)) ["spark" .= spark c (runsOf t), "series" .= series (runsOf t)]
+      [ card False t (T.drop (T.length k + 1) (unTopic t)) ["spark" .= spark c (runsOf t), "series" .= series (runsOf t)]
           [if d <= 0 then m <> " is full" else m <> " full in ~" <> fmtDuration d <> " at this rate" | (m, d) <- filling c (runsOf t)]
       | t <- topics c, kind k t ]
     linkKind :: Link -> Text
@@ -272,21 +282,72 @@ graphJson c = object
       (Just p, _) -> fromMaybe (unTopic t) (T.stripPrefix (unTopic p <> "/") (unTopic t))
       (_, Just _) -> T.intercalate "/" (drop 2 (map unTopic (split t)))
       _ -> unTopic t
-    card t name extra more = object $ ["id" .= unTopic t, "title" .= name] ++ extra ++ case latest c t of
-      Nothing -> ["severity" .= Crisis, "problems" .= ["never seen" :: Text]]
+    -- On the graph, what's missing is drawn, so a node only says that it is.
+    card drawn t name extra more = object $ ["id" .= unTopic t, "title" .= name] ++ extra ++ case latest c t of
+      Nothing -> ["severity" .= Crisis, "problems" .= ["never seen" :: Text], "missing" .= True]
       Just r ->
         [ "severity" .= max (severityOf c r) (if null more then Healthy else Actionable)
+        , "urls" .= urlsOf r
         , "sub" .= (since r.start.at <> " ago" <> foldMap ((" · failing for " <>) . since) (failingSince c (runsOf t)) <> foldMap (\n -> " · " <> T.pack (show n) <> " in the last day") (daily t))
-        -- A trigger awaited shows as its button.
-        , "problems" .= ([w | (p, w) <- problemsOf c r, p /= "awaiting trigger"] ++ ["Its process died while waiting, " <> since at <> " ago; nothing will react to it now." | Just at <- [orphaned c r]] ++ more)
+        , "problems" .= (concatMap (say drawn r) (problemsOf c r) ++ ["Its process died while waiting, " <> since at <> " ago; nothing will react to it now." | Just at <- [orphaned c r]] ++ more)
         ]
+    say drawn r (p, w)
+      | not drawn = [w]
+      | otherwise = case p of
+          "awaiting trigger" -> []
+          "reactions" -> [missing "reaction" (length (missingReactions c.ix r))]
+          "subtasks" -> [missing "subtask" (length (missingSubtasks c.ix r))]
+          "overdue" -> ["The next run is late."]
+          _ -> [w]
     node t =
-      card t (title t)
+      card True t (title t)
         [ "parent" .= holder c t
-        , "pending" .= [object ["run" .= r.eid.correlationId, "index" .= i, "label" .= tr.triggerLabel] | Just r <- [latest c t], isNothing (orphaned c r), (i, tr) <- pendingTriggers c.ix r, (r.eid.correlationId, i) `notElem` linked]
         , "history" .= reverse [not (null (problemsOf c r)) | r <- take 24 (runsOf t)]
         , "days" .= (daily t >> Just (perDay c (runsOf t))) ] []
         : [object ["id" .= viewId t i, "parent" .= holder c t, "view" .= v.viewKind, "title" .= v.viewTitle, "value" .= v.viewValue] | (i, v) <- zip [0 :: Int ..] (views c t)]
+
+-- | The web addresses a run mentions, as what it serves or made.
+urlsOf :: Run -> [Text]
+urlsOf r = nub [u | Just (Object o) <- [r.start.e.content, r.end >>= (.e.result)], String u <- toList o, any (`T.isPrefixOf` u) ["http://", "https://"]]
+
+-- | The reactions each latest run still expects, unless nothing will react anymore.
+awaitedReactions :: Ctx -> [(Topic, Filter)]
+awaitedReactions c = [(t, f) | t <- events c, Just r <- [latest c t], isNothing (orphaned c r), f <- missingReactions c.ix r]
+
+missing :: Text -> Int -> Text
+missing what n = if n == 1 then "A " <> what <> " is missing." else T.pack (show n) <> " " <> what <> "s are missing."
+
+-- | A run that should be and isn't, drawn as a node: a reaction a run waits
+-- for, a subtask of a run not yet seen, the late next run of a schedule, or
+-- what a trigger never sent before will start. It hangs off the run it's
+-- missing from, or sits inside it.
+data Missing = Missing
+  { missingId :: Text, missingParent :: Maybe Text, missingTitle :: Text, missingSub :: Text
+  , missingLate :: Bool
+  , missingFrom :: Maybe (Topic, [Pair]) }
+
+missingNodes :: Ctx -> [Missing]
+-- The same run may be missing from several places, as a subtask of one run and
+-- a reaction to another: it's drawn once, inside the run it's a subtask of,
+-- and linked from the others.
+missingNodes c =
+  concat
+  [ [ Missing (unFilter f <> "?") (Just (unTopic t)) (fromMaybe (unFilter f) (T.stripPrefix (unTopic t <> "/") (unFilter f))) (if late then "missing" else "not yet") late Nothing
+    | f <- missingSubtasks c.ix r, unFilter f `notElem` shown, let late = diffUTCTime c.now r.start.at > fromIntegral r.start.e.rules.timeout ]
+    ++ [ Missing (unTopic t <> "#next") (holder c t) "next run" ("expected every " <> fmtDuration d) True (Just (t, ["kind" .= ("expected" :: Text)]))
+       | Just d <- [r.start.e.rules.expected], "overdue" `elem` map fst (problemsOf c r) ]
+    ++ [ Missing (unTopic tr.triggerTopic <> "?") (holder c t) (rel t (unTopic tr.triggerTopic)) "not yet" False
+           (Just (t, ["kind" .= ("pending" :: Text), "label" .= tr.triggerLabel, "run" .= r.eid.correlationId, "index" .= i]))
+       | isNothing (orphaned c r), (i, tr) <- pendingTriggers c.ix r, isNothing (reactor c tr.triggerTopic) ]
+  | t <- events c, Just r <- [latest c t] ]
+  ++ [ Missing (unFilter f <> "?") (holder c t) (rel t (unFilter f)) "not yet" False (Just (t, ["kind" .= ("expected" :: Text)]))
+     | (t, f) <- awaitedReactions c, unFilter f `notElem` shown ]
+  where
+    shown = map unTopic (events c)
+    -- Named as its neighbours are: inside a group, without kind and service.
+    rel t name = case holder c t of
+      Just h | "/" `T.isSuffixOf` h -> T.intercalate "/" (drop 2 (T.splitOn "/" name))
+      _ -> name
 
 -- | When the process of a run still waiting, unfinished or for its triggers,
 -- died: its service's connection left its last will after the run started.
@@ -297,9 +358,9 @@ orphaned c r
   | otherwise = Nothing
 
 -- | When the latest runs started having problems, if more than one has.
--- Awaiting a trigger is waiting on someone, not failing.
+-- Awaiting a trigger or a reaction is waiting on something, not failing.
 failingSince :: Ctx -> [Run] -> Maybe UTCTime
-failingSince c rs = case takeWhile (any ((/= "awaiting trigger") . fst) . problemsOf c) rs of
+failingSince c rs = case takeWhile (any ((`notElem` ["awaiting trigger", "reactions"]) . fst) . problemsOf c) rs of
   bad@(_ : _ : _) -> Just (last bad).start.at
   _ -> Nothing
 

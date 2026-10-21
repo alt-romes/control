@@ -44,6 +44,18 @@ dash-node:has(.view) { width: 360px; }
 dash-node:has(.view.people), dash-node:has(.view.runs) { width: 320px; }
 .card { box-sizing: border-box; width: 100%; height: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; overflow: hidden; }
 .card.scope { background: var(--scope); }
+.card.missing { border-style: dashed; background: transparent; }
+.card.missing:not(:has(.problem)) .title { font-weight: 400; color: var(--muted); }
+.card.missing.actionable .sub { color: var(--bad); }
+.url { display: block; margin-top: 1px; font-size: 11px; color: var(--muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.url:hover { color: var(--fg); text-decoration: underline; }
+.card.group.folded { background: var(--scope); cursor: pointer; }
+.card.group.folded.actionable, .card.group.folded.crisis { border-color: var(--bad); }
+.far .card:not(.view) .sub, .far .ticks, .far .days { display: none; }
+.far .title { font-size: 18px; }
+.far .problem { font-size: 14px; }
+#machines .panel { margin: 8px 0; font-size: 12px; }
+#machines .panel pre { max-height: none; font-size: 12px; }
 .card.group .title { font-weight: 400; color: var(--muted); }
 .card.actionable { border-color: var(--bad); }
 .card.crisis { border: 2px solid var(--bad); }
@@ -60,7 +72,7 @@ button { font: inherit; margin-top: 6px; padding: 3px 9px; border-radius: 6px; b
 .metrics { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 3px; font-size: 11px; color: var(--muted); }
 .metrics svg { width: 48px; height: 12px; vertical-align: middle; margin-left: 3px; }
 .metrics polyline { fill: none; stroke: var(--muted); stroke-width: 1; }
-.view pre { margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 11px; }
+.view pre { margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; user-select: text; cursor: text; }
 .view.log pre { color: var(--muted); }
 .view img, .view iframe { display: block; width: 100%; border: 0; }
 .view img { height: 300px; object-fit: contain; }
@@ -78,6 +90,9 @@ button { font: inherit; margin-top: 6px; padding: 3px 9px; border-radius: 6px; b
 .days { display: flex; align-items: flex-end; gap: 2px; height: 16px; margin-top: 4px; }
 .days i { width: 6px; background: var(--edge); }
 .view .person.bad { color: var(--bad); }
+.view .mail { padding: 2px 0; font-size: 12px; }
+.view .mail + .mail { border-top: 1px solid var(--line); }
+.view .mail div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .view .person { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-size: 12px; }
 .view .person span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .view .person > span:last-child { flex: none; }
@@ -122,20 +137,54 @@ const VIEWS = {
   image: f => f.startsWith('data:') ? html`<img src=${f}>` : html`<a href=${file(f)} target="_blank"><img src=${file(f)} title=${f}></a>`,
   records: t => html`<table><tr>${t.columns.map(c => html`<th>${c}</th>`)}</tr>${t.rows.map(r => html`<tr>${r.map(x => html`<td class=${typeof x === 'number' ? 'n' : ''}>${x}</td>`)}</tr>`)}</table>`,
   trend: series => html`<div class="metrics">${Object.entries(series).map(([k, xs]) => html`<span>${k} ${fmt(xs.at(-1))}${sparkline(xs)}</span>`)}</div>`,
-  mail: m => html`<div class="sub">To ${[m.to].flat().join(', ')}</div><div>${m.subject}</div>${[m.attachments ?? []].flat().map(a => html`<div class="sub">${String(a).split('/').at(-1)}</div>`)}`,
+  mail: ms => [ms].flat().map(m => html`<div class="mail" title=${[m.from && 'From ' + m.from, m.to && 'To ' + [m.to].flat().join(', ')].filter(Boolean).join('\n')}>
+    <div>${m.subject}</div><div class="sub">${m.from ? m.from.replace(/\s*<.*>/, '') : 'To ' + [m.to].flat().join(', ')}${[m.attachments ?? []].flat().map(a => ' · ' + String(a).split('/').at(-1))}</div></div>`),
   log: t => html`<pre title="End of its log">${t}</pre>`,
   text: t => html`<pre>${t}</pre>`,
   data: v => html`<pre>${JSON.stringify(v, null, 2)}</pre>`,
 }
 
+// Its contents scroll and select as text, not pan the canvas.
+const viewCard = (d, cls) => html`<div class="${cls} view ${d.view}" data-kind=${d.title ?? d.view}
+  @wheel=${e => e.stopPropagation()} @pointerdown=${e => e.stopPropagation()}>${d.title ? html`<div class="sub">${d.title}</div>` : nothing}${VIEWS[d.view](d.value)}</div>`
+
 let selected = null, runs = []
 const fetchRuns = async id => (await fetch('/api/runs/' + id.split('/').map(encodeURIComponent).join('/'))).json()
 async function select(id) {
-  const was = selected
   selected = id
   runs = id ? await fetchRuns(id) : []
-  for (const i of [was, id]) if (editor.getNode(i)) await area.update('node', i)
+  await sync(visible())
+  for (const n of editor.getNodes()) await area.update('node', n.id)
   side()
+}
+
+// Everything is drawn, unless you closed what holds it: then it folds into
+// that, keeping its links.
+const closed = new Set()
+function visible() {
+  const byId = new Map(g.nodes.map(d => [d.id, d]))
+  const owner = d => d.view ? d.id.slice(0, d.id.lastIndexOf('#')) : d.parent
+  const kids = new Map()
+  for (const d of g.nodes) { const o = owner(d); if (o) kids.set(o, [...(kids.get(o) ?? []), d]) }
+  const open = d => !closed.has(d.id)
+  const placed = new Map()
+  const place = d => {
+    if (!placed.has(d.id)) {
+      const up = byId.get(owner(d))
+      placed.set(d.id, !up ? d.id : place(up) === up.id && open(up) ? d.id : place(up))
+    }
+    return placed.get(d.id)
+  }
+  const nodes = g.nodes.filter(d => place(d) === d.id)
+    .map(d => ({ ...d, folded: open(d) ? 0 : (kids.get(d.id) ?? []).filter(k => !k.view).length }))
+  // Links to what's folded go to what holds it; only links between what's drawn keep their labels.
+  const edges = new Map()
+  for (const e of [...g.edges].sort((a, b) => (place(byId.get(b.source)) === b.source) - (place(byId.get(a.source)) === a.source))) {
+    const s = place(byId.get(e.source) ?? { id: e.source }), t = place(byId.get(e.target) ?? { id: e.target })
+    if (s === t || edges.has(s + '>' + t)) continue
+    edges.set(s + '>' + t, s === e.source && t === e.target ? e : { source: s, target: t, kind: e.kind === 'output' ? 'output' : 'reaction' })
+  }
+  return { nodes, edges: [...edges.values()] }
 }
 const pretty = x => x == null || (typeof x === 'object' && !Object.keys(x).length) ? nothing : html`<pre>${typeof x === 'string' ? x : JSON.stringify(x, null, 2)}</pre>`
 // The side lists machines and healthchecks, or shows what was clicked.
@@ -143,8 +192,10 @@ function side() {
   document.getElementById('machines').classList.toggle('open', !!selected)
   render(selected
     ? html`<div><button class="close" @click=${() => select(null)}>×</button><h3>${selected}</h3>
+        ${g.nodes.filter(v => v.view && v.id.startsWith(selected + '#')).map(v => viewCard(v, 'panel'))}
         ${runs.map((r, i) => html`<details ?open=${i === 0}>
-          <summary title=${new Date(r.at).toLocaleString()}>${r.ago} · ${r.took}${r.summary ? ' · ' + r.summary : ''}</summary>
+          <summary title=${new Date(r.at).toLocaleString()}>${r.ago} · ${r.took}${r.summary ? ' · ' + (r.summary.length > 80 ? r.summary.slice(0, 80) + '…' : r.summary) : ''}</summary>
+          ${r.summary.length > 80 ? pretty(r.summary) : nothing}
           ${r.problems.map(p => html`<div class="problem">${p}</div>`)}${pretty(r.content)}${pretty(r.result)}
         </details>`)}
         ${runs.length ? nothing : html`<p class="sub">No runs seen.</p>`}</div>`
@@ -154,10 +205,14 @@ function side() {
 }
 const row = d => html`<div class="row" @click=${() => select(d.id)}>
   <div class="line ${d.severity}"><span>${d.title}</span><span class="sub">${d.sub ?? ''}</span></div>
+  ${urls(d)}
   ${d.problems.map(p => html`<div class="problem" title=${p}>${p}</div>`)}
   ${Object.keys(d.series ?? {}).length ? html`<div class="metrics">${Object.entries(d.series).map(([k, xs]) => html`<span>${k} ${fmt(xs.at(-1))}${sparkline(xs)}</span>`)}</div>` : nothing}
   ${d.spark?.some(x => x !== null) ? html`<div class="strip" title="Last 24h">${d.spark.map(x => html`<i class=${x === null ? '' : x ? 'bad' : 'ran'}></i>`)}</div>` : nothing}
 </div>`
+// What a run serves or made, by its host.
+const urls = d => (d.urls ?? []).map(u => html`<a class="url" href=${u} target="_blank" title=${u}
+  @pointerdown=${e => e.stopPropagation()} @click=${e => e.stopPropagation()}>${u.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>`)
 const fmt = x => Number.isInteger(x) ? x : x.toFixed(1)
 const sparkline = xs => {
   if (xs.length < 2) return nothing
@@ -167,10 +222,12 @@ const sparkline = xs => {
 
 // Only problems are coloured: a group is plain, whatever it holds.
 const card = (d, scope) => d.group
-  ? html`<div class="card group scope"><div class="title">${d.title}</div></div>`
-  : html`<div class="card ${d.severity} ${scope ? 'scope' : ''} ${d.id === selected ? 'selected' : ''}">
+  ? d.folded ? html`<div class="card group folded ${d.severity}"><div class="title">${d.title}</div><div class="sub">${d.folded} inside</div></div>`
+    : html`<div class="card group scope"><div class="title">${d.title}</div></div>`
+  : html`<div class="card ${d.severity} ${scope ? 'scope' : ''} ${d.missing ? 'missing' : ''} ${d.id === selected ? 'selected' : ''}">
       <div class="title" title=${d.id}>${d.title}</div>
-      ${d.sub ? html`<div class="sub">${d.sub}</div>` : nothing}
+      ${urls(d)}
+      ${d.sub ? html`<div class="sub">${d.sub}${d.folded ? ` · +${d.folded} inside` : ''}</div>` : nothing}
       ${d.days ? days(d.days)
         : d.history?.length > 1 ? html`<div class="ticks" title="Latest runs">${d.history.map(b => html`<i class=${b ? 'bad' : ''}></i>`)}</div>` : nothing}
       ${(d.problems ?? []).map(p => html`<div class="problem" title=${p}>${p}</div>`)}
@@ -184,7 +241,9 @@ class DashNode extends LitElement {
   render() {
     const d = this.data, sock = (side, key) => html`<rete-ref style="position:absolute;top:50%;${side === 'input' ? 'left:0' : 'right:0'}"
       .data=${{ type: 'socket', side, key, nodeId: d.id, payload: socket }} .emit=${this.emit}></rete-ref>`
-    const body = d.view ? html`<div class="card view ${d.view}">${d.title ? html`<div class="sub">${d.title}</div>` : nothing}${VIEWS[d.view](d.value)}</div>` : card(d, hasChildren(d.id))
+    // What should have run and hasn't: drawn, dashed, where it would be.
+    const body = d.missing && !d.problems ? html`<div class="card missing ${d.severity}"><div class="title">${d.title}</div><div class="sub">${d.sub}</div></div>`
+      : d.view ? viewCard(d, 'card') : card(d, hasChildren(d.id))
     return html`${body}${sock('input', 'in')}${sock('output', 'out')}`
   }
 }
@@ -200,7 +259,7 @@ const arrowhead = (s, e) => {
 const edge = c => ({ start, end }) => !start || !end ? nothing : html`<style>
   svg { overflow: visible; position: absolute; pointer-events: none; width: 1px; height: 1px; }
   path { fill: none; stroke-width: 1.5px; stroke: var(--edge); }
-  .output path, .pending path { stroke-dasharray: 4 4; }
+  .output path, .pending path, .expected path { stroke-dasharray: 4 4; }
   .label { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font: 11px/1.3 system-ui, sans-serif;
     z-index: 1; max-width: 170px; overflow: hidden; text-overflow: ellipsis; padding: 1px 6px; color: var(--muted); background: var(--bg); }
   button.label { color: var(--fg); background: var(--card); border: 1px solid var(--fg); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
@@ -238,16 +297,20 @@ editor.use(area)
 area.use(lit)
 area.use(arrange)
 area.use(scopes)
+// A group closes and opens again; a run is selected, or unselected again.
 area.addPipe(ctx => {
   const n = ctx.type === 'nodepicked' && editor.getNode(ctx.data.id)
-  if (n && !n.group && !n.view) select(n.id)
+  if (n?.group) { closed.has(n.id) ? closed.delete(n.id) : closed.add(n.id); sync(visible()) }
+  else if (n && !n.view && !(n.missing && !n.problems)) select(selected === n.id ? null : n.id)
+  // Zoomed out, only names and problems: details come back closer.
+  if (ctx.type === 'zoomed') document.getElementById('area').classList.toggle('far', area.area.transform.k < 0.35)
   return ctx
 })
 
 const depth = (d, byId) => d.parent && byId.has(d.parent) ? 1 + depth(byId.get(d.parent), byId) : 0
 let shape = ''
-async function sync() {
-  const nodes = new Map(g.nodes.map(d => [d.id, d])), edges = new Map(g.edges.map(e => [e.source + '>' + e.target, e]))
+async function sync(v) {
+  const nodes = new Map(v.nodes.map(d => [d.id, d])), edges = new Map(v.edges.map(e => [e.source + '>' + e.target, e]))
   for (const c of editor.getConnections()) if (!edges.has(c.id)) await editor.removeConnection(c.id)
   for (const n of [...editor.getNodes()].sort((a, b) => depth(b, nodes) - depth(a, nodes))) if (!nodes.has(n.id)) await editor.removeNode(n.id)
   // Parents first, so they're drawn beneath their children.
@@ -265,7 +328,7 @@ async function sync() {
     else await editor.addConnection({ id, sourceOutput: 'out', targetInput: 'in', ...e })
   }
 
-  const s = JSON.stringify([g.nodes.map(d => [d.id, d.parent, d.problems?.length, d.pending?.length, d.history?.length > 1, d.view, ['people', 'runs'].includes(d.view) ? d.value.length : 0]), [...edges.keys()]])
+  const s = JSON.stringify([v.nodes.map(d => [d.id, d.parent, d.folded, d.problems?.length, d.pending?.length, d.history?.length > 1, d.view, ['people', 'runs', 'mail'].includes(d.view) ? [d.value].flat().length : 0]), [...edges.keys()]])
   if (s === shape) return
   const first = !shape
   shape = s
@@ -278,6 +341,7 @@ async function sync() {
   }
   await arrange.layout({ options: { 'elk.direction': 'RIGHT', 'elk.aspectRatio': String(innerWidth / innerHeight), ...SPACING } })
   if (first) await AreaExtensions.zoomAt(area, editor.getNodes())
+  document.getElementById('area').classList.toggle('far', area.area.transform.k < 0.35)
 }
 
 let busy = false
@@ -287,7 +351,7 @@ async function refresh() {
   try {
     g = await (await fetch('/api/graph')).json()
     for (const d of g.nodes) d.parent ??= undefined // the arrange plugin only takes undefined as top-level
-    await sync()
+    await sync(visible())
     if (selected) runs = await fetchRuns(selected)
     side()
     document.getElementById('empty').hidden = g.nodes.length > 0
