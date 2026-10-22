@@ -9,14 +9,14 @@ module Events
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM
-import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
+import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, reactedMany, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~), (^.))
 import Control.Exception (SomeAsyncException, SomeException, fromException, throwIO, try)
 import Control.Monad (forM_, forever, unless, when)
 import Data.Aeson (Value (..))
 import Data.List (sortOn, unsnoc)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust, fromMaybe, isJust, isNothing, listToMaybe)
+import Data.Maybe (fromJust, fromMaybe, isJust, isNothing, listToMaybe, maybeToList)
 import Data.Ord (Down (..))
 import qualified Data.Set as Set
 import Data.String (fromString)
@@ -141,10 +141,11 @@ index runs = Index
   { runs
   , byTopic = by (Just . (.eid.evtTopic))
   , scopedTo = by (fmap (.correlationId) . (.start.e.scope))
-  , reactingTo = by (fmap (.correlationId) . (.start.e.reactTo))
+  , reactingTo = byMany (maybe [] (map (.correlationId)) . (^. reactedMany) . (.start.e))
   }
   where
-    by k = Map.fromListWith (flip (++)) [(p, [r]) | r <- sortOn (Down . (.start.at)) (Map.elems runs), Just p <- [k r]]
+    by k = byMany (maybeToList . k)
+    byMany k = Map.fromListWith (flip (++)) [(p, [r]) | r <- sortOn (Down . (.start.at)) (Map.elems runs), p <- k r]
 
 -- | Triggers are one-shot: sent once a run reacting to the run is seen on its topic.
 pendingTriggers :: Index -> Run -> [(Int, Trigger)]
@@ -152,7 +153,7 @@ pendingTriggers ix r = [(i, t) | (i, t) <- zip [0 ..] (foldMap (fromMaybe [] . (
   where sent = map (.eid.evtTopic) (Map.findWithDefault [] r.eid.correlationId ix.reactingTo)
 
 isCritical :: Index -> Run -> Bool
-isCritical ix r = r.start.e.rules.critical == Just True || any (isCritical ix) [p | Just e <- [r.start.e.scope, r.start.e.reactTo], Just p <- [Map.lookup e.correlationId ix.runs]]
+isCritical ix r = r.start.e.rules.critical == Just True || any (isCritical ix) [p | Just e <- [r.start.e.scope, r.start.e ^. reacted], Just p <- [Map.lookup e.correlationId ix.runs]]
 
 topLevel :: Index -> Topic -> [Run]
 topLevel ix t = filter (isNothing . (.start.e.scope)) (Map.findWithDefault [] t ix.byTopic)
