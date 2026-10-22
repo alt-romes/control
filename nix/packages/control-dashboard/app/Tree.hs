@@ -6,7 +6,7 @@
 -- Machines and healthchecks are listed apart.
 module Tree (Ctx (..), Severity (..), Link (..), View (..), events, holder, links, outputOf, views, shapes, tableOf, files, failingSince, orphaned, filling, dailyCount, perDay, madeUp, graphJson, runsJson, alerts) where
 
-import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..))
+import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), reacted, (^.))
 import Data.Aeson (ToJSON (..), Value (..), object, (.=))
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
@@ -103,9 +103,9 @@ links c = nubBy ((==) `on` ends) (pendings ++ sent)
     shown = events c
     sent =
       [ l
-      | t <- shown, Just r <- [latest c t], Just p <- [via c (.reactTo) r]
+      | t <- shown, Just r <- [latest c t], Just p <- [via c (^. reacted) r]
       , l <- if kind "trigger" p.eid.evtTopic
-               then [Link q.eid.evtTopic t (Just (T.pack p.start.e.label)) Nothing | Just q <- [via c (.reactTo) p]]
+               then [Link q.eid.evtTopic t (Just (T.pack p.start.e.label)) Nothing | Just q <- [via c (^. reacted) p]]
                else [Link p.eid.evtTopic t Nothing Nothing]
       , l.source `elem` shown, l.source /= t ]
     pendings = [Link t u (Just (T.pack tr.triggerLabel)) (Just (r.eid.correlationId, i)) | t <- shown, Just r <- [latest c t], isNothing (orphaned c r), (i, tr) <- pendingTriggers c.ix r, Just u <- [reactor c tr.triggerTopic]]
@@ -261,7 +261,7 @@ graphJson c = object
     since at = fmtDuration (max 1 (fromInteger (floor (diffUTCTime c.now at))))
     listed k =
       [ card t (T.drop (T.length k + 1) (unTopic t)) ["spark" .= spark c (runsOf t), "series" .= series (runsOf t)]
-          [m <> " full in ~" <> fmtDuration d <> " at this rate" | (m, d) <- filling c (runsOf t)]
+          [if d <= 0 then m <> " is full" else m <> " full in ~" <> fmtDuration d <> " at this rate" | (m, d) <- filling c (runsOf t)]
       | t <- topics c, kind k t ]
     linkKind :: Link -> Text
     linkKind l = case (l.trigger, l.pending) of
