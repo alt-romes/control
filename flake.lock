@@ -3,11 +3,11 @@
     "activobank-hs": {
       "flake": false,
       "locked": {
-        "lastModified": 1790987021,
-        "narHash": "sha256-UuG9GOXNIlgZWXOoInKEkGI5VFZ7tjr8yEOYuujgsag=",
+        "lastModified": 1792692454,
+        "narHash": "sha256-PnOEuNOBmi1LH8ZuR8IoYDpoGnvM94cMHzqeDsMw168=",
         "owner": "alt-romes",
         "repo": "activobank-hs",
-        "rev": "39dc9dcfb9095a643a32dc09dcecd908bee656f5",
+        "rev": "688a61886c219d8e8d0611ac25074d8416716354",
         "type": "github"
       },
       "original": {
