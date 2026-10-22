@@ -201,8 +201,13 @@ problems sleeps now ix r =
       _ -> t
     -- The first line saying something, not blank nor a heading for what follows, cut short.
     gist t = case [l | l <- map T.strip (T.lines t), not (T.null l), not (":" `T.isSuffixOf` l)] of
-      l : _ -> Just (if T.length l > 80 then T.take 80 l <> "…" else l)
+      l : _ | Just code <- after "statusCode = " l -> Just ("HTTP " <> code <> foldMap (" from " <>) (T.dropAround (== '"') <$> after "Host = " l))
+            | otherwise -> Just (if T.length l > 80 then T.take 80 l <> "…" else l)
       [] -> Nothing
+    -- The word after a marker, as in a shown HTTP request or response.
+    after m l = case T.breakOn m l of
+      (_, rest) | not (T.null rest) -> Just (T.takeWhile (\ch -> ch /= ',' && ch /= '}' && ch /= ' ') (T.drop (T.length m) rest))
+      _ -> Nothing
 
 awake :: [(UTCTime, UTCTime)] -> UTCTime -> UTCTime -> NominalDiffTime
 awake sleeps a b = diffUTCTime b a - sum [diffUTCTime (min b s1) (max a s0) | (s0, s1) <- sleeps, s0 < b, s1 > a]

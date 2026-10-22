@@ -236,6 +236,9 @@ main = do
         , ("a long summary is cut short in a failure",
             let r = a {end = (\d -> d {e = d.e {success = False, summary = replicate 100 'y'}}) <$> a.end}
              in map snd (problemsOf 10 [(1, r)] 1) == [T.replicate 80 "y" <> "…"])
+        , ("an HTTP failure's gist is its status and host",
+            let r = resulting (String "FailureResponse (Request {requestPath = (BaseUrl {baseUrlScheme = Https, baseUrlHost = \"bank.pt\", baseUrlPort = 443}) (Response {responseStatusCode = Status {statusCode = 500, statusMessage = \"x\"}})") (run "script/a" 0 (Just (1, False)))
+             in map snd (problemsOf 10 [(1, r)] 1) == ["Failed — HTTP 500 from bank.pt"])
         , ("an exit code isn't output", let c = ctxOf 10 [(1, resulting (Number 0) a)] in isNothing (outputOf c (resulting (Number 0) a)))
         , ("a summary of many lines is output", let r = a {end = (\d -> d {e = d.e {summary = "a\nb"}}) <$> a.end} in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "a\nb"), []))
         , ("text is output", let r = resulting (String "oops") a in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "oops"), []))
