@@ -12,6 +12,10 @@
 
     config = {
       services.imapnotify.enable = watched;
+      launchd.agents.imapnotify-mogbit.config = lib.mkIf watched {
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/imapnotify-mogbit.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/imapnotify-mogbit.log";
+      };
 
       programs.neomutt.enable = true; # Email client
 
