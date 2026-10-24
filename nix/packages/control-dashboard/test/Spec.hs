@@ -268,6 +268,13 @@ main = do
              in [(m.missingParent, fmap fst m.missingFrom) | m <- ms, m.missingId == "script/a/x?"] == [(Just "script/a", Nothing), (Nothing, Just (tp "script/w"))])
         , ("the web addresses a run mentions are its links",
             urlsOf (with (\e -> e {content = Just (object ["url" .= ("http://ledger.x" :: Text), "port" .= (5000 :: Int), "note" .= ("hi" :: Text)])}) a) == ["http://ledger.x"])
+        , ("a reaction whose causes all ran again since is superseded",
+            let bad = reactionTo 1 (run "script/b" 5 (Just (1, False)))
+             in superseded (ctxOf 20 [(1, a), (2, bad), (3, run "script/a" 10 ok)]) bad && not (superseded (ctxOf 20 [(1, a), (2, bad)]) bad))
+        , ("a reaction to a mail comes from that mail's row of the mailbox, not its topic",
+            let mail s' subj = with (\e -> e {content = Just (object ["from" .= ("a@b.c" :: Text), "subject" .= (subj :: Text)])}) (run "script/mail" s' ok)
+                c = ctxOf 20 [(1, mail 0 "old"), (2, mail 5 "new"), (3, reactionTo 1 (run "script/import" 6 ok))]
+             in rowLinks c == [(tp "script/mail", 0, 1, tp "script/import")])
         , ("an exit code isn't output", let c = ctxOf 10 [(1, resulting (Number 0) a)] in isNothing (outputOf c (resulting (Number 0) a)))
         , ("a summary of many lines is output", let r = a {end = (\d -> d {e = d.e {summary = "a\nb"}}) <$> a.end} in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "a\nb"), []))
         , ("text is output", let r = resulting (String "oops") a in outputOf (ctxOf 10 [(1, r)]) r == Just (Just (String "oops"), []))

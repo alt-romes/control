@@ -47,6 +47,7 @@ dash-node:has(.view.people), dash-node:has(.view.runs) { width: 320px; }
 .card.missing { border-style: dashed; background: transparent; }
 .card.missing:not(:has(.problem)) .title { font-weight: 400; color: var(--muted); }
 .card.missing.actionable .sub { color: var(--bad); }
+.problem.stale { color: var(--muted); }
 .url { display: block; margin-top: 1px; font-size: 11px; color: var(--muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .url:hover { color: var(--fg); text-decoration: underline; }
 .card.group.folded { background: var(--scope); cursor: pointer; }
@@ -55,6 +56,7 @@ dash-node:has(.view.people), dash-node:has(.view.runs) { width: 320px; }
 .far .title { font-size: 18px; }
 .far .problem { font-size: 14px; }
 #machines .panel { margin: 8px 0; font-size: 12px; }
+#machines pre.log { max-height: 160px; overflow: auto; color: var(--muted); }
 #machines .panel pre { max-height: none; font-size: 12px; }
 .card.group .title { font-weight: 400; color: var(--muted); }
 .card.actionable { border-color: var(--bad); }
@@ -90,7 +92,9 @@ button { font: inherit; margin-top: 6px; padding: 3px 9px; border-radius: 6px; b
 .days { display: flex; align-items: flex-end; gap: 2px; height: 16px; margin-top: 4px; }
 .days i { width: 6px; background: var(--edge); }
 .view .person.bad { color: var(--bad); }
-.view .mail { padding: 2px 0; font-size: 12px; }
+.view .mail { position: relative; padding: 2px 0; font-size: 12px; }
+.view .person { position: relative; }
+.row-sock { position: absolute; right: -10px; top: 50%; }
 .view .mail + .mail { border-top: 1px solid var(--line); }
 .view .mail div:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .view .person { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-size: 12px; }
@@ -129,24 +133,26 @@ const VIEWS = {
   table: rows => html`<table>${rows.map(r => r.head
     ? html`<tr><th colspan="3">${r.head}</th></tr>`
     : html`<tr><td>${r.cells[0]}</td><td class="n">${r.cells[1]}</td><td class="note">${r.cells[2]}</td></tr>`)}</table>`,
-  people: ps => ps.map(p => html`<div class="person ${p.madeUp ? 'bad' : ''}" title=${p.email + (p.madeUp ? ': the name is nowhere in the address, maybe a bot signing up someone else' : '')}>
-    <span>${p.name ?? p.email}</span><span class="sub">${p.ago}</span></div>`),
-  runs: rs => rs.map(r => html`<div class="person ${r.bad ? 'bad' : ''}" title=${r.label + (r.summary ? ' · ' + r.summary : '')}>
-    <span>${r.label}${r.summary ? html` <span class="sub">${r.summary}</span>` : nothing}</span><span class="sub">${r.ago}</span></div>`),
+  people: (ps, row) => ps.map((p, i) => html`<div class="person ${p.madeUp ? 'bad' : ''}" title=${p.email + (p.madeUp ? ': the name is nowhere in the address, maybe a bot signing up someone else' : '')}>
+    <span>${p.name ?? p.email}</span><span class="sub">${p.ago}</span>${row(i)}</div>`),
+  runs: (rs, row) => rs.map((r, i) => html`<div class="person ${r.bad ? 'bad' : ''}" title=${r.label + (r.summary ? ' · ' + r.summary : '')}>
+    <span>${r.label}${r.summary ? html` <span class="sub">${r.summary}</span>` : nothing}</span><span class="sub">${r.ago}</span>${row(i)}</div>`),
   document: f => html`<iframe src=${file(f)} title=${f}></iframe>`,
   image: f => f.startsWith('data:') ? html`<img src=${f}>` : html`<a href=${file(f)} target="_blank"><img src=${file(f)} title=${f}></a>`,
   records: t => html`<table><tr>${t.columns.map(c => html`<th>${c}</th>`)}</tr>${t.rows.map(r => html`<tr>${r.map(x => html`<td class=${typeof x === 'number' ? 'n' : ''}>${x}</td>`)}</tr>`)}</table>`,
   trend: series => html`<div class="metrics">${Object.entries(series).map(([k, xs]) => html`<span>${k} ${fmt(xs.at(-1))}${sparkline(xs)}</span>`)}</div>`,
-  mail: ms => [ms].flat().map(m => html`<div class="mail" title=${[m.from && 'From ' + m.from, m.to && 'To ' + [m.to].flat().join(', ')].filter(Boolean).join('\n')}>
-    <div>${m.subject}</div><div class="sub">${m.from ? m.from.replace(/\s*<.*>/, '') : 'To ' + [m.to].flat().join(', ')}${[m.attachments ?? []].flat().map(a => ' · ' + String(a).split('/').at(-1))}</div></div>`),
+  mail: (ms, row) => [ms].flat().map((m, i) => html`<div class="mail" title=${[m.from && 'From ' + m.from, m.to && 'To ' + [m.to].flat().join(', ')].filter(Boolean).join('\n')}>
+    <div>${m.subject}</div><div class="sub">${m.from ? m.from.replace(/\s*<.*>/, '') : 'To ' + [m.to].flat().join(', ')}${[m.attachments ?? []].flat().map(a => ' · ' + String(a).split('/').at(-1))}</div>${row(i)}</div>`),
   log: t => html`<pre title="End of its log">${t}</pre>`,
   text: t => html`<pre>${t}</pre>`,
   data: v => html`<pre>${JSON.stringify(v, null, 2)}</pre>`,
 }
 
 // Its contents scroll and select as text, not pan the canvas.
-const viewCard = (d, cls) => html`<div class="${cls} view ${d.view}" data-kind=${d.title ?? d.view}
-  @wheel=${e => e.stopPropagation()} @pointerdown=${e => e.stopPropagation()}>${d.title ? html`<div class="sub">${d.title}</div>` : nothing}${VIEWS[d.view](d.value)}</div>`
+// A row that is a run can have what reacted to it linked from it.
+const viewCard = (d, cls, row = () => nothing) => html`<div class="${cls} view ${d.view}" data-kind=${d.title ?? d.view}
+  @wheel=${e => e.stopPropagation()} @pointerdown=${e => e.stopPropagation()}>${d.title ? html`<div class="sub">${d.title}</div>` : nothing}${VIEWS[d.view](d.value, row)}</div>`
+const ROWS = 10
 
 let selected = null, runs = []
 const fetchRuns = async id => (await fetch('/api/runs/' + id.split('/').map(encodeURIComponent).join('/'))).json()
@@ -181,8 +187,9 @@ function visible() {
   const edges = new Map()
   for (const e of [...g.edges].sort((a, b) => (place(byId.get(b.source)) === b.source) - (place(byId.get(a.source)) === a.source))) {
     const s = place(byId.get(e.source) ?? { id: e.source }), t = place(byId.get(e.target) ?? { id: e.target })
-    if (s === t || edges.has(s + '>' + t)) continue
-    edges.set(s + '>' + t, s === e.source && t === e.target ? e : { source: s, target: t, kind: e.kind === 'output' ? 'output' : 'reaction' })
+    const kept = s === e.source && t === e.target, id = edgeId(kept ? e : { source: s, target: t })
+    if (s === t || edges.has(id)) continue
+    edges.set(id, kept ? e : { source: s, target: t, kind: e.kind === 'output' ? 'output' : 'reaction' })
   }
   return { nodes, edges: [...edges.values()] }
 }
@@ -199,14 +206,14 @@ function side() {
           ${r.problems.map(p => html`<div class="problem">${p}</div>`)}${pretty(r.content)}${pretty(r.result)}
         </details>`)}
         ${runs.length ? nothing : html`<p class="sub">No runs seen.</p>`}</div>`
-    : [g.slept.length ? html`<p class="sub" style="white-space:normal;margin:0" title=${g.slept.join(', ')}>The dashboard's machine slept ${g.slept.length}× in the last day; it sees nothing while asleep.</p>` : nothing,
-       ...[['Machines', g.machines], ['Health', g.healthchecks]].map(([h, ds]) => ds.length ? html`<section><h4>${h}</h4>${ds.map(row)}</section>` : nothing)],
+    : [['Machines', g.machines], ['Health', g.healthchecks]].map(([h, ds]) => ds.length ? html`<section><h4>${h}</h4>${ds.map(row)}</section>` : nothing),
     document.getElementById('machines'))
 }
 const row = d => html`<div class="row" @click=${() => select(d.id)}>
   <div class="line ${d.severity}"><span>${d.title}</span><span class="sub">${d.sub ?? ''}</span></div>
   ${urls(d)}
   ${d.problems.map(p => html`<div class="problem" title=${p}>${p}</div>`)}
+  ${d.log ? html`<pre class="log" title="End of its log">${d.log}</pre>` : nothing}
   ${Object.keys(d.series ?? {}).length ? html`<div class="metrics">${Object.entries(d.series).map(([k, xs]) => html`<span>${k} ${fmt(xs.at(-1))}${sparkline(xs)}</span>`)}</div>` : nothing}
   ${d.spark?.some(x => x !== null) ? html`<div class="strip" title="Last 24h">${d.spark.map(x => html`<i class=${x === null ? '' : x ? 'bad' : 'ran'}></i>`)}</div>` : nothing}
 </div>`
@@ -230,7 +237,7 @@ const card = (d, scope) => d.group
       ${d.sub ? html`<div class="sub">${d.sub}${d.folded ? ` · +${d.folded} inside` : ''}</div>` : nothing}
       ${d.days ? days(d.days)
         : d.history?.length > 1 ? html`<div class="ticks" title="Latest runs">${d.history.map(b => html`<i class=${b ? 'bad' : ''}></i>`)}</div>` : nothing}
-      ${(d.problems ?? []).map(p => html`<div class="problem" title=${p}>${p}</div>`)}
+      ${(d.problems ?? []).map(p => html`<div class="problem ${d.stale ? 'stale' : ''}" title=${p}>${p}</div>`)}
       ${(d.pending ?? []).map(p => html`<button @pointerdown=${e => e.stopPropagation()} @click=${() => trigger(p)}>${p.label}</button>`)}
     </div>`
 
@@ -243,7 +250,9 @@ class DashNode extends LitElement {
       .data=${{ type: 'socket', side, key, nodeId: d.id, payload: socket }} .emit=${this.emit}></rete-ref>`
     // What should have run and hasn't: drawn, dashed, where it would be.
     const body = d.missing && !d.problems ? html`<div class="card missing ${d.severity}"><div class="title">${d.title}</div><div class="sub">${d.sub}</div></div>`
-      : d.view ? viewCard(d, 'card') : card(d, hasChildren(d.id))
+      : d.view ? viewCard(d, 'card', i => i < d.rows ? html`<rete-ref class="row-sock"
+          .data=${{ type: 'socket', side: 'output', key: 'r' + i, nodeId: d.id, payload: socket }} .emit=${this.emit}></rete-ref>` : nothing)
+      : card(d, hasChildren(d.id))
     return html`${body}${sock('input', 'in')}${sock('output', 'out')}`
   }
 }
@@ -285,7 +294,8 @@ const hasChildren = id => editor.getNodes().some(n => n.parent === id)
 // between layers leaves room for links' labels.
 const SPACING = { 'elk.spacing.nodeNode': '30', 'elk.spacing.componentComponent': '40', 'elk.layered.spacing.nodeNodeBetweenLayers': '200' }
 arrange.addPreset(() => ({
-  port: ({ side, width, height }) => ({ x: side === 'output' ? width : 0, y: height / 2, width: 0, height: 0, side: side === 'output' ? 'EAST' : 'WEST' }),
+  port: ({ side, width, height, index, ports }) => ({ x: side === 'output' ? width : 0, y: side === 'output' && ports > 1 ? height * (index + 1) / (ports + 1) : height / 2,
+    width: 0, height: 0, side: side === 'output' ? 'EAST' : 'WEST' }),
   options: id => {
     if (!hasChildren(id)) return {}
     const p = pad(id)
@@ -309,8 +319,9 @@ area.addPipe(ctx => {
 
 const depth = (d, byId) => d.parent && byId.has(d.parent) ? 1 + depth(byId.get(d.parent), byId) : 0
 let shape = ''
+const edgeId = e => e.source + (e.sourceOutput ? ':' + e.sourceOutput : '') + '>' + e.target
 async function sync(v) {
-  const nodes = new Map(v.nodes.map(d => [d.id, d])), edges = new Map(v.edges.map(e => [e.source + '>' + e.target, e]))
+  const nodes = new Map(v.nodes.map(d => [d.id, d])), edges = new Map(v.edges.map(e => [edgeId(e), e]))
   for (const c of editor.getConnections()) if (!edges.has(c.id)) await editor.removeConnection(c.id)
   for (const n of [...editor.getNodes()].sort((a, b) => depth(b, nodes) - depth(a, nodes))) if (!nodes.has(n.id)) await editor.removeNode(n.id)
   // Parents first, so they're drawn beneath their children.
@@ -320,12 +331,13 @@ async function sync(v) {
     const node = Object.assign(new ClassicPreset.Node(d.id), d)
     node.addInput('in', new ClassicPreset.Input(socket))
     node.addOutput('out', new ClassicPreset.Output(socket))
+    if (d.view) for (let i = 0; i < ROWS; i++) node.addOutput('r' + i, new ClassicPreset.Output(socket))
     await editor.addNode(node)
   }
   for (const [id, e] of edges) {
     const c = editor.getConnections().find(c => c.id === id)
     if (c) { Object.assign(c, e); await area.update('connection', id) }
-    else await editor.addConnection({ id, sourceOutput: 'out', targetInput: 'in', ...e })
+    else await editor.addConnection({ id, targetInput: 'in', ...e, sourceOutput: e.sourceOutput ?? 'out' })
   }
 
   const s = JSON.stringify([v.nodes.map(d => [d.id, d.parent, d.folded, d.problems?.length, d.pending?.length, d.history?.length > 1, d.view, ['people', 'runs', 'mail'].includes(d.view) ? [d.value].flat().length : 0]), [...edges.keys()]])

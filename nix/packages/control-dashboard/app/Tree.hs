@@ -4,7 +4,7 @@
 -- topics of its service, linked from the run it @reactTo@s (through the
 -- trigger, if it was triggered), and followed by a node showing its output.
 -- Machines and healthchecks are listed apart.
-module Tree (Ctx (..), Severity (..), Link (..), View (..), events, holder, links, outputOf, views, shapes, tableOf, files, urlsOf, failingSince, orphaned, filling, awaitedReactions, Missing (..), missingNodes, dailyCount, perDay, madeUp, graphJson, runsJson, alerts) where
+module Tree (Ctx (..), Severity (..), Link (..), View (..), events, holder, links, rowLinks, outputOf, views, shapes, tableOf, files, urlsOf, superseded, failingSince, orphaned, filling, awaitedReactions, Missing (..), missingNodes, dailyCount, perDay, madeUp, graphJson, runsJson, alerts) where
 
 import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..), reactedMany, (^.))
 import Data.Aeson (ToJSON (..), Value (..), object, (.=))
@@ -13,7 +13,7 @@ import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as KM
 import Data.Foldable (toList)
 import Data.Function (on)
-import Data.List (find, nub, nubBy)
+import Data.List (elemIndex, find, nub, nubBy)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, mapMaybe, maybeToList)
 import Data.Char (isDigit, isLetter)
@@ -35,7 +35,7 @@ data Ctx = Ctx
     -- ^ The service topics whose connections died, and when
     -- ^ When the dashboard started: whether its machine slept before, it can't tell
   , logs :: Map.Map Topic Text
-    -- ^ The end of the log of each event topic whose latest run failed
+    -- ^ The end of the log of each event topic whose latest run failed, and of each healthcheck
   }
 
 data Severity = Healthy | Actionable | Crisis
@@ -104,14 +104,25 @@ links c = nubBy ((==) `on` ends) (pendings ++ sent)
     shown = events c
     sent =
       [ l
-      | t <- shown, Just r <- [latest c t], p <- causes r
+      | t <- shown, Just r <- [latest c t], p <- causesOf c r
       , l <- if kind "trigger" p.eid.evtTopic
-               then [Link q.eid.evtTopic t (Just (T.pack p.start.e.label)) Nothing | q <- causes p]
+               then [Link q.eid.evtTopic t (Just (T.pack p.start.e.label)) Nothing | q <- causesOf c p]
                else [Link p.eid.evtTopic t Nothing Nothing]
       , l.source `elem` shown, l.source /= t ]
     -- A run may react to several.
-    causes r = [p | e <- fromMaybe [] (r.start.e ^. reactedMany), Just p <- [Map.lookup e.correlationId c.ix.runs]]
     pendings = [Link t u (Just (T.pack tr.triggerLabel)) (Just (r.eid.correlationId, i)) | t <- shown, Just r <- [latest c t], isNothing (orphaned c r), (i, tr) <- pendingTriggers c.ix r, Just u <- [reactor c tr.triggerTopic]]
+
+-- | The runs a run reacted to.
+causesOf :: Ctx -> Run -> [Run]
+causesOf c r = [p | e <- fromMaybe [] (r.start.e ^. reactedMany), Just p <- [Map.lookup e.correlationId c.ix.runs]]
+
+-- | Reactions to a run shown as a row of an output: from that row, not its topic.
+rowLinks :: Ctx -> [(Topic, Int, Int, Topic)]
+rowLinks c =
+  [ (p.eid.evtTopic, i, k, t)
+  | t <- events c, Just r <- [latest c t], p <- causesOf c r
+  , (i, v) <- take 1 [(i, v) | (i, v) <- zip [0 ..] (views c p.eid.evtTopic), p.eid.correlationId `elem` v.viewRows]
+  , Just k <- [elemIndex p.eid.correlationId v.viewRows] ]
 
 -- | An event topic that reacted to a trigger sent on this topic before.
 reactor :: Ctx -> Topic -> Maybe Topic
@@ -142,7 +153,7 @@ outputOf c r = if isNothing shown && null fs then Nothing else Just (shown, fs)
 
 -- | The only files the page may fetch: those its output nodes show.
 files :: Ctx -> [FilePath]
-files c = [T.unpack f | t <- events c, View k Nothing (String f) <- views c t, k `elem` ["document", "image"], not ("data:" `T.isPrefixOf` f)]
+files c = [T.unpack f | t <- events c, View k Nothing (String f) _ <- views c t, k `elem` ["document", "image"], not ("data:" `T.isPrefixOf` f)]
 
 -- | What a topic's latest run holds that is recognisably something, each to be
 -- shown in a node of its own: a table of figures, documents, images, the end
@@ -153,21 +164,23 @@ views c t = case Map.findWithDefault [] t c.ix.byTopic of
   rs@(r : _) ->
     contentViews
       ++ [v | Just (shown, fs) <- [outputOf c r], v <- resultViews shown ++ map fileView fs]
-      ++ [View "log" Nothing (String l) | Just l <- [Map.lookup t c.logs]]
-      ++ [View "people" Nothing (toJSON ps) | let ps = people rs, not (null ps)]
+      ++ [view "log" Nothing (String l) | Just l <- [Map.lookup t c.logs]]
+      ++ [(view "people" Nothing (toJSON (map snd ps))) {viewRows = map fst ps} | let ps = people rs, not (null ps)]
       -- Runs say what they were, unless what they hold says it better.
-      ++ [View "runs" Nothing (toJSON (map recent latest8)) | null contentViews, isJust (dailyCount c rs), isNothing (scopeParent c t), length (nub (map said latest8)) > 1]
+      ++ [(view "runs" Nothing (toJSON (map recent latest8))) {viewRows = map (.eid.correlationId) latest8} | null contentViews, isJust (dailyCount c rs), isNothing (scopeParent c t), length (nub (map said latest8)) > 1]
   where
     -- A result is shown as whatever it's laid out as, or else as it is.
     resultViews = \case
       Just v | vs@(_ : _) <- shapes (v : [x | r' <- drop 1 allRuns, Just e <- [r'.end], Just x <- [e.e.result]]) -> vs
-      Just (String s) | Just rows <- tableOf s -> [View "table" Nothing (toJSON rows)]
-                      | otherwise -> [View "text" Nothing (String s)]
-      Just v -> [View "data" Nothing v]
+      Just (String s) | Just rows <- tableOf s -> [view "table" Nothing (toJSON rows)]
+                      | otherwise -> [view "text" Nothing (String s)]
+      Just v -> [view "data" Nothing v]
       Nothing -> []
-    fileView f = View (if ".pdf" `T.isSuffixOf` T.toLower (T.pack f) then "document" else "image") Nothing (String (T.pack f))
+    fileView f = view (if ".pdf" `T.isSuffixOf` T.toLower (T.pack f) then "document" else "image") Nothing (String (T.pack f))
     allRuns = Map.findWithDefault [] t c.ix.byTopic
-    contentViews = shapes (mapMaybe (.start.e.content) allRuns)
+    -- A mailbox's rows are the runs the mails came with.
+    contentViews = [ if v.viewKind == "mail" && isNothing v.viewTitle then v {viewRows = take 8 [r.eid.correlationId | r <- allRuns, Just (Object o) <- [r.start.e.content], isMail o]} else v
+                   | v <- shapes (mapMaybe (.start.e.content) allRuns) ]
     latest8 = take 8 allRuns
     -- Requests come with what they were and how they went.
     said r = (r.start.e.label, foldMap (.e.summary) r.end)
@@ -175,13 +188,17 @@ views c t = case Map.findWithDefault [] t c.ix.byTopic of
       [ "label" .= r.start.e.label, "summary" .= foldMap (.e.summary) r.end, "bad" .= not (null (problemsOf c r))
       , "ago" .= (fmtDuration (max 1 (fromInteger (floor (diffUTCTime c.now r.start.at)))) <> " ago") ]
     people rs =
-      [ object ["name" .= name, "email" .= e, "madeUp" .= maybe False (`madeUp` e) name, "ago" .= (fmtDuration (max 1 (fromInteger (floor (diffUTCTime c.now r.start.at)))) <> " ago")]
+      [ (r.eid.correlationId, object ["name" .= name, "email" .= e, "madeUp" .= maybe False (`madeUp` e) name, "ago" .= (fmtDuration (max 1 (fromInteger (floor (diffUTCTime c.now r.start.at)))) <> " ago")])
       | r <- take 10 rs, Just (Object o) <- [r.start.e.content], Just (String e) <- [o KM.!? "email"]
       , let name = case o KM.!? "name" of Just (String n) -> Just n; _ -> Nothing ]
 
 -- | Something a run holds, shown in a node of its own: what kind of thing it
 -- is, the field it came from, if any, and the thing.
-data View = View {viewKind :: Text, viewTitle :: Maybe Text, viewValue :: Value}
+data View = View {viewKind :: Text, viewTitle :: Maybe Text, viewValue :: Value, viewRows :: [UUID]}
+  -- ^ and, when its rows are runs, which
+
+view :: Text -> Maybe Text -> Value -> View
+view k t x = View k t x []
 
 -- | Data recognised by how it's laid out, not by what it's called, from the
 -- same place in the latest runs, newest first: a list of records is a table,
@@ -189,18 +206,18 @@ data View = View {viewKind :: Text, viewTitle :: Maybe Text, viewValue :: Value}
 -- one. Fields of an object are recognised in turn.
 shapes :: [Value] -> [View]
 shapes vs = case vs of
-  _ : _ | Just (k, x) <- shape vs -> [View k Nothing x]
-  Object o : _ -> [View k (Just (K.toText key)) x | key <- KM.keys o, Just (k, x) <- [shape [x' | Object o' <- vs, Just x' <- [o' KM.!? key]]]]
+  _ : _ | Just (k, x) <- shape vs -> [view k Nothing x]
+  Object o : _ -> [view k (Just (K.toText key)) x | key <- KM.keys o, Just (k, x) <- [shape [x' | Object o' <- vs, Just x' <- [o' KM.!? key]]]]
   _ -> []
   where
     shape = \case
       Array xs : _ | Just tbl <- records (toList xs) -> Just ("records", tbl)
       older@(Object o : _) | not (KM.null o), all isNumber o -> Just ("trend", toJSON (trend older))
-                           | mail o -> Just ("mail", toJSON (take 8 [o' | Object o' <- older, mail o']))
+                           | isMail o -> Just ("mail", toJSON (take 8 [o' | Object o' <- older, isMail o']))
       String s : _ | "data:image/" `T.isPrefixOf` s -> Just ("image", String s)
       _ -> Nothing
     isNumber = \case Number _ -> True; _ -> False
-    mail o = KM.member "subject" o && (KM.member "to" o || KM.member "from" o)
+
     trend older = Map.fromListWith (flip (++)) [(K.toText k, [realToFrac n :: Double]) | Object o <- reverse (take 288 older), (k, Number n) <- KM.toList o]
     records = \case
       xs@(Object o : _) | all ((== KM.keys o) . keysOf) xs, all (all scalar) [o' | Object o' <- xs] ->
@@ -208,6 +225,9 @@ shapes vs = case vs of
       _ -> Nothing
     keysOf = \case Object o -> KM.keys o; _ -> []
     scalar = \case Object _ -> False; Array _ -> False; _ -> True
+
+isMail :: KM.KeyMap Value -> Bool
+isMail o = KM.member "subject" o && (KM.member "to" o || KM.member "from" o)
 
 -- | Whether a name looks made up for an email: none of its words are in the
 -- address, as when a bot signs up someone else's.
@@ -234,7 +254,7 @@ tableOf s = case traverse row (filter (not . T.null . T.strip) (T.lines s)) of
 
 severityOf :: Ctx -> Run -> Severity
 severityOf c r
-  | null (problemsOf c r) = Healthy
+  | null (problemsOf c r) || superseded c r = Healthy
   | isCritical c.ix r = Crisis
   | otherwise = Actionable
 
@@ -247,7 +267,6 @@ problemsOf c = problems ((UTCTime (fromGregorian 1970 1 1) 0, c.since) : c.sleep
 graphJson :: Ctx -> Value
 graphJson c = object
   [ "connected" .= c.connected
-  , "slept" .= [fmtDuration (diffUTCTime b a) | (a, b) <- c.sleeps, diffUTCTime c.now b < 86400]
   , "machines" .= listed "system"
   , "healthchecks" .= listed "healthcheck"
   , "nodes" .= ( [ object ["id" .= (s <> "/"), "title" .= s, "group" .= True, "severity" .= maximum (map (severity c) ts)]
@@ -258,7 +277,9 @@ graphJson c = object
                     | m <- nubBy ((==) `on` (.missingId)) (missingNodes c) ] )
   , "edges" .= ( [ object ["source" .= unTopic l.source, "target" .= unTopic l.target, "kind" .= linkKind l
                           , "label" .= l.trigger, "run" .= fmap fst l.pending, "index" .= fmap snd l.pending]
-                 | l <- links c ]
+                 | l <- links c, (l.source, l.target) `notElem` [(s', t') | (s', _, _, t') <- rowLinks c] ]
+                 ++ [ object ["source" .= viewId s' i, "sourceOutput" .= ("r" <> T.pack (show k)), "target" .= unTopic t', "kind" .= ("reaction" :: Text)]
+                    | (s', i, k, t') <- rowLinks c ]
                  ++ [object ["source" .= unTopic t, "target" .= viewId t i, "kind" .= ("output" :: Text)] | t <- events c, (i, _) <- zip [0 :: Int ..] (views c t)]
                  ++ [object (["source" .= unTopic from, "target" .= m.missingId] ++ how) | m <- missingNodes c, Just (from, how) <- [m.missingFrom]]
                  ++ [object ["source" .= unTopic t, "target" .= unTopic u, "kind" .= ("expected" :: Text)] | (t, f) <- awaitedReactions c, Just u <- [find ((== unFilter f) . unTopic) (events c)]] )
@@ -270,7 +291,8 @@ graphJson c = object
     daily t = if isJust (scopeParent c t) then Nothing else dailyCount c (runsOf t)
     since at = fmtDuration (max 1 (fromInteger (floor (diffUTCTime c.now at))))
     listed k =
-      [ card False t (T.drop (T.length k + 1) (unTopic t)) ["spark" .= spark c (runsOf t), "series" .= series (runsOf t)]
+      [ card False t (T.drop (T.length k + 1) (unTopic t))
+          ["spark" .= spark c (runsOf t), "series" .= series (runsOf t), "log" .= (if severity c t > Healthy then Map.lookup t c.logs else Nothing)]
           [if d <= 0 then m <> " is full" else m <> " full in ~" <> fmtDuration d <> " at this rate" | (m, d) <- filling c (runsOf t)]
       | t <- topics c, kind k t ]
     linkKind :: Link -> Text
@@ -288,9 +310,15 @@ graphJson c = object
       Just r ->
         [ "severity" .= max (severityOf c r) (if null more then Healthy else Actionable)
         , "urls" .= urlsOf r
-        , "sub" .= (since r.start.at <> " ago" <> foldMap ((" · failing for " <>) . since) (failingSince c (runsOf t)) <> foldMap (\n -> " · " <> T.pack (show n) <> " in the last day") (daily t))
+        , "stale" .= superseded c r
+        , "missing" .= absent t
+        , "sub" .= (since r.start.at <> " ago" <> (if absent t then " · not in the latest run" else if superseded c r then " · superseded" else "") <> foldMap ((" · failing for " <>) . since) (if superseded c r then Nothing else failingSince c (runsOf t)) <> foldMap (\n -> " · " <> T.pack (show n) <> " in the last day") (daily t))
         , "problems" .= (concatMap (say drawn r) (problemsOf c r) ++ ["Its process died while waiting, " <> since at <> " ago; nothing will react to it now." | Just at <- [orphaned c r]] ++ more)
         ]
+    -- A subtask last seen in an older run of its run, missing from the latest one.
+    absent t = case scopeParent c t of
+      Just p | Just pr <- latest c p -> unTopic t `elem` map unFilter (missingSubtasks c.ix pr)
+      _ -> False
     say drawn r (p, w)
       | not drawn = [w]
       | otherwise = case p of
@@ -304,7 +332,15 @@ graphJson c = object
         [ "parent" .= holder c t
         , "history" .= reverse [not (null (problemsOf c r)) | r <- take 24 (runsOf t)]
         , "days" .= (daily t >> Just (perDay c (runsOf t))) ] []
-        : [object ["id" .= viewId t i, "parent" .= holder c t, "view" .= v.viewKind, "title" .= v.viewTitle, "value" .= v.viewValue] | (i, v) <- zip [0 :: Int ..] (views c t)]
+        : [object ["id" .= viewId t i, "parent" .= holder c t, "view" .= v.viewKind, "title" .= v.viewTitle, "value" .= v.viewValue, "rows" .= length v.viewRows] | (i, v) <- zip [0 :: Int ..] (views c t)]
+
+-- | Whether everything a run reacted to has run again since: its problems are
+-- history, as nothing is waiting on it anymore.
+superseded :: Ctx -> Run -> Bool
+superseded c r = not (null causes) && all newer causes
+  where
+    causes = [p | e <- fromMaybe [] (r.start.e ^. reactedMany), Just p <- [Map.lookup e.correlationId c.ix.runs]]
+    newer p = maybe False ((/= p.eid.correlationId) . (.eid.correlationId)) (latest c p.eid.evtTopic)
 
 -- | The web addresses a run mentions, as what it serves or made.
 urlsOf :: Run -> [Text]
@@ -389,15 +425,14 @@ spark c rs =
 filling :: Ctx -> [Run] -> [(Text, NominalDiffTime)]
 filling c rs =
   [ (k, realToFrac ((100 - y1) / slope))
-  | (k, pts@((t0, _) : _ : _ : _)) <- Map.toList samples, let (t1, y1) = last pts, t1 - t0 > 3600
-  , let slope = fitSlope pts, slope > 0, (100 - y1) / slope < 7 * 86400 ]
+  | (k, pts@((t0, y0) : _ : _ : _)) <- Map.toList samples, let (t1, y1) = last pts, t1 - t0 > 3600
+  -- From first to last: whole-percent steps would make a fitted line jumpy.
+  , let slope = (y1 - y0) / (t1 - t0), slope > 0, (100 - y1) / slope < 7 * 86400 ]
   where
     samples = Map.fromListWith (flip (++))
       [ (K.toText k, [(realToFrac (diffUTCTime r.start.at c.now) :: Double, x)])
       | r <- reverse (takeWhile ((< 86400) . diffUTCTime c.now . (.start.at)) rs), Just (Object o) <- [r.start.e.content]
       , (k, String v) <- KM.toList o, Just p <- [T.stripSuffix "%" v], [(x, "")] <- [reads (T.unpack p)] ]
-    fitSlope pts = let n = fromIntegral (length pts); mx = sum (map fst pts) / n; my = sum (map snd pts) / n
-                   in sum [(x - mx) * (y - my) | (x, y) <- pts] / sum [(x - mx) ^ (2 :: Int) | (x, _) <- pts]
 
 -- | Each number (or percentage) the runs started with, oldest first.
 series :: [Run] -> Map.Map Text [Double]

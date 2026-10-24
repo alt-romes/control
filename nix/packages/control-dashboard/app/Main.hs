@@ -99,7 +99,10 @@ ctx opts st = do
   let mk logs = Ctx {now, ix, connected, sleeps, required = map fromString opts.require, since = st.bootedAt, wills, logs}
   tails <- sequence
     [ (t,) <$> trySync (BL.readFile (logPath p t))
-    | Just p <- [opts.logs], t <- events (mk Map.empty), r : _ <- [Map.findWithDefault [] t ix.byTopic], Just e <- [r.end], not e.e.success ]
+    | Just p <- [opts.logs]
+    , t <- [t | t <- events (mk Map.empty), r : _ <- [Map.findWithDefault [] t ix.byTopic], Just e <- [r.end], not e.e.success]
+           -- A healthcheck that stops reporting has no run to fail: its log may say why.
+           ++ [t | t <- nub (Map.keys ix.byTopic ++ map fromString opts.require), "healthcheck/" `T.isPrefixOf` unTopic t] ]
   pure (mk (Map.fromList [(t, T.unlines (end (T.lines (decodeUtf8Lenient (BL.toStrict b))))) | (t, Right b) <- tails]))
   where
     logPath p t = T.unpack (T.replace "%s" (last (T.splitOn "/" (unTopic t))) (T.pack p))
