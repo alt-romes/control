@@ -52,6 +52,7 @@
 
       secrets.mercuryTokenFile = config.age.secrets.mercury-api.path;
       secrets.invoicexpressApiKeyFile = config.age.secrets.invoicexpress-api.path;
+      secrets.cobKanjideckTokenFile = config.age.secrets.cob-kanjideck-token.path;
 
       # Packages needed to build some of the finance utilities
       packages = {
@@ -121,6 +122,8 @@
     age.secrets.mercury-api.owner      = "romes"; # read by the gen-invoice and mercury-fetch user agents
     age.secrets.invoicexpress-api.file  = ../modules/_agenix/invoicexpress-api.age;
     age.secrets.invoicexpress-api.owner = "romes"; # read by gen-invoice user agent
+    age.secrets.cob-kanjideck-token.file  = ../modules/_agenix/cob-kanjideck-token.age;
+    age.secrets.cob-kanjideck-token.owner = "romes";
 
     # --- Network ----------------------------------------------------------------
   

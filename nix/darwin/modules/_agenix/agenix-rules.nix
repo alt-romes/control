@@ -32,4 +32,5 @@ in
   "wireguard-mbp.age".publicKeys = [ romes-mbp ]; # private key for mbp
   "wireguard-mercury.age".publicKeys = romes-machines;
   "mogbit-mail.age".publicKeys = romes-machines;
+  "cob-kanjideck-token.age".publicKeys = romes-machines; # CoB (mimes.cultofbits.com) token for Kanjideck, read by kanjideck-shipments
 }
