@@ -91,6 +91,22 @@
         "type": "github"
       }
     },
+    "cob-hs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791191704,
+        "narHash": "sha256-5DvMjVGe+zKr4gW+ZChWTmTxm9ofIeOEOnr/9eAPK1Q=",
+        "owner": "alt-romes",
+        "repo": "cob-hs",
+        "rev": "ebc556fbd7f2829f2830a4e88ac83fe3c60a4a2d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "alt-romes",
+        "repo": "cob-hs",
+        "type": "github"
+      }
+    },
     "codex-cli-nix": {
       "inputs": {
         "flake-utils": [
@@ -326,6 +342,22 @@
         "type": "github"
       }
     },
+    "kanjideck-fulfillment": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792445942,
+        "narHash": "sha256-QaDYN8n18GYlCxJAoM+qINCgKEycUdq4H/cJIk64tfs=",
+        "ref": "refs/heads/master",
+        "rev": "f70a6f3a556e72b239a77acd16fafe11dd805820",
+        "revCount": 120,
+        "type": "git",
+        "url": "ssh://git@github.com/alt-romes/kanjideck-fulfillment"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/alt-romes/kanjideck-fulfillment"
+      }
+    },
     "kimai-client": {
       "inputs": {
         "flake-parts": [
@@ -501,6 +533,7 @@
         "agenix": "agenix",
         "claude-code-nix": "claude-code-nix",
         "cob-cli": "cob-cli",
+        "cob-hs": "cob-hs",
         "codex-cli-nix": "codex-cli-nix",
         "control-events": "control-events",
         "flake-parts": "flake-parts",
@@ -509,6 +542,7 @@
         "home-manager": "home-manager",
         "import-tree": "import-tree",
         "invoicexpress-hs": "invoicexpress-hs",
+        "kanjideck-fulfillment": "kanjideck-fulfillment",
         "kimai-client": "kimai-client",
         "mercury-cli": "mercury-cli",
         "mercurybank-hs": "mercurybank-hs",
