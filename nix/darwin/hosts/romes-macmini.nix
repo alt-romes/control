@@ -23,6 +23,7 @@
       self.darwinModules.duckdns
       self.darwinModules.finances
       self.darwinModules.backups
+      self.darwinModules.kanjideck-label-printer
     ];
 
     services.control-events-node = {
