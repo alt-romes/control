@@ -12,6 +12,11 @@
 
     config = {
       services.imapnotify.enable = watched;
+      services.imapnotify.package = pkgs.goimapnotify.overrideAttrs (old: {
+        # Events with no command (e.g. flag changes) were taking the 1s
+        # debounce timer which caused new mail to be skipped. AI investigated so ...
+        patches = (old.patches or [ ]) ++ [ ./goimapnotify-skip-no-command.patch ];
+      });
       launchd.agents.imapnotify-mogbit.config = lib.mkIf watched {
         StandardOutPath = "${config.home.homeDirectory}/Library/Logs/imapnotify-mogbit.log";
         StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/imapnotify-mogbit.log";

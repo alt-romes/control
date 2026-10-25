@@ -1,0 +1,10 @@
+--- a/internal/runner/runner.go
++++ b/internal/runner/runner.go
+@@ -56,6 +56,7 @@
+ // Schedule debounces events before queueing them for execution
+ func (r *RunningBox) Schedule(rsp imap.IDLEEvent, done <-chan struct{}, queue chan imap.IDLEEvent) {
+ 	l := logrus.WithField("alias", rsp.Alias).WithField("mailbox", rsp.Mailbox)
++	rsp.Box.Reason = rsp.Reason
+ 	if ShouldSkip(rsp.Box) {
+ 		l.Warnf("No command for %q, skipping scheduling...", rsp.Reason)
+ 		return
