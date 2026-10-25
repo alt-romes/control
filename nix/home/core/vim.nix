@@ -73,6 +73,9 @@
         # --------------------------------------------
         { mode = "n"; key = "<leader>-"; action = ":normal 80i-<cr>"; }
 
+        # Mail
+        { mode = "n"; key = "<leader>m"; action = "<cmd>Notmuch<cr>"; }
+
         # Undo tree
         { mode = "n"; key = "<leader>u"; action = "<cmd>Undotree<cr>"; }
 
@@ -397,16 +400,28 @@
         })
 
         pkgs.vimPlugins.llama-vim
+        pkgs.vimPlugins.notmuch-nvim
       ];
 
       extraPackages = [
         pkgs.haskellPackages.hoogle
+        pkgs.w3m # notmuch.nvim HTML rendering
       ];
 
       # Enable with :LlamaEnable
       # show_info = 0,
       extraConfigLua = ''
         require('vim._core.ui2').enable({})
+
+        require('notmuch').setup({
+          maildir_sync_cmd = "true", -- `notmuch new` already runs mbsync in its preNew hook
+          render_html_body = true,
+          queries = {
+            { name = "Inbox (unread)", query = "tag:inbox and tag:unread" },
+            { name = "Flagged", query = "tag:flagged" },
+            { name = "Sent", query = "from:rodrigo@mogbit.com or from:rodrigo@kanjideck.com" },
+          },
+        })
 
         vim.g.llama_config = {
           enable_at_startup = false,
