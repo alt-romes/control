@@ -9,7 +9,7 @@
           - Do not add useless comments comparing the new code to how it worked
             previously. The code should speak for itself always. Only use
             comments in exceptional cases that need clarifying, and make them
-            short and straight to the point.
+            short and straight to the point. Write no comments at all otherwise.
           - When a dependency is not available, use `nix` to temporarily make it available.
             Don't use nix for things which are already available, like the Haskell toolchain.
             (Example: nix-shell -p python3 python3Packages.matplotlib --run 'python3 script.py')
@@ -18,6 +18,10 @@
             To browse a package which is not yet a dependency of the project, use `cabal repl --build-depends=<pkg>`.
             Do not look around with `ghc-pkg` nor directly for interface files
           - Use --no-ext-diff when viewing git diffs
+          - When editing a Haskell module, read the entire module before the
+            edit. All changes should fit in the module holistically, rather than
+            being `sed`ed in without consideration for the context in which the
+            edit is being done relative to the rest of the module contents.
         '';
     in
     {
