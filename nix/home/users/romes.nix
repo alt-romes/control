@@ -53,6 +53,16 @@
         root = "${config.home.homeDirectory}/control/satisago";
       };
 
+      xdg.configFile."matterhorn/config.ini" = lib.mkIf (osConfig ? age && osConfig.age.secrets ? wt-mattermost-token) {
+        text = ''
+          [mattermost]
+          host: mattermost.well-typed.com
+          team: well-typed
+          user: rodrigo
+          tokencmd: cat ${osConfig.age.secrets.wt-mattermost-token.path}
+        '';
+      };
+
       haskell.env.STATIC_HASKELL_CABAL_OPTS = false; # cabal build $(echo $STATIC_HASKELL_CABAL_OPTS)
 
       # --------------------------------------------------------------------------------
@@ -104,6 +114,7 @@
         pkgs.cloc
         pkgs.fd
         pkgs.haskellPackages.pretty-show # ppsh
+        pkgs.matterhorn # mattermost TUI client
 
       ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
 

@@ -121,6 +121,11 @@
       owner = "romes";
     };
 
+    age.secrets.wt-mattermost-token = lib.mkIf (builtins.pathExists ./_agenix/wt-mattermost-token.age) {
+      file = ./_agenix/wt-mattermost-token.age;
+      owner = "romes";
+    };
+
     # ------------------------------------------------------------------------
     # Users & Home Manager
 
