@@ -126,6 +126,16 @@
       owner = "romes";
     };
 
+    age.secrets.gitlab-haskell = {
+      file = ./_agenix/gitlab-haskell.age;
+      owner = "romes";
+    };
+
+    age.secrets.github-octo = {
+      file = ./_agenix/github-octo.age;
+      owner = "romes";
+    };
+
     # ------------------------------------------------------------------------
     # Users & Home Manager
 
