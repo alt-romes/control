@@ -6,6 +6,25 @@
       self-pkgs = self.packages.${pkgs.stdenv.hostPlatform.system};
       hs-comp = pkgs.haskell.compiler.${ghcVersion};
       hs-pkgs = pkgs.haskell.packages.${ghcVersion};
+
+      # mattermost-api is broken in nixpkgs: crypton-connection 0.4 added a
+      # TLS.Supported field to TLSSettingsSimple
+      matterhorn = with pkgs.haskell.lib.compose; dontCheck (doJailbreak
+        (pkgs.haskellPackages.override {
+          overrides = self: super: {
+            mattermost-api = overrideCabal (o: {
+              broken = false;
+              libraryHaskellDepends = o.libraryHaskellDepends ++ [ self.data-default ];
+              postPatch = (o.postPatch or "") + ''
+                substituteInPlace mattermost-api.cabal \
+                  --replace-fail ', crypton-connection' ', crypton-connection, data-default'
+                substituteInPlace src/Network/Mattermost/Util.hs \
+                  --replace-fail 'import           Data.Monoid ((<>))' 'import Data.Monoid ((<>)); import Data.Default (def)' \
+                  --replace-fail 'TLSSettingsSimple (not requireTrustedCert) False False' 'TLSSettingsSimple (not requireTrustedCert) False False def'
+              '';
+            }) super.mattermost-api;
+          };
+        }).matterhorn);
     in
     {
       imports = [
@@ -60,6 +79,10 @@
           team: well-typed
           user: rodrigo
           tokencmd: cat ${osConfig.age.secrets.wt-mattermost-token.path}
+
+          [keybindings]
+          focus-next-channel = C-j
+          focus-prev-channel = C-k
         '';
       };
 
@@ -114,7 +137,7 @@
         pkgs.cloc
         pkgs.fd
         pkgs.haskellPackages.pretty-show # ppsh
-        pkgs.matterhorn # mattermost TUI client
+        matterhorn # mattermost TUI client
 
       ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
 
