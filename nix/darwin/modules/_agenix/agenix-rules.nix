@@ -34,4 +34,5 @@ in
   "mogbit-mail.age".publicKeys = romes-machines;
   "cob-kanjideck-token.age".publicKeys = romes-machines; # CoB (mimes.cultofbits.com) token for Kanjideck, read by kanjideck-shipments
   "wt-mattermost-token.age".publicKeys = romes-machines;
+  "gitlab-haskell.age".publicKeys = romes-machines;
 }
