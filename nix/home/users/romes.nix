@@ -79,10 +79,17 @@
           team: well-typed
           user: rodrigo
           tokencmd: cat ${osConfig.age.secrets.wt-mattermost-token.path}
+          activityNotifyCommand: ${pkgs.writeShellScript "matterhorn-notify" ''
+            ${pkgs.terminal-notifier}/bin/terminal-notifier \
+              -title "Mattermost: $2" \
+              -message "$3" \
+              -group matterhorn \
+              -activate com.mitchellh.ghostty
+          ''}
 
           [keybindings]
-          focus-next-channel = C-j
-          focus-prev-channel = C-k
+          focus-next-channel = M-Down
+          focus-prev-channel = M-Up
         '';
       };
 
@@ -191,6 +198,7 @@
             window-padding-color = "extend";
 
             unfocused-split-opacity = 0.95; # don't dim unfocused panes
+            macos-option-as-alt = "left";
             # background-opacity = 0.95;
             # background-blur = true;
         };
