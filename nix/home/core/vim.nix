@@ -1,31 +1,7 @@
 { inputs, ... }:
 {
 
-  flake.homeModules.vim = { config, lib, pkgs, osConfig, ... }:
-  let
-    secrets = osConfig.age.secrets or { };
-
-    gitlab-nvim-src = pkgs.fetchFromGitHub {
-      owner = "harrisoncramer";
-      repo = "gitlab.nvim";
-      rev = "0228b3b9aad2bf091fc72534c23a2751e7d649de";
-      hash = "sha256-0f/CnB7s/URokTYWV/rbJuOzFTGLi+4obIL9izPmxX8=";
-    };
-    gitlab-nvim-server = pkgs.buildGoModule {
-      pname = "gitlab.nvim-server";
-      version = "git";
-      src = gitlab-nvim-src;
-      vendorHash = "sha256-OLAKTdzqynBDHqWV5RzIpfc3xZDm6uYyLD4rxbh0DMg=";
-      subPackages = [ "cmd" ];
-    };
-    gitlab-nvim = pkgs.vimUtils.buildVimPlugin {
-      name = "gitlab.nvim";
-      src = gitlab-nvim-src;
-      dependencies = with pkgs.vimPlugins; [ nui-nvim diffview-nvim ];
-      doCheck = false;
-    };
-  in
-  {
+  flake.homeModules.vim = { config, lib, pkgs, ... }: {
 
     imports = [
       inputs.nixvim.homeModules.nixvim
@@ -302,12 +278,6 @@
 
       plugins.nvim-surround.enable = true;
       plugins.fugitive.enable = true;
-      plugins.octo = {
-        enable = secrets ? github-octo;
-        settings.gh_env.__raw = ''
-          function() return { GH_TOKEN = vim.fn.readfile("${secrets.github-octo.path}")[1] } end
-        '';
-      };
       plugins.emmet.enable = true;
 
       plugins.nvim-tree = {
@@ -431,7 +401,7 @@
 
         pkgs.vimPlugins.llama-vim
         pkgs.vimPlugins.notmuch-nvim
-      ] ++ lib.optional (secrets ? gitlab-haskell) gitlab-nvim;
+      ];
 
       extraPackages = [
         pkgs.haskellPackages.hoogle
@@ -477,14 +447,6 @@
 
           vim.fn.jobstart({ opener, url }, { detach = true })
         end
-      '' + lib.optionalString (secrets ? gitlab-haskell) ''
-
-        require("gitlab").setup({
-          auth_provider = function()
-            return vim.fn.readfile("${secrets.gitlab-haskell.path}")[1], "https://gitlab.haskell.org", nil
-          end,
-          server = { binary = "${gitlab-nvim-server}/bin/cmd" },
-        })
       '';
 
       extraConfigVim = ''
