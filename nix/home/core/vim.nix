@@ -44,6 +44,7 @@
         smarttab=true;                                  # Makes tabbing smarter will realize you have 2 vs 4, and default to tabstop/tabwidth when not obvious
         cursorline=true; cursorlineopt="both";          # Highlight the line number of the cursor line (cursorlineopt=number is also good)
         swapfile=true;                                  # We want swapfiles, and use vim's macOS default 'directory' option, which is within ~/Library
+        diffopt="internal,filler,closeoff,indent-heuristic,algorithm:histogram,inline:word,linematch:60"; # Default + histogram, word-wise inline highlights, larger linematch
       };
 
       # Share clipboard between vim and system
@@ -401,6 +402,7 @@
 
         pkgs.vimPlugins.llama-vim
         pkgs.vimPlugins.notmuch-nvim
+        pkgs.vimPlugins.difftastic-nvim
       ];
 
       extraPackages = [
@@ -412,6 +414,8 @@
       # show_info = 0,
       extraConfigLua = ''
         require('vim._core.ui2').enable({})
+
+        require('difftastic-nvim').setup({ vcs = 'git' })
 
         require('notmuch').setup({
           maildir_sync_cmd = "true", -- `notmuch new` already runs mbsync in its preNew hook
