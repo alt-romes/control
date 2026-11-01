@@ -1,0 +1,13 @@
+[package]
+name = "control-dashboard"
+version = "0.3.0"
+edition = "2024"
+
+[dependencies]
+dear-app = { version = "0.22", features = ["imnodes"] }
+dear-imnodes = "0.22"
+ewebsock = "0.8"
+ehttp = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }

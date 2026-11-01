@@ -1,12 +1,25 @@
-{ inputs, ghcVersion, ... }:
+{ inputs, ... }:
 {
   perSystem = { pkgs, lib, ... }: {
-    packages.control-dashboard =
-    let
-      # ${ghcVersion} not up to date for servant et all
-      hpkgs = pkgs.haskellPackages;
-      control-events = pkgs.haskell.lib.dontCheck (hpkgs.callCabal2nix "control-events" inputs.control-events { });
-    in pkgs.haskell.lib.justStaticExecutables
-        (hpkgs.callCabal2nix "control-dashboard" ./. { inherit control-events; });
+    # The server: listens to control-events and judges them. See protocol.md.
+    packages.control-dashboard-server =
+      let
+        hpkgs = pkgs.haskellPackages;
+        control-events = pkgs.haskell.lib.dontCheck (hpkgs.callCabal2nix "control-events" inputs.control-events { });
+      in pkgs.haskell.lib.justStaticExecutables
+          (hpkgs.callCabal2nix "control-dashboard-server" ./server { inherit control-events; });
+
+    # A window onto the server.
+    packages.control-dashboard = pkgs.rustPlatform.buildRustPackage {
+      pname = "control-dashboard";
+      version = "0.3.0";
+      src = lib.fileset.toSource {
+        root = ./ui;
+        fileset = lib.fileset.unions [ ./ui/Cargo.toml ./ui/Cargo.lock ./ui/src ];
+      };
+      cargoLock.lockFile = ./ui/Cargo.lock;
+      env.IMGUI_SYS_BUILD_MODE = "source";
+      meta.mainProgram = "control-dashboard";
+    };
   };
 }

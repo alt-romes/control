@@ -1,51 +1,52 @@
 cabal-version:      3.0
-name:               control-dashboard
-version:            0.1.0
-synopsis:           Trivially simple HTML dashboard server
+name:               control-dashboard-server
+version:            0.3.0
+synopsis:           Judges what control-events say, for the dashboard's windows
 build-type:         Simple
-extra-source-files: app/graph.html app/js/*.js
 
 common shared
   ghc-options:      -Wall
   default-language: GHC2021
   default-extensions:
     OverloadedStrings
+    OverloadedRecordDot
+    DuplicateRecordFields
+    LambdaCase
+    BlockArguments
+    DeriveAnyClass
+    DerivingStrategies
+    NamedFieldPuns
   build-depends:
       aeson
     , base
-    , bytestring
     , containers
     , control-events
     , net-mqtt
-    , network-uri
-    , stm
     , text
     , time
     , uuid
 
-executable control-dashboard
+executable control-dashboard-server
   import:           shared
   main-is:          Main.hs
-  other-modules:    Events, Tree
-  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  other-modules:    Model
   hs-source-dirs:   app
+  ghc-options:      -threaded
   build-depends:
-      file-embed
+      async
+    , bytestring
+    , directory
     , filepath
     , http-types
-    , optparse-generic
-    , process
-    , servant-server
+    , stm
     , wai
-    , wai-extra
+    , wai-websockets
     , warp
-  default-extensions:
-    DataKinds
-    TypeOperators
+    , websockets
 
 test-suite spec
   import:           shared
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test app
-  other-modules:    Events, Tree
+  other-modules:    Model
