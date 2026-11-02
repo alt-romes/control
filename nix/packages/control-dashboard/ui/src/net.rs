@@ -65,6 +65,7 @@ pub struct TriggerRef {
 pub struct Run {
     pub id: String,
     pub label: String,
+    pub content: Option<Value>,
     pub start: DateTime<Utc>,
     pub took: f64,
     pub problems: Vec<String>,

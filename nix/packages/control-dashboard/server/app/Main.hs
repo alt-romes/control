@@ -242,6 +242,7 @@ http o st req respond = case (requestMethod req, pathInfo req) of
       pure $ object
         [ "id" .= r.eid.correlationId
         , "label" .= r.start.e.label
+        , "content" .= r.start.e.content
         , "start" .= r.start.at
         , "end" .= fmap (.at) r.end
         , "took" .= duration now r

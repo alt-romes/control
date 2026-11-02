@@ -46,7 +46,7 @@ server sends the whole view. Clients send nothing on it.
 
 ```json
 [{
-  "id": "uuid", "label": "Sync bank accounts", "start": "…", "end": "…" or null, "took": 1.5,
+  "id": "uuid", "label": "Sync bank accounts", "content": any JSON or null, "start": "…", "end": "…" or null, "took": 1.5,
   "problems": ["…"],
   "said": {"summary": "…", "success": true, "result": any JSON} or null,
   "subtasks": [{"topic": "…", "problems": ["…"], "said": … or null}],

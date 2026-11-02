@@ -421,6 +421,9 @@ impl Dashboard {
                     let Some(r) = cur else { return };
                     ui.separator();
                     ui.text_wrapped(&r.label);
+                    if let Some(c) = &r.content {
+                        ui.text_wrapped(json(c));
+                    }
                     for p in &r.problems {
                         red(ui, p);
                     }
@@ -475,10 +478,17 @@ fn said(ui: &Ui, s: &Said, id: &str) -> Option<String> {
             open.then(|| r.clone())
         }
         Some(v) => {
-            ui.text_wrapped(serde_json::to_string_pretty(v).unwrap());
+            ui.text_wrapped(json(v));
             None
         }
         None => None,
+    }
+}
+
+fn json(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        v => serde_json::to_string_pretty(v).unwrap(),
     }
 }
 
