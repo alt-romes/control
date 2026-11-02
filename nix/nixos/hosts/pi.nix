@@ -122,6 +122,19 @@
         };
       };
 
+      # Pings the printer over Bluetooth to check it's still connected.
+      # l2ping needs root (so no DynamicUser)
+      systemd.services.supvan-healthcheck = {
+        after = [ "bluetooth.target" "mosquitto.service" ];
+        startAt = "*:0/5";
+        serviceConfig.Type = "oneshot";
+        script = ''
+          TOPIC=healthcheck/supvan LABEL="supvan printer bluetooth" TIMEOUT=30 EXPECTED=360 \
+            ${inputs.control-events.packages.${pkgs.stdenv.hostPlatform.system}.micro-control-events}/bin/micro-control-events \
+            ${config.hardware.bluetooth.package}/bin/l2ping -c 1 -t 5 A4:93:40:05:06:42
+        '';
+      };
+
       system.stateVersion = "26.11";
     }) ];
   };
