@@ -33,6 +33,7 @@
             exec ${lib.getExe self-pkgs.control-dashboard-server} \
               --port 5001 \
               --host 127.0.0.1 \
+              --web ${self-pkgs.control-dashboard-web} \
               ${flags "require" cfg.requiredHealthchecks} \
               ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)}
           '';
@@ -44,7 +45,8 @@
           };
         };
 
-        # Reachable locally and on the wireguard VPN, for windows elsewhere
+        # Reachable locally and on the wireguard VPN, for windows elsewhere;
+        # browsers get the dashboard itself at dash.localhost.
         services.caddy.virtualHosts = {
           "dash.localhost"     = "127.0.0.1:5001";
           "control.mogbit.com" = "127.0.0.1:5001";

@@ -2,12 +2,13 @@
 //! everything else over HTTP. See ../../protocol.md.
 
 use chrono::{DateTime, Utc};
-use dear_app::AppWakeHandle;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use web_time::Instant;
 
 #[derive(Deserialize, Default)]
 pub struct View {
@@ -110,11 +111,11 @@ pub struct Net {
     retry: Instant,
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
-    wake: AppWakeHandle,
+    wake: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl Net {
-    pub fn new(server: String, wake: AppWakeHandle) -> Self {
+    pub fn new(server: String, wake: Arc<dyn Fn() + Send + Sync>) -> Self {
         let (tx, rx) = channel();
         Net { server, ws: None, retry: Instant::now(), tx, rx, wake }
     }
@@ -125,11 +126,10 @@ impl Net {
             self.retry = Instant::now() + Duration::from_secs(3);
             let wake = self.wake.clone();
             let url = self.server.replacen("http", "ws", 1) + "/";
-            match ewebsock::connect_with_wakeup(url, Default::default(), move || _ = wake.request_redraw()) {
+            match ewebsock::connect_with_wakeup(url, Default::default(), move || wake()) {
                 Ok(ws) => self.ws = Some(ws),
                 Err(e) => _ = self.tx.send(Msg::Gone(e)),
             }
-            _ = self.wake.request_redraw_at(self.retry);
         }
         let mut out: Vec<Msg> = self.rx.try_iter().collect();
         while let Some(ev) = self.ws.as_ref().and_then(|(_, rx)| rx.try_recv()) {
@@ -175,9 +175,14 @@ impl Net {
         self.fetch(req, |r| Some(Msg::Sent(r.map(|_| ()))));
     }
 
+    pub fn file_url(&self, path: &str) -> String {
+        format!("{}/file?path={}", self.server, encode(path))
+    }
+
     /// A file a run gave as its result, from the server, to open.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn file(&self, path: &str, then: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
-        ehttp::fetch(ehttp::Request::get(format!("{}/file?path={}", self.server, encode(path))), move |r| {
+        ehttp::fetch(ehttp::Request::get(self.file_url(path)), move |r| {
             then(r.map_err(|e| e.to_string()).and_then(|r| if r.ok { Ok(r.bytes) } else { Err(r.text().unwrap_or("").to_owned()) }))
         });
     }
@@ -188,7 +193,7 @@ impl Net {
             let body = r.and_then(|r| if r.ok { Ok(r.bytes) } else { Err(format!("{} {}", r.status, r.text().unwrap_or(""))) });
             if let Some(m) = msg(body) {
                 _ = tx.send(m);
-                _ = wake.request_redraw();
+                wake();
             }
         });
     }

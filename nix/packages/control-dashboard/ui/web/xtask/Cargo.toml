@@ -1,0 +1,30 @@
+# dear-imgui-rs' xtask on its own, to build Dear ImGui for browsers (the
+# imgui-sys-v1 provider) without its whole workspace. control-dashboard.nix
+# puts xtask/ and tools/build-support/ from dear-imgui-rs v0.22.0 beside this.
+[workspace]
+resolver = "2"
+members = ["xtask", "tools/build-support"]
+
+[workspace.package]
+version = "0.22.0"
+edition = "2024"
+rust-version = "1.95"
+authors = ["Mingzhen Zhuang <superfrankie621@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Latias94/dear-imgui-rs"
+homepage = "https://github.com/Latias94/dear-imgui-rs"
+categories = ["gui", "api-bindings"]
+keywords = ["imgui", "ui", "graphics", "docking", "multiview"]
+
+[workspace.dependencies]
+build-support = { package = "dear-imgui-build-support", version = "0.22.0", path = "tools/build-support" }
+cc = "1.10"
+semver = "1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3"
+toml_edit = "0.25"
+flate2 = "1"
+tar = "0.4"
+pkg-config = "0.3"
+vcpkg = "0.2.15"

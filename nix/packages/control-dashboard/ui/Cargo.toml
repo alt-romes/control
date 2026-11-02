@@ -3,11 +3,36 @@ name = "control-dashboard"
 version = "0.3.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "control-dashboard"
+path = "src/main.rs"
+
 [dependencies]
-dear-app = { version = "0.22", features = ["imnodes"] }
+dear-imgui-rs = "0.22"
 dear-imnodes = "0.22"
 ewebsock = "0.8"
 ehttp = "0.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "wasmbind"] }
+web-time = "1.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dear-app = { version = "0.22", features = ["imnodes"] }
+
+# In a browser, Dear ImGui is the imgui-sys-v1 module the page loads; see web/.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dear-imgui-rs = { version = "0.22", features = ["wasm"] }
+dear-imnodes = { version = "0.22", features = ["wasm"] }
+dear-imgui-winit = "0.22"
+dear-imgui-wgpu = { version = "0.22", features = ["webgpu"] }
+wgpu = { version = "30", features = ["webgpu"] }
+winit = "0.30.13"
+# Exactly what nixpkgs' wasm-bindgen-cli is: they must agree.
+wasm-bindgen = "=0.2.127"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Document", "Element", "HtmlCanvasElement", "HtmlElement", "Location", "Window", "console"] }
+console_error_panic_hook = "0.1"

@@ -4,6 +4,9 @@
 Windows (`ui/`, and any other) only draw what it says. Everything is JSON;
 times are ISO 8601 UTC, durations are seconds.
 
+A plain `GET` of any other path serves the server's `--web` directory: the
+dashboard built for browsers, at `/`.
+
 ## `GET /` as a WebSocket: the view
 
 On connecting, and again whenever it changes (at most every second), the

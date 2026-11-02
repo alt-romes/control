@@ -40,21 +40,22 @@ import System.IO
 
 usage :: String
 usage = unlines
-  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--logs PATTERN] [--session ID | --clean] [--state DIR]"
+  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--logs PATTERN] [--session ID | --clean] [--state DIR] [--web DIR]"
   , ""
   , "  --host, --port    where to serve (default: 127.0.0.1:5001)"
   , "  --require TOPIC   a topic that must have runs, e.g. healthcheck/scrollsent"
   , "  --logs PATTERN    where a failed script's log is, %s for the last level of its topic"
   , "  --session ID      the broker session to resume (default: control-dashboard)"
   , "  --clean           no broker session: miss whatever happens while closed"
-  , "  --state DIR       history and layout (default: ~/.local/state/control-dashboard)" ]
+  , "  --state DIR       history and layout (default: ~/.local/state/control-dashboard)"
+  , "  --web DIR         the dashboard for browsers, served at /" ]
 
-data Opts = Opts {host :: String, port :: Int, require :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath}
+data Opts = Opts {host :: String, port :: Int, require :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath, web :: Maybe FilePath}
 
 opts :: IO Opts
 opts = do
   home <- getHomeDirectory
-  getArgs >>= go (Opts "127.0.0.1" 5001 [] Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard"))
+  getArgs >>= go (Opts "127.0.0.1" 5001 [] Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard") Nothing)
   where
     go o = \case
       [] -> pure o
@@ -65,6 +66,7 @@ opts = do
       "--session" : v : as -> go o {session = Just v} as
       "--clean" : as -> go o {session = Nothing} as
       "--state" : v : as -> go o {state = v} as
+      "--web" : v : as -> go o {web = Just v} as
       ["-h"] -> hPutStr stderr usage >> exitWith ExitSuccess
       a : _ -> hPutStr stderr ("unknown argument " <> a <> "\n" <> usage) >> exitWith (ExitFailure 2)
 
@@ -214,6 +216,10 @@ http o st req respond = case (requestMethod req, pathInfo req) of
     if p `elem` shown
       then readMaybe (T.unpack p) >>= maybe (text status404 "Gone.") (respond . responseLBS status200 [(hContentType, mime (takeExtension (T.unpack p)))])
       else text status404 "Not a result."
+  -- The dashboard for browsers: its files, by name, and nothing else.
+  ("GET", path) | Just dir <- o.web, all (\p -> not (T.null p) && T.head p /= '.') path -> do
+    let name = if null path then "index.html" else T.unpack (T.intercalate "/" path)
+    readMaybe (dir </> name) >>= maybe (text status404 "Not found.") (respond . responseLBS status200 [(hContentType, mime (takeExtension name))])
   _ -> text status404 "Not found."
   where
     layoutFile = o.state </> "layout.json"
@@ -221,7 +227,7 @@ http o st req respond = case (requestMethod req, pathInfo req) of
     json = respond . responseLBS status200 [(hContentType, "application/json")] . encode
     text s = respond . responseLBS s [(hContentType, "text/plain; charset=utf-8")] . BL8.fromStrict . T.encodeUtf8
     readMaybe f = doesFileExist f >>= \e -> if e then Just <$> BL8.readFile f else pure Nothing
-    mime = \case ".pdf" -> "application/pdf"; ".png" -> "image/png"; ".jpg" -> "image/jpeg"; ".svg" -> "image/svg+xml"; _ -> "application/octet-stream"
+    mime = \case ".html" -> "text/html; charset=utf-8"; ".js" -> "text/javascript"; ".wasm" -> "application/wasm"; ".pdf" -> "application/pdf"; ".png" -> "image/png"; ".jpg" -> "image/jpeg"; ".svg" -> "image/svg+xml"; _ -> "application/octet-stream"
     details now s r = do
       let ix = index s
           bad c = not (null (problems now s ix c))
