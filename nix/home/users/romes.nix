@@ -146,6 +146,8 @@
         pkgs.haskellPackages.pretty-show # ppsh
         matterhorn # mattermost TUI client
 
+        pkgs.jujutsu
+
       ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
 
         # macOS only
