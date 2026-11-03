@@ -96,6 +96,9 @@
           options = { noremap = true; silent = true; };
         }
 
+        # macOS inserts a non-breaking space (U+00A0) on Option+Space
+        { mode = ["i" "c"]; key = "<Char-0xa0>"; action = "<Space>"; }
+
         # Quickfix and location list navigation
         { mode = "n"; key = "<leader>qo"; action = "<cmd>copen<cr>"; }
         { mode = "n"; key = "<leader>qn"; action = "<cmd>cnext<cr>"; }
