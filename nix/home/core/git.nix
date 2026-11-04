@@ -1,5 +1,5 @@
 {
-  flake.homeModules.git = { lib, pkgs, ... }: {
+  flake.homeModules.git = { config, lib, pkgs, ... }: {
 
     programs.git = {
       enable = true;
@@ -65,6 +65,20 @@
       ignores =
         [ ".DS_Store" "dist-newstyle/" "__pycache__" ".idea" ".vim/undofiles/%*"
           "*.orig" "*.swp" "*.class" "*.aux" "*.log" "*.out" "*.hi" "*.o" "tags" ];
+    };
+
+    programs.jujutsu = {
+      enable = true;
+      settings = {
+        user = { inherit (config.programs.git.settings.user) name email; };
+        signing = {
+          behavior = "own";
+          backend = "ssh";
+          key = config.programs.git.signing.key;
+        } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          backends.ssh.program = config.programs.git.settings."gpg \"ssh\"".program;
+        };
+      };
     };
 
     programs.difftastic = {
