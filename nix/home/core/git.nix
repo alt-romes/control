@@ -18,6 +18,11 @@
         pull.rebase = true;
         rebase.autosquash = true;
 
+        # Helps with stacked PRs by automatically updating branches that point
+        # to commits that are being rebased.
+        # See https://andrewlock.net/working-with-stacked-branches-in-git-is-easier-with-update-refs/
+        rebase.updateRefs = true;
+
         log.graph = true;
         diff.colorMoved = "default";
 
