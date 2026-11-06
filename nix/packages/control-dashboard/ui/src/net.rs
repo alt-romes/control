@@ -13,11 +13,15 @@ use web_time::Instant;
 #[derive(Deserialize, Default)]
 pub struct View {
     pub connected: bool,
+    pub since: Option<DateTime<Utc>>,
+    pub now: Vec<Attention>,
     pub machines: Vec<Item>,
     pub services: Vec<Item>,
     pub nodes: Vec<Item>,
     pub ghosts: Vec<Ghost>,
     pub links: Vec<Link>,
+    pub todos: Vec<Todo>,
+    pub notes: Vec<Note>,
 }
 
 #[derive(Deserialize)]
@@ -28,14 +32,24 @@ pub struct Item {
     pub stats: Option<String>,
     pub problems: Vec<String>,
     pub group: Option<String>,
+    pub recent: Vec<Tick>,
+    pub content: Option<Value>,
+    pub result: Option<Value>,
 }
 
-#[derive(Deserialize, Clone, Copy, PartialEq)]
+#[derive(Deserialize)]
+pub struct Tick {
+    pub status: String,
+    pub took: f64,
+}
+
+#[derive(Deserialize, Clone, Copy, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Health {
     Bad,
     Waiting,
     Running,
+    #[default]
     Fine,
     Unseen,
 }
@@ -62,6 +76,41 @@ pub struct TriggerRef {
 }
 
 #[derive(Deserialize)]
+pub struct Todo {
+    pub key: String,
+    pub title: String,
+    pub project: String,
+    pub due: String,
+    pub when: String,
+    pub problems: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct Attention {
+    pub key: String,
+    pub title: String,
+    pub project: Option<String>,
+    pub status: Health,
+    pub problems: Vec<String>,
+    pub triggers: Vec<Announced>,
+}
+
+#[derive(Deserialize)]
+pub struct Announced {
+    pub run: String,
+    pub index: usize,
+    pub label: String,
+}
+
+#[derive(Deserialize, Serialize, Clone, PartialEq)]
+pub struct Note {
+    pub file: String,
+    pub line: usize,
+    pub indent: usize,
+    pub text: String,
+}
+
+#[derive(Deserialize)]
 pub struct Run {
     pub id: String,
     pub label: String,
@@ -73,6 +122,21 @@ pub struct Run {
     pub subtasks: Vec<Subtask>,
     pub triggers: Vec<Pending>,
     pub log: Option<String>,
+    pub trace: Vec<Span>,
+    pub diagnosis: Option<String>,
+    pub diagnosable: bool,
+}
+
+/// A run in the chain the shown one is part of.
+#[derive(Deserialize)]
+pub struct Span {
+    pub id: String,
+    pub topic: String,
+    pub label: String,
+    pub start: DateTime<Utc>,
+    pub end: Option<DateTime<Utc>>,
+    pub depth: usize,
+    pub status: String,
 }
 
 #[derive(Deserialize)]
@@ -100,10 +164,14 @@ pub type Layout = HashMap<String, [f32; 2]>;
 
 pub enum Msg {
     View(View),
+    /// The view as it was at a time.
+    Past(DateTime<Utc>, Result<View, String>),
     Gone(String),
     Details(String, Vec<Run>),
     Layout(Layout),
     Sent(Result<(), String>),
+    Diagnosed(String, Result<(), String>),
+    Image(String, Result<Vec<u8>, String>),
 }
 
 pub struct Net {
@@ -153,11 +221,37 @@ impl Net {
         out
     }
 
-    pub fn details(&self, topic: &str) {
+    /// A topic's runs, now or as they were at a time.
+    pub fn details(&self, topic: &str, at: Option<DateTime<Utc>>) {
         let topic = topic.to_owned();
-        self.fetch(ehttp::Request::get(format!("{}/api/topic?topic={}", self.server, encode(&topic))), move |r| {
+        self.fetch(ehttp::Request::get(format!("{}/api/topic?topic={}{}", self.server, encode(&topic), when(at))), move |r| {
             r.and_then(|b| serde_json::from_slice(&b).map_err(|e| e.to_string())).ok().map(|d| Msg::Details(topic, d))
         });
+    }
+
+    pub fn past(&self, at: DateTime<Utc>) {
+        self.fetch(ehttp::Request::get(format!("{}/api/view?{}", self.server, &when(Some(at))[1..])), move |r| {
+            Some(Msg::Past(at, r.and_then(|b| serde_json::from_slice(&b).map_err(|e| e.to_string()))))
+        });
+    }
+
+    pub fn note(&self, n: &Note) {
+        let req = ehttp::Request::post(format!("{}/api/note", self.server), serde_json::to_vec(n).unwrap());
+        self.fetch(req, |r| Some(Msg::Sent(r.map(|_| ()))));
+    }
+
+    /// Asks Claude about a run: it takes a while.
+    pub fn diagnose(&self, run: &str) {
+        let mut req = ehttp::Request::post(format!("{}/api/diagnose", self.server), serde_json::to_vec(&serde_json::json!({"run": run})).unwrap());
+        req.timeout = Some(Duration::from_secs(330));
+        let run = run.to_owned();
+        self.fetch(req, |r| Some(Msg::Diagnosed(run, r.map(|_| ()))));
+    }
+
+    /// An image in a run's content or result.
+    pub fn image(&self, path: &str) {
+        let path = path.to_owned();
+        self.fetch(ehttp::Request::get(self.file_url(&path)), |r| Some(Msg::Image(path, r)));
     }
 
     pub fn layout(&self) {
@@ -173,6 +267,11 @@ impl Net {
 
     pub fn send(&self, t: &TriggerRef) {
         let req = ehttp::Request::post(format!("{}/api/send", self.server), serde_json::to_vec(t).unwrap());
+        self.fetch(req, |r| Some(Msg::Sent(r.map(|_| ()))));
+    }
+
+    pub fn todo(&self, body: &Value) {
+        let req = ehttp::Request::post(format!("{}/api/todo", self.server), serde_json::to_vec(body).unwrap());
         self.fetch(req, |r| Some(Msg::Sent(r.map(|_| ()))));
     }
 
@@ -198,6 +297,10 @@ impl Net {
             }
         });
     }
+}
+
+fn when(at: Option<DateTime<Utc>>) -> String {
+    at.map_or(String::new(), |t| format!("&at={}", encode(&t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))))
 }
 
 fn encode(s: &str) -> String {

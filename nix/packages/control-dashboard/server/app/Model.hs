@@ -1,21 +1,25 @@
 -- | What the runs seen on the broker say about the system.
 module Model
   ( Run (..), Logged (..), State (..), Index (..), Link (..), Ghost (..)
-  , apply, setConnected, index, latest, problems, pendingTriggers, awaitedReactions, graph, matches, duration, fmtDuration, firstLine
+  , apply, loggedAt, setConnected, topicOf, index, latest, problems, pendingTriggers, awaitedReactions, graph, matches, duration, fmtDuration, firstLine
+  , Tick (..), tick, recent, trace
+  , Todo (..), Change (Change), Horizon (..), openTodos, todoKey, horizon, endOf, todoProblems
   ) where
 
 import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..))
-import Data.Aeson (FromJSON, ToJSON (..), Value, object, (.=))
+import Data.Aeson (FromJSON, Result (..), ToJSON (..), Value, fromJSON, object, (.=))
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, listToMaybe, maybeToList)
+import Data.Maybe (fromMaybe, isNothing, listToMaybe, maybeToList)
 import Data.Ord (Down (..))
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
+import Data.Time (Day, NominalDiffTime, UTCTime, addDays, defaultTimeLocale, diffUTCTime, formatTime, fromGregorian, toGregorian, utctDay)
+import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.UUID (UUID)
+import qualified Data.UUID as UUID
 import GHC.Generics (Generic)
 import Network.MQTT.Topic (unFilter, unTopic)
 
@@ -35,6 +39,7 @@ data State = State
     -- ^ Newest first
   , required :: [Text]
   , connected :: Bool
+  , todos :: Map UUID Todo
   }
 
 -- | How many runs of each topic to remember.
@@ -48,6 +53,7 @@ grace = 60
 apply :: Logged -> State -> State
 apply (Finished i d) st = st {runs = Map.adjust (\r -> r {end = Just d}) i st.runs}
 apply (Started e s) st
+  | Just project <- T.stripPrefix "todo/" t = todo project e s st
   | Map.member e.correlationId st.runs || "test/" `T.isPrefixOf` t = st
   | otherwise = st {runs = foldr Map.delete runs' old, byTopic = Map.insert t kept st.byTopic}
   where
@@ -55,6 +61,63 @@ apply (Started e s) st
     runs' = Map.insert e.correlationId (Run e s Nothing) st.runs
     (kept, old) = splitAt keep (sortOn (Down . startAt) (e.correlationId : Map.findWithDefault [] t st.byTopic))
     startAt i = (runs' Map.! i).start.at
+
+loggedAt :: Logged -> UTCTime
+loggedAt = \case Started _ s -> s.at; Finished _ d -> d.at
+
+-- * Todos
+--
+-- A todo is an event on @todo/<project>@, so a project is just a path. Later
+-- events on its topic react to it: @{"due": day}@ reschedules it and
+-- @{"done": true}@ closes it; a label renames it. Anything can add one.
+
+data Todo = Todo
+  { item :: EventId
+  , title :: Text
+  , project :: Text
+  , captured :: UTCTime
+  , due :: Day
+  , closed :: Maybe UTCTime
+  }
+
+-- | A todo event's content.
+data Change = Change {due :: Maybe Day, done :: Maybe Bool}
+  deriving (Generic, ToJSON, FromJSON)
+
+todo :: Text -> EventId -> Timed (EvtMsg Value) -> State -> State
+todo project e s st = case [i | r <- fromMaybe [] s.e.reactTo, Just i <- [Map.lookup r.correlationId st.todos]] of
+  i : _ -> st {todos = Map.insert i.item.correlationId (change i) st.todos}
+  [] -> st {todos = Map.insertWith (\_ old -> old) e.correlationId (Todo e label project s.at (fromMaybe (utctDay s.at) c.due) Nothing) st.todos}
+  where
+    label = T.strip (T.pack s.e.label)
+    c = case fromJSON <$> s.e.content of Just (Success x) -> x; _ -> Change Nothing Nothing
+    change i = i {title = if T.null label then i.title else label, due = fromMaybe i.due c.due, closed = if c.done == Just True then Just s.at else i.closed}
+
+-- | Open todos by project, soonest first.
+openTodos :: State -> [Todo]
+openTodos st = sortOn (\i -> (i.project, i.due)) [i | i <- Map.elems st.todos, isNothing i.closed]
+
+todoKey :: UUID -> Text
+todoKey i = "todo/" <> UUID.toText i
+
+data Horizon = Today | Week | Year
+  deriving (Eq, Show)
+
+-- | When a todo is for: anything late is for today.
+horizon :: Day -> Todo -> Horizon
+horizon today i
+  | i.due <= today = Today
+  | i.due <= endOf Week today = Week
+  | otherwise = Year
+
+endOf :: Horizon -> Day -> Day
+endOf h today = case h of
+  Today -> today
+  Week -> let (_, _, d) = toWeekDate today in addDays (fromIntegral (7 - d)) today
+  Year -> let (y, _, _) = toGregorian today in fromGregorian y 12 31
+
+todoProblems :: Day -> Todo -> [Text]
+todoProblems today i = ["Was due " <> T.pack (formatTime defaultTimeLocale "%a %e %b" i.due) <> "." | i.due < today]
 
 setConnected :: Bool -> State -> State
 setConnected b st = st {connected = b}
@@ -78,6 +141,17 @@ index st = Index (by (maybeToList . (.scope))) (by (fromMaybe [] . (.reactTo)))
 related :: (Index -> Map UUID [Run]) -> Index -> Run -> [Run]
 related f ix r = Map.findWithDefault [] r.eid.correlationId (f ix)
 
+-- | The chain of runs this one is part of, from the run that began it, with
+-- how deep each is: every run is followed by its subtasks and reactions.
+trace :: State -> Index -> Run -> [(Int, Run)]
+trace st ix r = take 60 (go 0 (root (20 :: Int) r))
+  where
+    parent x = listToMaybe [p | e <- maybeToList x.start.e.scope ++ fromMaybe [] x.start.e.reactTo, Just p <- [Map.lookup e.correlationId st.runs]]
+    root n x = case parent x of
+      Just p | n > 0 -> root (n - 1) p
+      _ -> x
+    go d x = (d, x) : if d >= 10 then [] else concatMap (go (d + 1)) (sortOn (.start.at) (related (.children) ix x ++ related (.reactors) ix x))
+
 -- | Reactions a run expects that haven't come, besides those a pending
 -- trigger would cause: that's the user's to send.
 awaitedReactions :: Index -> Run -> [Text]
@@ -94,6 +168,25 @@ pendingTriggers ix r =
 
 duration :: UTCTime -> Run -> NominalDiffTime
 duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
+
+-- | A run at a glance: whether it went wrong by itself, and how long it took.
+data Tick = Tick Text NominalDiffTime
+
+instance ToJSON Tick where
+  toJSON (Tick s took) = object ["status" .= s, "took" .= took]
+
+tick :: UTCTime -> Run -> Tick
+tick now r = Tick status took
+  where
+    took = duration now r
+    status
+      | maybe False (not . (.e.success)) r.end || took > fromIntegral r.start.e.rules.timeout = "bad"
+      | isNothing r.end = "running"
+      | otherwise = "fine"
+
+-- | A topic's last runs, oldest first.
+recent :: UTCTime -> State -> Text -> [Tick]
+recent now st t = reverse [tick now r | i <- take 30 (Map.findWithDefault [] t st.byTopic), Just r <- [Map.lookup i st.runs]]
 
 problems :: UTCTime -> State -> Index -> Run -> [Text]
 problems now st ix r =

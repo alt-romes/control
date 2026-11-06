@@ -111,6 +111,7 @@ impl Running {
             }
             _ => return Ok(()),
         };
+        self.app.textures(&mut |t| self.imgui.register_texture(t));
         let token = self.imgui.try_begin_frame().map_err(|e| e.to_string())?;
         let ui = token.ui();
         self.app.frame(ui, &self.nodes);

@@ -1,5 +1,5 @@
 use control_dashboard::app::Dashboard;
-use dear_app::{AddOnsConfig, AppConfig, Application, FrameContext, GpuContext, InitializedContext, RedrawMode, RunError, Theme};
+use dear_app::{AddOnsConfig, AppConfig, Application, FrameContext, GpuContext, InitializedContext, PrepareFrameContext, RedrawMode, RunError, Theme};
 use std::sync::Arc;
 
 const USAGE: &str = "\
@@ -36,6 +36,11 @@ impl Application for Native {
     fn initialized(&mut self, context: &mut InitializedContext<'_>, _: &mut GpuContext<'_>) -> Result<(), RunError> {
         let wake = context.wake_handle();
         self.0.connect(Arc::new(move || _ = wake.request_redraw()));
+        Ok(())
+    }
+
+    fn prepare_frame(&mut self, context: &mut PrepareFrameContext<'_>) -> Result<(), RunError> {
+        self.0.textures(&mut |t| context.register_texture(t));
         Ok(())
     }
 

@@ -19,8 +19,11 @@ common shared
   build-depends:
       aeson
     , base
+    , bytestring
     , containers
     , control-events
+    , directory
+    , filepath
     , net-mqtt
     , text
     , time
@@ -29,15 +32,13 @@ common shared
 executable control-dashboard-server
   import:           shared
   main-is:          Main.hs
-  other-modules:    Model
+  other-modules:    Claude, Model, Notes
   hs-source-dirs:   app
   ghc-options:      -threaded
   build-depends:
       async
-    , bytestring
-    , directory
-    , filepath
     , http-types
+    , process
     , stm
     , wai
     , wai-websockets
@@ -49,4 +50,4 @@ test-suite spec
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test app
-  other-modules:    Model
+  other-modules:    Model, Notes
