@@ -32,7 +32,7 @@ common shared
 executable control-dashboard-server
   import:           shared
   main-is:          Main.hs
-  other-modules:    Claude, Model, Notes
+  other-modules:    Claude, Model
   hs-source-dirs:   app
   ghc-options:      -threaded
   build-depends:
@@ -50,4 +50,4 @@ test-suite spec
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test app
-  other-modules:    Model, Notes
+  other-modules:    Model

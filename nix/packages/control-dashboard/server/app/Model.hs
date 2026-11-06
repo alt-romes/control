@@ -1,13 +1,12 @@
 -- | What the runs seen on the broker say about the system.
 module Model
   ( Run (..), Logged (..), State (..), Index (..), Link (..), Ghost (..)
-  , apply, loggedAt, setConnected, topicOf, index, latest, problems, pendingTriggers, awaitedReactions, graph, matches, duration, fmtDuration, firstLine
-  , Tick (..), tick, recent, trace
-  , Todo (..), Change (Change), Horizon (..), openTodos, todoKey, horizon, endOf, todoProblems
+  , apply, setConnected, topicOf, index, latest, problems, pendingTriggers, awaitedReactions, graph, places, matches, duration, fmtDuration, firstLine
+  , Health (..), Tick (..), tick, recent, trace
   ) where
 
 import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..))
-import Data.Aeson (FromJSON, Result (..), ToJSON (..), Value, fromJSON, object, (.=))
+import Data.Aeson (FromJSON, ToJSON (..), Value (..), object, (.=))
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -16,10 +15,8 @@ import Data.Ord (Down (..))
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (Day, NominalDiffTime, UTCTime, addDays, defaultTimeLocale, diffUTCTime, formatTime, fromGregorian, toGregorian, utctDay)
-import Data.Time.Calendar.WeekDate (toWeekDate)
+import Data.Time (NominalDiffTime, UTCTime, diffUTCTime)
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
 import GHC.Generics (Generic)
 import Network.MQTT.Topic (unFilter, unTopic)
 
@@ -39,7 +36,6 @@ data State = State
     -- ^ Newest first
   , required :: [Text]
   , connected :: Bool
-  , todos :: Map UUID Todo
   }
 
 -- | How many runs of each topic to remember.
@@ -53,7 +49,6 @@ grace = 60
 apply :: Logged -> State -> State
 apply (Finished i d) st = st {runs = Map.adjust (\r -> r {end = Just d}) i st.runs}
 apply (Started e s) st
-  | Just project <- T.stripPrefix "todo/" t = todo project e s st
   | Map.member e.correlationId st.runs || "test/" `T.isPrefixOf` t = st
   | otherwise = st {runs = foldr Map.delete runs' old, byTopic = Map.insert t kept st.byTopic}
   where
@@ -61,63 +56,6 @@ apply (Started e s) st
     runs' = Map.insert e.correlationId (Run e s Nothing) st.runs
     (kept, old) = splitAt keep (sortOn (Down . startAt) (e.correlationId : Map.findWithDefault [] t st.byTopic))
     startAt i = (runs' Map.! i).start.at
-
-loggedAt :: Logged -> UTCTime
-loggedAt = \case Started _ s -> s.at; Finished _ d -> d.at
-
--- * Todos
---
--- A todo is an event on @todo/<project>@, so a project is just a path. Later
--- events on its topic react to it: @{"due": day}@ reschedules it and
--- @{"done": true}@ closes it; a label renames it. Anything can add one.
-
-data Todo = Todo
-  { item :: EventId
-  , title :: Text
-  , project :: Text
-  , captured :: UTCTime
-  , due :: Day
-  , closed :: Maybe UTCTime
-  }
-
--- | A todo event's content.
-data Change = Change {due :: Maybe Day, done :: Maybe Bool}
-  deriving (Generic, ToJSON, FromJSON)
-
-todo :: Text -> EventId -> Timed (EvtMsg Value) -> State -> State
-todo project e s st = case [i | r <- fromMaybe [] s.e.reactTo, Just i <- [Map.lookup r.correlationId st.todos]] of
-  i : _ -> st {todos = Map.insert i.item.correlationId (change i) st.todos}
-  [] -> st {todos = Map.insertWith (\_ old -> old) e.correlationId (Todo e label project s.at (fromMaybe (utctDay s.at) c.due) Nothing) st.todos}
-  where
-    label = T.strip (T.pack s.e.label)
-    c = case fromJSON <$> s.e.content of Just (Success x) -> x; _ -> Change Nothing Nothing
-    change i = i {title = if T.null label then i.title else label, due = fromMaybe i.due c.due, closed = if c.done == Just True then Just s.at else i.closed}
-
--- | Open todos by project, soonest first.
-openTodos :: State -> [Todo]
-openTodos st = sortOn (\i -> (i.project, i.due)) [i | i <- Map.elems st.todos, isNothing i.closed]
-
-todoKey :: UUID -> Text
-todoKey i = "todo/" <> UUID.toText i
-
-data Horizon = Today | Week | Year
-  deriving (Eq, Show)
-
--- | When a todo is for: anything late is for today.
-horizon :: Day -> Todo -> Horizon
-horizon today i
-  | i.due <= today = Today
-  | i.due <= endOf Week today = Week
-  | otherwise = Year
-
-endOf :: Horizon -> Day -> Day
-endOf h today = case h of
-  Today -> today
-  Week -> let (_, _, d) = toWeekDate today in addDays (fromIntegral (7 - d)) today
-  Year -> let (y, _, _) = toGregorian today in fromGregorian y 12 31
-
-todoProblems :: Day -> Todo -> [Text]
-todoProblems today i = ["Was due " <> T.pack (formatTime defaultTimeLocale "%a %e %b" i.due) <> "." | i.due < today]
 
 setConnected :: Bool -> State -> State
 setConnected b st = st {connected = b}
@@ -169,8 +107,15 @@ pendingTriggers ix r =
 duration :: UTCTime -> Run -> NominalDiffTime
 duration now r = diffUTCTime (maybe now (.at) r.end) r.start.at
 
+-- | Worst first.
+data Health = Bad | Waiting | Running | Fine | Unseen
+  deriving (Eq, Ord, Show)
+
+instance ToJSON Health where
+  toJSON = String . \case Bad -> "bad"; Waiting -> "waiting"; Running -> "running"; Fine -> "fine"; Unseen -> "unseen"
+
 -- | A run at a glance: whether it went wrong by itself, and how long it took.
-data Tick = Tick Text NominalDiffTime
+data Tick = Tick Health NominalDiffTime
 
 instance ToJSON Tick where
   toJSON (Tick s took) = object ["status" .= s, "took" .= took]
@@ -180,9 +125,9 @@ tick now r = Tick status took
   where
     took = duration now r
     status
-      | maybe False (not . (.e.success)) r.end || took > fromIntegral r.start.e.rules.timeout = "bad"
-      | isNothing r.end = "running"
-      | otherwise = "fine"
+      | maybe False (not . (.e.success)) r.end || took > fromIntegral r.start.e.rules.timeout = Bad
+      | isNothing r.end = Running
+      | otherwise = Fine
 
 -- | A topic's last runs, oldest first.
 recent :: UTCTime -> State -> Text -> [Tick]
@@ -229,9 +174,9 @@ graph st ix = (nodes, ghosts ++ awaitedGhosts, plain ++ viaTriggers ++ pending +
     edges kind = Set.toList (Set.fromList [(unTopic p.evtTopic, topicOf r) | r <- Map.elems st.runs, p <- kind r.start.e])
     scoped = Set.fromList (map snd (edges (maybeToList . (.scope))))
     reactions = edges (fromMaybe [] . (.reactTo))
-    hidden t = any (`T.isPrefixOf` t) ["system/", "healthcheck/", "trigger/"] || Set.member t scoped
+    hidden t = any (`T.isPrefixOf` t) ["system/", "healthcheck/", "trigger/", "dashboard/"] || Set.member t scoped
     nodes = filter (not . hidden) (Set.toList (Set.fromList (Map.keys st.byTopic ++ st.required ++ concat [[a, b] | (a, b) <- reactions])))
-    plain = [Link a b Nothing Nothing | (a, b) <- reactions, not (hidden a), not (hidden b)]
+    plain = [Link a b Nothing Nothing | (a, b) <- reactions, a /= b, not (hidden a), not (hidden b)]
     viaTriggers =
       [ Link a b ((\r -> T.pack r.start.e.label) <$> latest st t) Nothing
       | (t, b) <- reactions, "trigger/" `T.isPrefixOf` t, not (hidden b), (a, t') <- reactions, t' == t, not (hidden a) ]
@@ -245,6 +190,37 @@ graph st ix = (nodes, ghosts ++ awaitedGhosts, plain ++ viaTriggers ++ pending +
     -- Named from where its run is, as a sibling is: "checking", not "script/finances/revolut-import/checking".
     relative t f = let (a, b) = (T.splitOn "/" t, T.splitOn "/" f) in T.intercalate "/" (drop (length (takeWhile id (zipWith (==) (init a) b))) b)
     expected trig = let tt = unTopic trig.triggerTopic in maybe tt snd (listToMaybe [l | l <- reactions, fst l == tt, not (hidden (snd l))])
+
+-- | Where each node goes, as a column and a row: a column per step down
+-- the longest chain of links to it, and a row per chain. A node's first
+-- link further right stays on its row, and the nodes hanging under it take
+-- the rows right below. Nodes are visited in the order given, those nothing
+-- links to first, and a link back up a chain doesn't count.
+places :: [Text] -> [(Text, Text)] -> [(Text, Text)] -> Map Text (Int, Int)
+places keys links under = snd (foldl visit (0, Map.empty) order)
+  where
+    order = filter (`notElem` map snd links) keys ++ keys
+    forward = snd (foldl (\acc k -> walk [] k acc) (Set.empty, []) order)
+    walk path k (seen, es)
+      | Set.member k seen = (seen, es)
+      | otherwise = foldl step (Set.insert k seen, es) [b | (a, b) <- links, a == k]
+      where
+        step acc b
+          | b `elem` k : path = acc
+          | otherwise = (\(s, e) -> (s, (k, b) : e)) (walk (k : path) b acc)
+    col :: Text -> Int
+    col k = maximum (0 : [1 + col a | (a, b) <- forward, b == k])
+    visit acc@(next, m) k
+      | Map.member k m = acc
+      | otherwise = place k next (next + 1, m)
+    place k row (next, m) = go True (foldl below (next, Map.insert k (col k, row) m) [c | (p, c) <- under, p == k]) [b | (a, b) <- links, a == k]
+      where
+        below (n, m') c = (n + 1, Map.insert c (col k, n) m')
+        go _ acc [] = acc
+        go first acc@(n, m') (t : ts)
+          | Map.member t m' = go first acc ts
+          | first, col t > col k = go False (place t row acc) ts
+          | otherwise = go False (place t n (n + 1, m')) ts
 
 -- | MQTT topic filter matching, with @+@ and @#@.
 matches :: Text -> Text -> Bool

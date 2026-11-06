@@ -16,30 +16,25 @@ server sends the whole view. Clients send nothing on it.
 {
   "connected": true,
   "status": "bad",
-  "since": "2026-11-02T00:09:22Z",
-  "now": [Attention],
+  "now": [{"key": "system/m4", "status": "bad", "problems": ["Disk 98% full."], "triggers": [{"run": "uuid", "index": 0, "label": "retry"}]}],
   "machines": [Item],
   "services": [Item],
   "nodes": [Item],
   "ghosts": [{"key": "a/b|trigger/c", "title": "x/y", "announcer": "a/b"}],
   "links": [{"from": "a/b", "to": "x/y", "label": "print the label", "trigger": {"run": "uuid", "index": 0}}],
-  "todos": [Todo],
-  "notes": [{"file": "satisago/README.md", "line": 41, "indent": 4, "text": "Do this"}]
+  "said": [{"key": "a/b#content", "under": "a/b", "title": "content", "value": any JSON}],
+  "places": {"a/b": [0, 0], "a/b#content": [0, 1], "x/y": [1, 0]}
 }
 ```
 
 - `connected`: whether the server reaches the broker.
-- `status`: the worst of `now`, `"bad"`, `"waiting"` or `"fine"`: all a menu
+- `status`: the worst of `now`: `"bad"`, `"waiting"` or `"fine"`. All a menu
   bar needs.
-- `since`: when the history begins, as far as a window can rewind.
-- `now` is what needs the user, worst first: `{"key", "title", "project",
-  "status", "problems", "triggers"}`, a topic or a todo (`project` is a
-  todo's). Bad topics, late todos, topics waiting for a trigger (`triggers`,
-  each `{"run", "index", "label"}`, to send), then today's todos.
+- `now` is what needs the user, worst first: topics that are bad, then those
+  waiting for a trigger to be sent (`triggers`, see below).
 - `machines` are the `system/<machine>` topics, `services` the `healthcheck/…`
   topics, `nodes` everything else worth a node in the graph.
-- An `Item` is `{"topic", "status", "last", "stats", "problems", "group",
-  "recent", "content", "result"}`:
+- An `Item` is `{"topic", "status", "last", "stats", "problems", "group", "recent"}`:
   - `status` is `"bad"`, `"waiting"` (a trigger is the user's to send),
     `"running"`, `"fine"` or `"unseen"`. Only the first three deserve colour.
   - `last`: when its latest run started, or `null`.
@@ -47,47 +42,28 @@ server sends the whole view. Clients send nothing on it.
   - `problems`: what's wrong, as sentences.
   - `group`: for nodes, the group to frame it in with its siblings (e.g.
     `"finances"` for `script/finances/…`), or `null`. A ghost is in its
-    announcer's group.
+    announcer's group, and what a node said in the node's.
   - `recent`: its last 30 runs, oldest first, each `{"status", "took"}`, the
     status being `"bad"` (failed or overran), `"running"` or `"fine"`.
-  - `content`, `result`: what its latest run started with and finished with.
 - A ghost is a node for an event that hasn't happened yet: the reaction a
   pending trigger would cause, or a reaction a run's rules expect. Draw it
   faded. Its `key` is what links refer to.
 - A link goes from one node (or ghost) key to another. `label` is the trigger
   that connects them, if any; `trigger`, when present, is a pending trigger to
   send (see below), and the link should look actionable.
+- `said` is what a node's latest run started with (`content`) and finished
+  with (`result`), each a node of its own under it.
+- `places` puts every graph node, ghost and `said` node in a column and a row:
+  a column per step down a chain of links, and rows from the top. A row is as
+  tall as its tallest node, so where it is on screen is the window's to say.
 
-## Todos
+## What the server announces
 
-A todo is an event on `todo/<project>`, anything may send: the project is just
-the path, and its label is what to do. Its content may give `{"due": day}`, else
-it's due the day it's sent. Later events on its topic that react to it change
-it: `{"due": day}` reschedules it, `{"done": true}` closes it, and a label
-renames it.
+When a topic goes bad it sends `dashboard/problem/<topic>`, with content
+`{"topic", "problems", "run"}` and its first problem as label; when it's no
+longer bad, `dashboard/healthy/<topic>`. Anything may react to them.
 
-A `Todo` in the view is an open one: `{"key": "todo/<id>", "title", "project",
-"due", "when", "problems"}`, sorted by project then due date. `when` is
-`"today"` (due today or earlier), `"week"` (by Sunday) or `"year"` (later);
-`problems` say it's late.
-
-A note is an unticked `- [ ] ` checkbox in the server's `--notes` directories:
-its `file` is named from the directory, `line` counts from 0.
-
-## `POST /api/note`: tick a note
-
-Body: the note, as the view has it. `200` once its file says `- [x]`, `409` if
-that line has changed since.
-
-## `POST /api/todo`: send a todo event
-
-Body `{"verb": "capture", "label", "when", "about"}`, `{"verb": "when", "item":
-"id", "when"}` or `{"verb": "done", "item": "id"}`, `when` being `"today"`,
-`"week"` or `"year"` (the end of it, as its due date). A capture's project is
-the label's `project/path: ` prefix, else the topic it's `about`, else
-`general`. `200` once sent.
-
-## `GET /api/topic?topic=T[&at=TIME]`: a topic's last 20 runs, newest first
+## `GET /api/topic?topic=T`: a topic's last 20 runs, newest first
 
 ```json
 [{
@@ -110,29 +86,21 @@ logs are.
 followed by its subtasks and reactions, `depth` deep; empty when it's alone.
 `diagnosable` says Claude can be asked about it (see below).
 
-With `at`, an ISO 8601 time, everything is as the server knew it then.
-
-## `GET /api/view?at=TIME`: the view as it was
-
-The view, as the WebSocket would have sent it at that time: the history up to
-then, replayed.
-
-## `POST /api/diagnose`: ask Claude about a run
-
-Body `{"run": "uuid"}`, for a run with problems the server still remembers.
-The server hands the `claude` CLI everything it knows about the run, with no
-tools and in a sandbox, and answers `200` with its reply as text, once it
-has one (it takes a while). Replies are kept, and are the run's `diagnosis`.
-
 ## `POST /api/send`: send a pending trigger
 
 Body `{"run": "uuid", "index": 0}`. `200` once sent; otherwise a status with
 the reason as text.
 
-## `GET /api/layout`, `PUT /api/layout`: node positions
+## Claude
 
-`{"key": [x, y]}`, in grid units at zoom 1, shared by every window. Zoom is
-each window's own.
+With `--claude`, the server hands the `claude` CLI what it knows, with no
+tools and in a sandbox, and answers `200` with its reply as text once it has
+one (it takes a while). One question is asked at a time.
+
+- `POST /api/diagnose`, body `{"run": "uuid"}`: what went wrong with a run
+  that has problems. Replies are kept, and are the run's `diagnosis`.
+- `POST /api/ask`, body `{"question": "…"}`: anything about every topic's
+  problems and last runs.
 
 ## `GET /file?path=P`: a file a run gave as its result
 

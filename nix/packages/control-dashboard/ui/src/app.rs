@@ -1,15 +1,13 @@
 //! The dashboard's one window, whatever runs it: dear-app natively, or winit
 //! and wgpu in a browser.
 
-use crate::net::{self, Attention, Health, Item, Layout, Msg, Net, Note, Run, Said, Span, Tick, Todo, View};
+use crate::net::{self, Attention, Done, Health, Item, Msg, Net, Run, Span, Tick, View};
 use chrono::{DateTime, Local, Utc};
-use dear_imgui_rs::{Condition, DrawListMut, Key, ManagedTextureId, MouseButton, NumericFormat, OwnedTextureData, StyleColor, TabItemFlags, TextureFormat, TreeNodeFlags, Ui, WindowFlags, WindowHoveredFlags};
-use serde_json::{Value, json};
+use dear_imgui_rs::{Condition, DrawListMut, Key, ManagedTextureId, MouseButton, OwnedTextureData, StyleColor, TabItemFlags, TextureFormat, Ui, WindowFlags, WindowHoveredFlags};
 use dear_imnodes::{ColorElement, EditorContext, ImNodesExt, LinkId, NodeEditor, NodeEditorSetup, NodeId, PinId, PinShape};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
-use web_time::Instant;
 
 #[derive(Default)]
 pub struct Dashboard {
@@ -26,20 +24,10 @@ pub struct Dashboard {
     tab: usize,
     /// A tab to switch to.
     go: Option<usize>,
-    capture: String,
-    /// The topic a todo is being captured about.
-    about: Option<(String, String)>,
-    /// The todo whose menu is open.
-    menu: Option<String>,
-    /// The time rewound to, and the view at the latest time asked about that's here.
-    at: Option<DateTime<Utc>>,
-    past: Option<(DateTime<Utc>, View)>,
-    /// A past view asked for and not here yet: one at a time, while scrubbing.
-    asked: Option<DateTime<Utc>>,
     /// Runs Claude is being asked about.
     asking: HashSet<String>,
-    /// Notes being ticked, by file and line.
-    ticking: HashSet<(String, usize)>,
+    /// A question about the history, and Claude's answer once it's here.
+    answer: Option<(String, Option<String>)>,
     images: HashMap<String, Picture>,
     /// Images decoded and not yet textures.
     decoded: Vec<(String, u32, u32, Vec<u8>)>,
@@ -67,6 +55,8 @@ const RED_TEXT: [f32; 4] = [1.0, 0.55, 0.55, 1.0];
 const AMBER_TEXT: [f32; 4] = [1.0, 0.75, 0.35, 1.0];
 const DIM: [f32; 4] = [0.55, 0.55, 0.6, 1.0];
 
+const TABS: [&str; 4] = ["Now", "Events", "Machines", "Healthchecks"];
+
 /// Colour only for what needs a look: healthy topics keep the default.
 fn color(h: Health) -> Option<[f32; 4]> {
     match h {
@@ -77,11 +67,11 @@ fn color(h: Health) -> Option<[f32; 4]> {
     }
 }
 
-fn tick_color(status: &str) -> [f32; 4] {
-    match status {
-        "bad" => RED,
-        "running" => BLUE,
-        _ => GREY,
+fn text_color(h: Health) -> Option<[f32; 4]> {
+    match h {
+        Health::Bad => Some(RED_TEXT),
+        Health::Waiting => Some(AMBER_TEXT),
+        _ => None,
     }
 }
 
@@ -89,33 +79,6 @@ fn tick_color(status: &str) -> [f32; 4] {
 fn ids(key: &str) -> (NodeId, PinId, PinId) {
     let h = key.bytes().fold(0x811c9dc5u32, |h, b| (h ^ b as u32).wrapping_mul(0x01000193)) as i32 & 0x3fff_fffe;
     (NodeId::new(h), PinId::new(h), PinId::new(h | 1))
-}
-
-/// Node positions from imnodes' saved state, by node id.
-fn placements(ini: &str) -> HashMap<i32, [f32; 2]> {
-    let mut node = None;
-    let mut out = HashMap::new();
-    for l in ini.lines() {
-        if let Some(n) = l.strip_prefix("[node.").and_then(|l| l.strip_suffix(']')) {
-            node = n.parse().ok();
-        } else if let (Some(n), Some((x, y))) = (node, l.strip_prefix("origin=").and_then(|o| o.split_once(',')))
-            && let (Ok(x), Ok(y)) = (x.parse(), y.parse())
-        {
-            out.insert(n, [x, y]);
-        }
-    }
-    out
-}
-
-/// What imnodes says the nodes' positions are, at zoom 1.
-fn positions(ini: &str, keys: &[&str], zoom: f32) -> Layout {
-    let at = placements(ini);
-    keys.iter().filter_map(|k| at.get(&ids(k).0.raw()).map(|p| (k.to_string(), [p[0] / zoom, p[1] / zoom]))).collect()
-}
-
-/// A new node goes in the column of how far down a chain of reactions it is.
-fn depth(links: &[net::Link], t: &str, n: usize) -> usize {
-    links.iter().filter(|l| l.to == t && n < 8).map(|l| depth(links, &l.from, n + 1) + 1).max().unwrap_or(0)
 }
 
 fn fmt_duration(secs: f64) -> String {
@@ -132,8 +95,8 @@ fn fmt_duration(secs: f64) -> String {
     }
 }
 
-fn ago(t: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
-    t.map_or("never seen".into(), |t| format!("{} ago", fmt_duration((now - t).as_seconds_f64())))
+fn ago(t: Option<DateTime<Utc>>) -> String {
+    t.map_or("never seen".into(), |t| format!("{} ago", fmt_duration((Utc::now() - t).as_seconds_f64())))
 }
 
 fn local(t: DateTime<Utc>) -> String {
@@ -143,6 +106,11 @@ fn local(t: DateTime<Utc>) -> String {
 fn clip(s: &str, n: usize) -> String {
     let s = s.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
     if s.chars().count() > n { s.chars().take(n).collect::<String>() + "…" } else { s.to_owned() }
+}
+
+/// What a machine or healthcheck says beside its name: its stats, and when it last ran.
+fn sub(i: &Item) -> String {
+    format!("{}{}", i.stats.as_ref().map_or(String::new(), |s| format!("{s}  ")), ago(i.last))
 }
 
 /// Where a node was drawn this frame, in screen space: imnodes doesn't say.
@@ -226,7 +194,7 @@ fn strip(ui: &Ui, recent: &[Tick], zoom: f32) {
     for (i, t) in recent.iter().enumerate() {
         let x = p[0] + i as f32 * (w + gap);
         let top = p[1] + h - (h * (t.took / longest) as f32).max(2.0 * zoom);
-        dl.add_rect([x, top], [x + w, p[1] + h], tick_color(&t.status)).filled(true).build();
+        dl.add_rect([x, top], [x + w, p[1] + h], color(t.status).unwrap_or(GREY)).filled(true).build();
     }
     ui.dummy([recent.len() as f32 * (w + gap), h]);
 }
@@ -269,25 +237,6 @@ fn dashed(dl: &DrawListMut, a: [f32; 2], b: [f32; 2]) {
     seg([a[0], b[1]], a);
 }
 
-const TABS: [&str; 8] = ["Now", "Events", "Machines", "Healthchecks", "Today", "This week", "This year", "Notes"];
-const WHEN: [(&str, &str); 3] = [("today", "Today"), ("week", "This week"), ("year", "This year")];
-
-/// When it's for, or done.
-fn todo_menu(ui: &Ui, t: &Todo) -> Option<Value> {
-    let item = t.key.strip_prefix("todo/");
-    for (when, name) in WHEN {
-        if ui.menu_item(name) {
-            return Some(json!({"verb": "when", "item": item, "when": when}));
-        }
-    }
-    ui.separator();
-    ui.menu_item("Done").then(|| json!({"verb": "done", "item": item}))
-}
-
-fn some(s: &str) -> Option<&str> {
-    Some(s.trim()).filter(|s| !s.is_empty())
-}
-
 /// What a node shows below its problems.
 enum Body {
     None,
@@ -295,8 +244,7 @@ enum Body {
     Image(String),
 }
 
-/// A run's content or result, as a node of its own: an image if it names
-/// one, else its fields.
+/// A run's content or result: an image if it names one, else its fields.
 fn body(v: &Value) -> Body {
     if let Some(p) = image_in(v) {
         return Body::Image(p.to_owned());
@@ -317,7 +265,7 @@ fn image_in(v: &Value) -> Option<&str> {
     }
 }
 
-/// A node on a page: an event's topic, a todo, or what a topic's last run said.
+/// A node on the graph: an event's topic, or what its last run said.
 struct Shown<'a> {
     key: &'a str,
     title: &'a str,
@@ -327,72 +275,39 @@ struct Shown<'a> {
     group: Option<&'a str>,
     recent: &'a [Tick],
     body: Body,
-    /// The node this one hangs off.
-    of: Option<&'a str>,
+    /// The node this one hangs under.
+    under: Option<&'a str>,
 }
 
 impl<'a> Shown<'a> {
-    fn item(i: &'a Item, prefix: &str, now: DateTime<Utc>) -> Self {
-        let sub = format!("{}{}", i.stats.as_ref().map_or(String::new(), |s| format!("{s}  ")), ago(i.last, now));
-        Shown { key: &i.topic, title: i.topic.strip_prefix(prefix).unwrap_or(&i.topic), sub, color: color(i.status), problems: &i.problems, group: i.group.as_deref(), recent: &i.recent, body: Body::None, of: None }
+    fn item(i: &'a Item) -> Self {
+        Shown { key: &i.topic, title: &i.topic, sub: ago(i.last), color: color(i.status), problems: &i.problems, group: i.group.as_deref(), recent: &i.recent, body: Body::None, under: None }
     }
 
-    fn todo(t: &'a Todo) -> Self {
-        let due = chrono::NaiveDate::parse_from_str(&t.due, "%Y-%m-%d").map_or(t.due.clone(), |d| d.format("due %a %e %b").to_string());
-        Shown { key: &t.key, title: &t.title, sub: due, color: (!t.problems.is_empty()).then_some(RED), problems: &t.problems, group: Some(&t.project), recent: &[], body: Body::None, of: None }
-    }
-
-    fn said(key: &'a str, title: &'a str, i: &'a Item, v: &Value) -> Self {
-        Shown { key, title, sub: String::new(), color: None, problems: &[], group: i.group.as_deref(), recent: &[], body: body(v), of: Some(&i.topic) }
+    fn said(s: &'a net::Said, group: Option<&'a str>) -> Self {
+        Shown { key: &s.key, title: &s.title, sub: String::new(), color: None, problems: &[], group, recent: &[], body: body(&s.value), under: Some(&s.under) }
     }
 }
 
-/// The keys of the nodes for what topics' last runs said, and what they said.
-fn attachments(items: &[Item]) -> Vec<(String, &'static str, &Item, &Value)> {
-    items
-        .iter()
-        .flat_map(|i| [("content", &i.content), ("result", &i.result)].into_iter().filter_map(move |(k, v)| v.as_ref().map(|v| (format!("{}#{k}", i.topic), k, i, v))))
-        .collect()
-}
-
-/// What was done on a page.
-#[derive(Default)]
-struct Clicked {
-    send: Option<net::TriggerRef>,
-    /// A node right-clicked, or whose out-link was dropped in empty space.
-    on: Option<String>,
-}
-
-/// Every page's node editor.
+/// The graph of events.
 #[derive(Default)]
 struct Canvas {
-    /// Shared by every window through the server; `None` until it's here.
-    layout: Option<Layout>,
-    saved: Layout,
-    last_save: Option<Instant>,
-    /// Nodes imnodes has been told where to draw.
-    positioned: HashSet<String>,
+    editor: Option<EditorContext>,
     /// imnodes can't zoom: fonts, style and positions are all scaled by this instead.
     zoom: Option<f32>,
-    /// One per page, each with its own panning.
-    editors: Vec<EditorContext>,
-    /// Each page's own selection, so picking elsewhere isn't undone.
-    picked: Vec<Option<String>>,
-    /// A node to bring to the middle, on whichever page has it.
+    /// How tall each node was last drawn, at zoom 1: a row is as tall as its tallest.
+    heights: HashMap<String, f32>,
+    /// What imnodes has selected, so picking elsewhere isn't undone.
+    picked: Option<String>,
+    /// A node to bring to the middle.
     focus: Option<String>,
 }
 
 impl Canvas {
+    /// Draws the graph where the server placed it; returns a trigger clicked.
     #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, ui: &Ui, nodes: &dear_imnodes::Context, net: &Net, page: usize, shown: &[Shown], ghosts: &[net::Ghost], links: &[net::Link], selected: &mut Option<String>, images: &HashMap<String, Picture>) -> Clicked {
-        let mut out = Clicked::default();
-        let Some(layout) = &mut self.layout else { return out };
-        while self.editors.len() <= page {
-            self.editors.push(nodes.create_editor_context());
-            self.picked.push(None);
-        }
-        let editor = &self.editors[page];
-        let keys: Vec<&str> = shown.iter().map(|n| n.key).chain(ghosts.iter().map(|g| g.key.as_str())).collect();
+    fn draw(&mut self, ui: &Ui, nodes: &dear_imnodes::Context, shown: &[Shown], ghosts: &[net::Ghost], links: &[net::Link], places: &HashMap<String, (usize, usize)>, selected: &mut Option<String>, images: &HashMap<String, Picture>) -> Option<net::TriggerRef> {
+        let editor = self.editor.get_or_insert_with(|| nodes.create_editor_context());
         let zoom = self.zoom.get_or_insert(1.0);
         let io = ui.io();
         let (wheel, origin) = ([io.mouse_wheel_h(), io.mouse_wheel()], ui.cursor_screen_pos());
@@ -405,9 +320,7 @@ impl Canvas {
                 let m = io.mouse_pos();
                 let m = [m[0] - origin[0], m[1] - origin[1]];
                 bound.reset_panning([m[0] - (m[0] - pan[0]) * r, m[1] - (m[1] - pan[1]) * r]);
-                layout.extend(positions(&bound.save_state_to_ini_string(), &keys, *zoom));
                 *zoom = z;
-                self.positioned.clear();
             } else {
                 bound.reset_panning([pan[0] + wheel[0] * 20.0, pan[1] + wheel[1] * 20.0]);
             }
@@ -415,49 +328,24 @@ impl Canvas {
         let z = *zoom;
         // Columns leave room for a label between a node and the next.
         const COLUMN: f32 = 600.0;
-        // Columns by how far down a chain of reactions a node is. A group
-        // is a band: its nodes go from its top down, with each run's
-        // ghosts and what it said beside it, and anything new starts below
-        // everything on the page, so bands don't overlap.
-        let mine = |layout: &Layout| layout.iter().filter(|(k, _)| keys.contains(&k.as_str())).map(|(_, p)| *p).collect::<Vec<_>>();
-        let free = |layout: &Layout, x: f32, mut y: f32| {
-            let taken = mine(layout);
-            while taken.iter().any(|p| (p[0] - x).abs() < COLUMN / 2.0 && (p[1] - y).abs() < 90.0) {
-                y += 90.0;
-            }
-            [x, y]
-        };
-        for n in shown.iter().filter(|n| n.of.is_none()) {
-            if !layout.contains_key(n.key) {
-                let x = 60.0 + depth(links, n.key, 0) as f32 * COLUMN;
-                let top = shown.iter().filter(|m| m.group.is_some() && m.group == n.group).filter_map(|m| layout.get(m.key)).map(|p| p[1]).reduce(f32::min);
-                let y = top.unwrap_or_else(|| mine(layout).iter().map(|p| p[1] + 150.0).fold(40.0, f32::max));
-                let p = free(layout, x, y);
-                layout.insert(n.key.to_owned(), p);
-            }
-            let beside = ghosts.iter().filter(|g| g.announcer == n.key).map(|g| g.key.as_str()).chain(shown.iter().filter(|s| s.of == Some(n.key)).map(|s| s.key));
-            for k in beside.collect::<Vec<_>>() {
-                if !layout.contains_key(k) {
-                    let p = free(layout, layout[n.key][0] + COLUMN, layout[n.key][1]);
-                    layout.insert(k.to_owned(), p);
-                }
-            }
+        let rows = places.values().map(|p| p.1 + 1).max().unwrap_or(0);
+        let mut tall = vec![0.0f32; rows];
+        for (k, (_, r)) in places {
+            tall[*r] = tall[*r].max(self.heights.get(k).copied().unwrap_or(80.0));
         }
-        if let Some(k) = self.focus.as_deref().filter(|k| keys.contains(k))
-            && let Some(p) = layout.get(k)
-        {
-            let [w, h] = ui.content_region_avail();
+        let top: Vec<f32> = tall.iter().scan(40.0, |y, h| Some(std::mem::replace(y, *y + h + 40.0))).collect();
+        let at = |k: &str| places.get(k).map_or([0.0; 2], |(c, r)| [60.0 + *c as f32 * COLUMN, top[*r]]);
+        if let Some(k) = self.focus.take() {
+            let ([w, h], p) = (ui.content_region_avail(), at(&k));
             nodes.bind_editor(editor).reset_panning([w / 2.0 - (p[0] + 100.0) * z, h / 2.0 - p[1] * z]);
-            self.focus = None;
         }
         let _font = ui.push_font_with_size(None, ui.clone_style().font_size_base() * z);
         let setup = ui.imnodes(nodes).editor(Some(editor));
         quiet(&setup, z);
-        for k in &keys {
-            if self.positioned.insert(k.to_string()) {
-                let p = layout[*k];
-                setup.set_node_pos_grid(ids(k).0, [p[0] * z, p[1] * z]);
-            }
+        for k in shown.iter().map(|n| n.key).chain(ghosts.iter().map(|g| g.key.as_str())) {
+            let p = at(k);
+            setup.set_node_pos_grid(ids(k).0, [p[0] * z, p[1] * z]);
+            setup.set_node_draggable(ids(k).0, false);
         }
         let ed = setup.begin_nodes();
         let mut geo = HashMap::new();
@@ -465,16 +353,17 @@ impl Canvas {
             geo.insert(n.key, node(ui, &ed, n, Look::Title(n.color), z, images));
         }
         for g in ghosts {
-            let s = Shown { key: &g.key, title: &g.title, sub: "expected".into(), color: None, problems: &[], group: None, recent: &[], body: Body::None, of: None };
+            let s = Shown { key: &g.key, title: &g.title, sub: "expected".into(), color: None, problems: &[], group: None, recent: &[], body: Body::None, under: None };
             geo.insert(g.key.as_str(), node(ui, &ed, &s, Look::Ghost, z, images));
         }
-        let hung = shown.iter().filter_map(|s| s.of.map(|of| (of, s.key)));
+        let hung = shown.iter().filter_map(|s| s.under.map(|u| (u, s.key)));
         for (from, to) in links.iter().map(|l| (l.from.as_str(), l.to.as_str())).chain(hung) {
             let trigger = links.iter().any(|l| l.from == from && l.to == to && l.trigger.is_some());
             let _c = trigger.then(|| ed.push_color(ColorElement::Link, AMBER));
             ed.link(LinkId::new(ids(&format!("{from}|{to}")).0.raw()), ids(from).2, ids(to).1);
         }
         let post = ed.end();
+        self.heights = geo.iter().map(|(k, g)| (k.to_string(), (g.max[1] - g.min[1]) / z)).collect();
 
         let dl = ui.get_foreground_draw_list();
         let (lo, size) = (ui.window_pos(), ui.window_size());
@@ -501,6 +390,7 @@ impl Canvas {
         }
         let m = ui.io().mouse_pos();
         let inside = |a: [f32; 2], b: [f32; 2]| m[0] >= a[0] && m[0] <= b[0] && m[1] >= a[1] && m[1] <= b[1];
+        let mut send = None;
         for l in links {
             let (Some(label), Some(a), Some(b)) = (&l.label, geo.get(l.from.as_str()), geo.get(l.to.as_str())) else { continue };
             let [w, h] = ui.calc_text_size(label);
@@ -510,30 +400,19 @@ impl Canvas {
             dl.add_rect(p, q, if hover { [0.3, 0.25, 0.1, 1.0] } else { [0.12, 0.12, 0.14, 1.0] }).filled(true).rounding(3.0).build();
             dl.add_text([p[0] + 4.0, p[1] + 2.0], if l.trigger.is_some() { AMBER } else { DIM }, label);
             if hover && ui.is_mouse_clicked(MouseButton::Left) {
-                out.send = l.trigger.clone();
+                send = l.trigger.clone();
             }
         }
 
         let picked = match post.selected_nodes()[..] {
-            [n] => shown.iter().find(|s| s.of.is_none() && ids(s.key).0 == n).map(|s| s.key.to_owned()),
+            [n] => shown.iter().find(|s| s.under.is_none() && ids(s.key).0 == n).map(|s| s.key.to_owned()),
             _ => None,
         };
-        if picked != self.picked[page] {
+        if picked != self.picked {
             *selected = picked.clone();
-            self.picked[page] = picked;
+            self.picked = picked;
         }
-        let dropped = post.is_link_dropped(false).and_then(|pin| shown.iter().find(|s| ids(s.key).2 == pin));
-        let clicked = (ui.is_mouse_clicked(MouseButton::Right)).then(|| post.hovered_node()).flatten().and_then(|n| shown.iter().find(|s| ids(s.key).0 == n));
-        out.on = dropped.or(clicked).filter(|s| s.of.is_none()).map(|s| s.key.to_owned());
-        if self.last_save.is_none_or(|t| t.elapsed() > Duration::from_secs(2)) {
-            self.last_save = Some(Instant::now());
-            layout.extend(positions(&post.save_state_to_ini_string(), &keys, z));
-            if *layout != self.saved {
-                net.save_layout(layout);
-                self.saved = layout.clone();
-            }
-        }
-        out
+        send
     }
 }
 
@@ -542,15 +421,13 @@ impl Canvas {
 struct Wants {
     send: Option<net::TriggerRef>,
     open: Option<String>,
-    todo: Option<Value>,
-    note: Option<Note>,
     diagnose: Option<String>,
     /// A topic to show, and which of its runs.
     show: Option<(String, String)>,
 }
 
 /// A topic's runs, and the chosen one in full.
-fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, asking: &HashSet<String>, rewound: bool, w: &mut Wants) {
+fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, asking: &HashSet<String>, w: &mut Wants) {
     if runs.is_empty() {
         ui.text_disabled("No runs seen.");
     }
@@ -588,7 +465,7 @@ fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, asking: &HashSet<String
             None => red(ui, &s.problems.join("\n")),
         }
     }
-    for p in r.triggers.iter().filter(|_| !rewound) {
+    for p in &r.triggers {
         if ui.button(format!("{}##trigger{}", p.label, p.index)) {
             w.send = Some(net::TriggerRef { run: r.id.clone(), index: p.index });
         }
@@ -627,7 +504,7 @@ fn waterfall(ui: &Ui, trace: &[Span], current: &str) -> Option<(String, String)>
         dl.add_text(p, if s.id == current { [1.0; 4] } else { DIM }, clip(&name, 24));
         let x = |t: DateTime<Utc>| p[0] + names + (w - names) * (t - t0).as_seconds_f32() / total;
         let (a, b) = (x(s.start), x(s.end.unwrap_or(now)).max(x(s.start) + 2.0));
-        let c = if s.id == current && s.status == "fine" { [0.75, 0.75, 0.8, 1.0] } else { tick_color(&s.status) };
+        let c = color(s.status).unwrap_or(if s.id == current { [0.75, 0.75, 0.8, 1.0] } else { GREY });
         dl.add_rect([a, p[1] + 2.0], [b, p[1] + h - 2.0], c).filled(true).rounding(2.0).build();
         if ui.is_item_hovered() {
             let took = (s.end.unwrap_or(now) - s.start).as_seconds_f64();
@@ -637,31 +514,26 @@ fn waterfall(ui: &Ui, trace: &[Span], current: &str) -> Option<(String, String)>
     picked
 }
 
+/// A topic to pick, coloured if it needs a look.
+fn row(ui: &Ui, title: &str, key: &str, status: Health, selected: &mut Option<String>) {
+    let _c = text_color(status).map(|c| ui.push_style_color(StyleColor::Text, c));
+    if ui.selectable_config(format!("{title}##{key}")).selected(selected.as_deref() == Some(key)).build() {
+        *selected = Some(key.to_owned());
+    }
+}
+
 /// Everything that needs you, worst first.
-fn now_page(ui: &Ui, items: &[Attention], selected: &mut Option<String>, rewound: bool, w: &mut Wants) {
+fn now_page(ui: &Ui, items: &[Attention], selected: &mut Option<String>, w: &mut Wants) {
     if items.is_empty() {
         ui.text_disabled("Nothing needs you.");
     }
     for a in items {
-        let text = match a.status {
-            Health::Bad => Some(RED_TEXT),
-            Health::Waiting => Some(AMBER_TEXT),
-            _ => None,
-        };
-        let c = text.map(|c| ui.push_style_color(StyleColor::Text, c));
-        if ui.selectable_config(format!("{}##{}", a.title, a.key)).selected(selected.as_deref() == Some(&a.key)).build() {
-            *selected = Some(a.key.clone());
-        }
-        drop(c);
-        if let Some(p) = &a.project {
-            ui.same_line();
-            ui.text_disabled(p);
-        }
+        row(ui, &a.key, &a.key, a.status, selected);
         ui.indent();
         for p in &a.problems {
             ui.text_disabled(p);
         }
-        for (k, t) in a.triggers.iter().filter(|_| !rewound).enumerate() {
+        for (k, t) in a.triggers.iter().enumerate() {
             if k > 0 {
                 ui.same_line();
             }
@@ -673,62 +545,38 @@ fn now_page(ui: &Ui, items: &[Attention], selected: &mut Option<String>, rewound
     }
 }
 
-/// The notes' checkboxes, by file: ticking one ticks it in its file.
-fn notes_page(ui: &Ui, notes: &[Note], ticking: &HashSet<(String, usize)>, w: &mut Wants) {
-    if notes.is_empty() {
-        ui.text_disabled("No checkboxes in the notes.");
-    }
-    for group in notes.chunk_by(|a, b| a.file == b.file) {
-        let file = &group[0].file;
-        if !ui.collapsing_header(format!("{file}  {}###{file}", group.len()), TreeNodeFlags::empty()) {
-            continue;
+/// Machines or healthchecks: each with its stats, last runs and problems.
+fn list_page(ui: &Ui, items: &[Item], prefix: &str, selected: &mut Option<String>) {
+    for i in items {
+        row(ui, i.topic.strip_prefix(prefix).unwrap_or(&i.topic), &i.topic, i.status, selected);
+        ui.same_line();
+        ui.text_disabled(sub(i));
+        ui.indent();
+        strip(ui, &i.recent, 1.0);
+        for p in &i.problems {
+            red(ui, p);
         }
-        for n in group {
-            let indent = 8.0 + n.indent as f32 * 6.0;
-            ui.indent_by(indent);
-            let mut on = ticking.contains(&(n.file.clone(), n.line));
-            if ui.checkbox(format!("##{}:{}", n.file, n.line), &mut on) && on {
-                w.note = Some(n.clone());
-            }
-            ui.same_line();
-            ui.text_wrapped(&n.text);
-            ui.unindent_by(indent);
-        }
+        ui.unindent();
     }
 }
 
 enum Action {
     Go(usize, String),
     Send(net::TriggerRef),
-    Capture(String),
-    Rewind(Option<DateTime<Utc>>),
+    Ask(String),
 }
 
 /// What the command bar offers for its text: going to whatever matches,
-/// sending a trigger, rewinding ("rewind 3h", "now"), or capturing it.
-fn actions(view: &View, text: &str, rewound: bool) -> Vec<(String, Action)> {
+/// sending a trigger, or asking Claude about the history.
+fn actions(view: &View, text: &str) -> Vec<(String, Action)> {
     let words: Vec<String> = text.split_whitespace().map(str::to_lowercase).collect();
     let fits = |s: &str| !words.is_empty() && words.iter().all(|w| s.to_lowercase().contains(w.as_str()));
     let go = |tab: usize, items: &[Item]| items.iter().map(move |i| (format!("Go to {}", i.topic), Action::Go(tab, i.topic.clone()))).collect::<Vec<_>>();
     let mut out: Vec<(String, Action)> = [go(1, &view.nodes), go(2, &view.machines), go(3, &view.services)].into_iter().flatten().collect();
-    out.extend(view.todos.iter().map(|t| (format!("Go to {} ({})", t.title, t.project), Action::Go(4 + WHEN.iter().position(|w| w.0 == t.when).unwrap_or(0), t.key.clone()))));
-    if !rewound {
-        out.extend(view.now.iter().flat_map(|a| a.triggers.iter().map(|t| (format!("Send \"{}\" to {}", t.label, a.title), Action::Send(net::TriggerRef { run: t.run.clone(), index: t.index })))));
-    }
+    out.extend(view.now.iter().flat_map(|a| a.triggers.iter().map(|t| (format!("Send \"{}\" to {}", t.label, a.key), Action::Send(net::TriggerRef { run: t.run.clone(), index: t.index })))));
     out.retain(|(l, _)| fits(l));
-    let back = text.trim().strip_prefix("rewind").map(str::trim).and_then(|d| {
-        let (n, unit) = d.split_at(d.len().checked_sub(1)?);
-        let secs = n.parse::<i64>().ok()? * [("m", 60), ("h", 3600), ("d", 86400)].iter().find(|u| u.0 == unit)?.1;
-        Some(Utc::now() - chrono::Duration::seconds(secs))
-    });
-    if let Some(t) = back {
-        out.insert(0, (format!("Rewind to {}", local(t)), Action::Rewind(Some(t))));
-    }
-    if rewound && fits("now") {
-        out.insert(0, ("Back to now".into(), Action::Rewind(None)));
-    }
-    if let Some(t) = some(text) {
-        out.push((format!("Capture \"{t}\""), Action::Capture(t.to_owned())));
+    if let Some(q) = Some(text.trim()).filter(|t| !t.is_empty()) {
+        out.push((format!("Ask Claude: {q}"), Action::Ask(q.to_owned())));
     }
     out
 }
@@ -752,9 +600,7 @@ impl Dashboard {
 
     /// `wake` asks for a frame, when something arrives.
     pub fn connect(&mut self, wake: Arc<dyn Fn() + Send + Sync>) {
-        let net = Net::new(self.server.clone(), wake);
-        net.layout();
-        self.net = Some(net);
+        self.net = Some(Net::new(self.server.clone(), wake));
     }
 
     /// Images decoded since the last frame become textures: Dear ImGui's
@@ -771,67 +617,38 @@ impl Dashboard {
         for m in net.poll() {
             match m {
                 Msg::View(v) => {
-                    self.ticking.retain(|(f, l)| v.notes.iter().any(|n| n.file == *f && n.line == *l));
                     self.view = v;
                     self.gone = None;
-                    if let Some(t) = self.selected.as_ref().filter(|t| !t.starts_with("todo/") && self.at.is_none()) {
-                        net.details(t, None);
-                    }
-                }
-                Msg::Past(t, v) => {
-                    self.asked = None;
-                    match v {
-                        Ok(v) if self.at.is_some() => {
-                            self.past = Some((t, v));
-                            if let Some(s) = self.selected.as_ref().filter(|s| !s.starts_with("todo/") && self.at == Some(t)) {
-                                net.details(s, Some(t));
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(e) => {
-                            self.at = None;
-                            self.error = Some(format!("Couldn't rewind: {e}"));
-                        }
+                    if let Some(t) = &self.selected {
+                        net.details(t);
                     }
                 }
                 Msg::Gone(e) => self.gone = Some(e),
                 Msg::Details(t, d) => self.details = Some((t, d)),
-                Msg::Layout(l) => self.canvas.layout = Some(l),
-                Msg::Sent(r) => {
-                    if r.is_err() {
-                        self.ticking.clear();
-                    }
-                    self.error = r.err();
-                }
+                Msg::Sent(r) => self.error = r.err(),
                 Msg::Diagnosed(run, r) => {
                     self.asking.remove(&run);
                     self.error = r.err().map(|e| format!("Claude couldn't diagnose it: {e}"));
                     if let Some(t) = &self.selected {
-                        net.details(t, self.at);
+                        net.details(t);
                     }
                 }
+                Msg::Answer(r) => match r {
+                    Ok(a) => self.answer = self.answer.take().map(|(q, _)| (q, Some(a))),
+                    Err(e) => {
+                        self.answer = None;
+                        self.error = Some(format!("Claude couldn't answer: {e}"));
+                    }
+                },
                 Msg::Image(p, r) => match r.ok().and_then(|b| decode(&b)) {
                     Some((w, h, rgba)) => self.decoded.push((p, w, h, rgba)),
                     None => _ = self.images.insert(p, Picture::Broken),
                 },
             }
         }
-        // While scrubbing, one past view is asked for at a time: the latest.
-        if let Some(t) = self.at
-            && self.asked.is_none()
-            && self.past.as_ref().is_none_or(|(p, _)| *p != t)
-        {
-            net.past(t);
-            self.asked = Some(t);
-        }
-        let rewound = self.at.is_some();
-        let (view, now) = match (&self.at, &self.past) {
-            (Some(_), Some((t, v))) => (v, *t),
-            _ => (&self.view, Utc::now()),
-        };
-        let said = attachments(&view.nodes);
-        for (_, _, _, v) in &said {
-            if let Some(p) = image_in(v).filter(|p| !self.images.contains_key(*p)) {
+        let view = &self.view;
+        for s in &view.said {
+            if let Some(p) = image_in(&s.value).filter(|p| !self.images.contains_key(*p)) {
                 self.images.insert(p.to_owned(), Picture::Loading);
                 #[cfg(not(target_arch = "wasm32"))]
                 if let Ok(b) = std::fs::read(p) {
@@ -862,138 +679,56 @@ impl Dashboard {
             if let Some(e) = &self.error {
                 red(ui, e);
             }
-            let bar = ui.frame_height_with_spacing();
-            if let Some(_bar) = ui.tab_bar("tabs") {
-                let todos = |when: &str| view.todos.iter().filter(|t| t.when == when).map(Shown::todo).collect::<Vec<_>>();
-                let events = view.nodes.iter().map(|n| Shown::item(n, "", now)).chain(said.iter().map(|(k, title, i, v)| Shown::said(k, title, i, v))).collect::<Vec<_>>();
-                let canvases = [
-                    events,
-                    view.machines.iter().map(|n| Shown::item(n, "system/", now)).collect(),
-                    view.services.iter().map(|n| Shown::item(n, "healthcheck/", now)).collect(),
-                    todos(WHEN[0].0),
-                    todos(WHEN[1].0),
-                    todos(WHEN[2].0),
-                ];
-                for (i, name) in TABS.iter().enumerate() {
-                    let page = (1..=6).contains(&i).then(|| &canvases[i - 1]);
-                    let (count, broken) = match i {
-                        0 => (view.now.len(), view.now.iter().any(|a| a.status == Health::Bad)),
-                        7 => (view.notes.len(), false),
-                        _ => (if i >= 4 { page.map_or(0, |p| p.len()) } else { 0 }, page.is_some_and(|p| p.iter().any(|s| s.color == Some(RED)))),
-                    };
-                    // A tab is red when anything on it is broken.
-                    let colors: Vec<_> = if broken {
-                        [StyleColor::Tab, StyleColor::TabHovered, StyleColor::TabSelected, StyleColor::TabDimmed, StyleColor::TabDimmedSelected].map(|c| ui.push_style_color(c, RED)).into()
-                    } else {
-                        vec![]
-                    };
-                    let label = if count > 0 { format!("{name}  {count}###{i}") } else { format!("{name}###{i}") };
-                    let item = ui.tab_item_with_flags(label, None, if self.go == Some(i) { TabItemFlags::SET_SELECTED } else { TabItemFlags::NONE });
-                    colors.into_iter().rev().for_each(drop);
-                    let Some(_item) = item else { continue };
-                    if self.tab != i && self.go != Some(i) {
-                        self.selected = None;
-                    }
-                    self.tab = i;
-                    if self.go == Some(i) {
-                        self.go = None;
-                    }
-                    if (4..=6).contains(&i) {
-                        ui.set_next_item_width(-1.0);
-                        if ui.input_text("##capture", &mut self.capture).hint("Capture, or project/path: capture").enter_returns_true(true).build()
-                            && let Some(l) = some(&self.capture)
-                        {
-                            w.todo = Some(json!({"verb": "capture", "label": l, "when": WHEN[i - 4].0}));
-                            self.capture.clear();
-                        }
-                    }
-                    let [width, _] = ui.content_region_avail();
-                    let side = if self.selected.is_some() { 460.0 } else { 0.0 };
-                    let mut clicked = Clicked::default();
-                    ui.child_window("page").size([width - side, -bar]).flags(if page.is_some() { WindowFlags::NO_SCROLL_WITH_MOUSE } else { WindowFlags::empty() }).build(ui, || match page {
-                        Some(shown) => {
-                            let (ghosts, links) = if i == 1 { (&view.ghosts[..], &view.links[..]) } else { (&[][..], &[][..]) };
-                            clicked = self.canvas.draw(ui, nodes, net, i - 1, shown, ghosts, links, &mut self.selected, &self.images);
-                        }
-                        None if i == 0 => now_page(ui, &view.now, &mut self.selected, rewound, &mut w),
-                        None => notes_page(ui, &view.notes, &self.ticking, &mut w),
-                    });
-                    w.send = w.send.take().or(clicked.send);
-                    // Right-click on a todo: when it's for. On anything else: a todo about it.
-                    match clicked.on {
-                        Some(k) if k.starts_with("todo/") => {
-                            self.menu = Some(k);
-                            ui.open_popup("todo");
-                        }
-                        Some(k) => {
-                            self.about = Some((k, String::new()));
-                            ui.open_popup("about");
-                        }
-                        None => {}
-                    }
-                    if let Some(_p) = ui.begin_popup("todo")
-                        && let Some(t) = view.todos.iter().find(|t| self.menu.as_ref() == Some(&t.key))
-                    {
-                        w.todo = w.todo.take().or(todo_menu(ui, t));
-                    }
-                    if let Some(_p) = ui.begin_popup("about")
-                        && let Some((t, text)) = &mut self.about
-                    {
-                        ui.text_disabled(format!("About {t}"));
-                        if ui.is_window_appearing() {
-                            ui.set_keyboard_focus_here();
-                        }
-                        ui.set_next_item_width(360.0);
-                        if ui.input_text("##about", text).hint("Capture").enter_returns_true(true).build() {
-                            if let Some(l) = some(text) {
-                                w.todo = Some(json!({"verb": "capture", "label": l, "about": t, "when": "today"}));
-                            }
-                            ui.close_current_popup();
-                        }
-                    }
-                    if let Some(t) = &self.selected {
-                        ui.same_line();
-                        ui.child_window("side").size([0.0, -bar]).build(ui, || {
-                            if let Some(d) = view.todos.iter().find(|d| d.key == *t) {
-                                ui.text_wrapped(&d.title);
-                                ui.text_disabled(format!("{}  due {}", d.project, d.due));
-                                for p in &d.problems {
-                                    red(ui, p);
-                                }
-                                ui.separator();
-                                w.todo = w.todo.take().or(todo_menu(ui, d));
-                            } else if let Some((_, r)) = self.details.as_ref().filter(|d| d.0 == *t) {
-                                ui.text_disabled(t);
-                                runs(ui, r, &mut self.run, &self.asking, rewound, &mut w);
-                            }
-                        });
-                    }
-                }
-            }
-            // Back through the history: the far right is now.
-            if let Some(since) = self.view.since {
-                let span = (Utc::now() - since).as_seconds_f32();
-                let mut back = self.at.map_or(span, |t| (t - since).as_seconds_f32());
-                if rewound {
-                    if ui.small_button("Now") {
-                        act = Some(Action::Rewind(None));
-                    }
-                    ui.same_line();
-                }
-                ui.set_next_item_width(-1.0);
-                let label = self.at.map_or("now".to_owned(), |t| format!("rewound to {}", local(t)));
-                let moved = match NumericFormat::new(label.replace('%', "%%")) {
-                    Ok(f) => ui.slider_config("##rewind", 0.0, span).display_format(f).build(&mut back),
-                    Err(_) => ui.slider_config("##rewind", 0.0, span).build(&mut back),
+            let Some(_bar) = ui.tab_bar("tabs") else { return };
+            let group = |t: &str| view.nodes.iter().find(|n| n.topic == t).and_then(|n| n.group.as_deref());
+            let shown: Vec<Shown> = view.nodes.iter().map(Shown::item).chain(view.said.iter().map(|s| Shown::said(s, group(&s.under)))).collect();
+            for (i, name) in TABS.iter().enumerate() {
+                let items: &[Item] = match i {
+                    1 => &view.nodes,
+                    2 => &view.machines,
+                    3 => &view.services,
+                    _ => &[],
                 };
-                if moved {
-                    act = Some(Action::Rewind((back < span - 60.0).then(|| since + chrono::Duration::seconds(back as i64))));
+                // A tab is red when anything on it is broken.
+                let broken = if i == 0 { view.now.iter().any(|a| a.status == Health::Bad) } else { items.iter().any(|n| n.status == Health::Bad) };
+                let colors: Vec<_> = if broken {
+                    [StyleColor::Tab, StyleColor::TabHovered, StyleColor::TabSelected, StyleColor::TabDimmed, StyleColor::TabDimmedSelected].map(|c| ui.push_style_color(c, RED)).into()
+                } else {
+                    vec![]
+                };
+                let label = if i == 0 && !view.now.is_empty() { format!("{name}  {}###{i}", view.now.len()) } else { format!("{name}###{i}") };
+                let item = ui.tab_item_with_flags(label, None, if self.go == Some(i) { TabItemFlags::SET_SELECTED } else { TabItemFlags::NONE });
+                colors.into_iter().rev().for_each(drop);
+                let Some(_item) = item else { continue };
+                if self.tab != i && self.go != Some(i) {
+                    self.selected = None;
+                }
+                self.tab = i;
+                if self.go == Some(i) {
+                    self.go = None;
+                }
+                let [width, _] = ui.content_region_avail();
+                let side = if self.selected.is_some() { 460.0 } else { 0.0 };
+                ui.child_window("page").size([width - side, 0.0]).flags(if i == 1 { WindowFlags::NO_SCROLL_WITH_MOUSE } else { WindowFlags::empty() }).build(ui, || match i {
+                    0 => now_page(ui, &view.now, &mut self.selected, &mut w),
+                    1 => w.send = self.canvas.draw(ui, nodes, &shown, &view.ghosts, &view.links, &view.places, &mut self.selected, &self.images).or(w.send.take()),
+                    2 => list_page(ui, items, "system/", &mut self.selected),
+                    _ => list_page(ui, items, "healthcheck/", &mut self.selected),
+                });
+                if let Some(t) = &self.selected {
+                    ui.same_line();
+                    ui.child_window("side").build(ui, || {
+                        if let Some((_, r)) = self.details.as_ref().filter(|d| d.0 == *t) {
+                            ui.text_disabled(t);
+                            runs(ui, r, &mut self.run, &self.asking, &mut w);
+                        }
+                    });
                 }
             }
         });
 
+        let size = ui.io().display_size();
         if let Some(c) = &mut self.command {
-            let size = ui.io().display_size();
             let mut open = true;
             ui.window("command")
                 .position([(size[0] - 600.0) / 2.0, 80.0], Condition::Always)
@@ -1009,8 +744,8 @@ impl Dashboard {
                     c.shown = true;
                     let before = c.text.clone();
                     ui.set_next_item_width(-1.0);
-                    let enter = ui.input_text("##command", &mut c.text).hint("Go to, send a trigger, rewind 3h, or capture").enter_returns_true(true).build();
-                    let mut acts = actions(view, &c.text, rewound);
+                    let enter = ui.input_text("##command", &mut c.text).hint("Go to, send a trigger, or ask Claude").enter_returns_true(true).build();
+                    let mut acts = actions(view, &c.text);
                     acts.truncate(12);
                     if c.text != before {
                         c.pick = 0;
@@ -1036,51 +771,57 @@ impl Dashboard {
                 self.command = None;
             }
         }
+        if let Some((q, a)) = &self.answer {
+            let mut open = true;
+            ui.window("Claude")
+                .position([(size[0] - 720.0) / 2.0, 80.0], Condition::Appearing)
+                .size([720.0, 0.0], Condition::Appearing)
+                .flags(WindowFlags::NO_SAVED_SETTINGS | WindowFlags::NO_COLLAPSE)
+                .opened(&mut open)
+                .build(|| {
+                    ui.text_disabled(q);
+                    ui.separator();
+                    match a {
+                        Some(a) => ui.text_wrapped(a),
+                        None => ui.text_disabled("Thinking…"),
+                    }
+                });
+            if !open {
+                self.answer = None;
+            }
+        }
         match act {
             Some(Action::Go(tab, key)) => {
                 self.go = Some(tab);
-                self.canvas.focus = Some(key.clone());
+                self.canvas.focus = (tab == 1).then(|| key.clone());
                 self.selected = Some(key);
             }
             Some(Action::Send(t)) => w.send = Some(t),
-            Some(Action::Capture(l)) => w.todo = Some(json!({"verb": "capture", "label": l, "when": "today"})),
-            Some(Action::Rewind(t)) => {
-                self.at = t;
-                if t.is_none() {
-                    self.past = None;
-                    if let Some(s) = self.selected.as_ref().filter(|s| !s.starts_with("todo/")) {
-                        net.details(s, None);
-                    }
-                }
+            Some(Action::Ask(q)) => {
+                net.ask(&q);
+                self.answer = Some((q, None));
             }
             None => {}
         }
 
         if self.selected != before {
             self.run = None;
-            if let Some(t) = self.selected.as_ref().filter(|t| !t.starts_with("todo/")) {
-                net.details(t, self.at);
+            if let Some(t) = &self.selected {
+                net.details(t);
             }
         }
         if let Some((t, run)) = w.show {
             if self.selected.as_ref() != Some(&t) {
-                net.details(&t, self.at);
+                net.details(&t);
             }
             self.selected = Some(t);
             self.run = Some(run);
-        }
-        if let Some(t) = w.todo {
-            net.todo(&t);
-        }
-        if let Some(n) = w.note {
-            self.ticking.insert((n.file.clone(), n.line));
-            net.note(&n);
         }
         if let Some(r) = w.diagnose {
             self.asking.insert(r.clone());
             net.diagnose(&r);
         }
-        if let Some(t) = w.send.filter(|_| !rewound) {
+        if let Some(t) = w.send {
             net.send(&t);
         }
         if let Some(p) = w.open {
@@ -1090,10 +831,10 @@ impl Dashboard {
 }
 
 /// A finished run's summary and result; returns a result file to open.
-fn said(ui: &Ui, s: &Said, id: &str) -> Option<String> {
+fn said(ui: &Ui, s: &Done, id: &str) -> Option<String> {
     if s.success { ui.text_wrapped(&s.summary) } else { red(ui, &s.summary) }
     match &s.result {
-        Some(serde_json::Value::String(r)) => {
+        Some(Value::String(r)) => {
             let open = r.starts_with('/') && ui.small_button(format!("Open##{id}"));
             ui.text_wrapped(r);
             open.then(|| r.clone())
@@ -1106,9 +847,9 @@ fn said(ui: &Ui, s: &Said, id: &str) -> Option<String> {
     }
 }
 
-fn json(v: &serde_json::Value) -> String {
+fn json(v: &Value) -> String {
     match v {
-        serde_json::Value::String(s) => s.clone(),
+        Value::String(s) => s.clone(),
         v => serde_json::to_string_pretty(v).unwrap(),
     }
 }

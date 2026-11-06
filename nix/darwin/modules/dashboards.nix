@@ -24,17 +24,10 @@
           type = lib.types.nullOr lib.types.str;
           default = null;
         };
-        notes = lib.mkOption {
-          description = ''
-            Directories of Markdown and Org notes whose `- [ ]` checkboxes the
-            dashboard shows, and ticks.
-          '';
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-        };
         claude = lib.mkOption {
           description = ''
-            The claude CLI, to diagnose runs that went wrong. It only replies:
+            The claude CLI, to diagnose runs that went wrong and answer questions
+            about the history. It only replies:
             no tools, settings or MCP servers, in a sandbox that can't read the
             home directory.
           '';
@@ -53,7 +46,6 @@
               --web ${self-pkgs.control-dashboard-web} \
               ${flags "require" cfg.requiredHealthchecks} \
               ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)} \
-              ${flags "notes" cfg.notes} \
               ${flags "claude" (lib.optional (cfg.claude != null) cfg.claude)}
           '';
           serviceConfig = {
