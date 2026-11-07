@@ -53,9 +53,12 @@ server sends the whole view. Clients send nothing on it.
   send (see below), and the link should look actionable.
 - `said` is what a node's latest run started with (`content`) and finished
   with (`result`), each a node of its own under it.
-- `places` puts every graph node, ghost and `said` node in a column and a row:
-  a column per step down a chain of links, and rows from the top. A row is as
-  tall as its tallest node, so where it is on screen is the window's to say.
+- `places` puts every graph node, ghost and `said` node in a column and a row.
+  Each group gets its own columns, beside the last; in a group, a node's
+  column is twice its step down a chain of links, and what it said hangs in
+  the column after it. A column is as wide as its widest node and a row as
+  tall as its tallest, so where they are on screen is the window's to say;
+  a window may let nodes be dragged, without keeping where.
 
 ## What the server announces
 
@@ -85,6 +88,11 @@ logs are.
 `trace` is the chain the run is part of, from the run that began it, each run
 followed by its subtasks and reactions, `depth` deep; empty when it's alone.
 `diagnosable` says Claude can be asked about it (see below).
+
+## `POST /api/forget`: forget topics
+
+Body `{"topics": ["…"]}`. Their runs are dropped, from the history too, until
+they run again.
 
 ## `POST /api/send`: send a pending trigger
 

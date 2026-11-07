@@ -170,6 +170,11 @@ impl Net {
         Net { server, ws: None, retry: Instant::now(), tx, rx, wake }
     }
 
+    /// Asks for another frame.
+    pub fn wake(&self) {
+        (self.wake)()
+    }
+
     /// What arrived since the last frame; reconnects every few seconds while down.
     pub fn poll(&mut self) -> Vec<Msg> {
         if self.ws.is_none() && Instant::now() >= self.retry {
@@ -225,6 +230,11 @@ impl Net {
         self.fetch(slow(self.post("ask", serde_json::json!({"question": question}))), |r| {
             Some(Msg::Answer(r.map(|b| String::from_utf8_lossy(&b).into_owned())))
         });
+    }
+
+    /// Forgets topics: their runs are dropped, until they run again.
+    pub fn forget(&self, topics: &[String]) {
+        self.fetch(self.post("forget", serde_json::json!({"topics": topics})), |r| Some(Msg::Sent(r.map(|_| ()))));
     }
 
     /// An image in a run's content or result.

@@ -16,8 +16,8 @@ import Data.Aeson (FromJSON, ToJSON (..), Value (..), decode, decodeStrict, enco
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy.Char8 as BL8
-import Data.Foldable (for_, toList)
-import Data.List (sortOn)
+import Data.Foldable (for_, toList, traverse_)
+import Data.List (groupBy, sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, mapMaybe)
@@ -82,6 +82,8 @@ opts = do
 -- | What the server knows, besides its options.
 data Env = Env
   { st :: TVar State
+  , record :: Logged -> IO ()
+    -- ^ Keeps a line in the history, and applies it.
   , view :: TVar BL8.ByteString
     -- ^ What the windows are sent, as it was last judged.
   , asking :: MVar ()
@@ -94,13 +96,14 @@ main = do
   o <- opts
   createDirectoryIfMissing True (o.state </> "diagnoses")
   let historyFile = o.state </> "events.jsonl"
-  env <- Env <$> (newTVarIO . foldl (flip apply) (State mempty mempty o.require False) =<< loadHistory historyFile) <*> newTVarIO "" <*> newMVar ()
+  st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require False) =<< loadHistory historyFile
   history <- openFile historyFile AppendMode
   lock <- newMVar ()
   let record l = do
         withMVar lock \_ -> BL8.hPut history (encode l <> "\n") >> hFlush history
-        atomically (modifyTVar' env.st (apply l))
-  _ <- forkIO (listen o.session env.st record)
+        atomically (modifyTVar' st (apply l))
+  env <- Env st record <$> newTVarIO "" <*> newMVar ()
+  _ <- forkIO (listen o.session st record)
   _ <- forkIO (judge env)
   putStrLn ("Serving on http://" <> o.host <> ":" <> show o.port)
   runSettings (setHost (fromString o.host) (setPort o.port defaultSettings)) $
@@ -211,7 +214,9 @@ view now st = View st.connected (foldr (min . (.status)) Fine attention) attenti
         ++ [Attention i.topic Waiting [] (sends i.topic) | i <- items, i.status == Waiting]
     sends t = [object ["run" .= r.eid.correlationId, "index" .= i, "label" .= trig.triggerLabel] | Just r <- [latest st t], (i, trig) <- pendingTriggers ix r]
     said = [Said (t <> "#" <> k) t k v | t <- topics, Just r <- [latest st t], (k, Just v) <- [("content", r.start.e.content), ("result", r.end >>= (.e.result))]]
-    places' = places (map (.topic) (sortOn (\i -> (i.group, i.topic)) nodes) ++ map (.key) ghosts) [(l.from, l.to) | l <- links] [(s.under, s.key) | s <- said]
+    -- A block per group, with the ghosts its nodes announce.
+    blocks = [map (.topic) ns ++ [g.key | g <- ghosts, g.announcer `elem` map (.topic) ns] | ns <- groupBy (\a b -> a.group == b.group) (sortOn (\i -> (i.group, i.topic)) nodes)]
+    places' = places blocks [(l.from, l.to) | l <- links] [(s.under, s.key) | s <- said]
     -- Topics are grouped by their second level, e.g. script/finances/… and
     -- server/finances/… as "finances", when there's more than one.
     second t = case T.splitOn "/" t of _ : g : _ : _ -> Just g; _ -> Nothing
@@ -260,6 +265,9 @@ data Diagnose = Diagnose {run :: UUID}
 data Ask = Ask {question :: Text}
   deriving (Generic, FromJSON)
 
+data Forget = Forget {topics :: [Text]}
+  deriving (Generic, FromJSON)
+
 http :: Opts -> Env -> Application
 http o env req respond = case (requestMethod req, pathInfo req) of
   ("GET", ["api", "topic"]) | Just t <- param "topic" -> do
@@ -293,6 +301,11 @@ http o env req respond = case (requestMethod req, pathInfo req) of
     case decode body of
       Just (Ask q) | not (T.null (T.strip q)) -> withMVar env.asking (\_ -> ask c History (overview now s q)) >>= either (text status500) (text status200)
       _ -> text status400 "No question."
+  ("POST", ["api", "forget"]) -> do
+    body <- lazyRequestBody req
+    case decode body of
+      Just (Forget ts) -> traverse_ (env.record . Forgot) ts >> text status200 "Forgotten"
+      _ -> text status400 "No topics."
   -- Only files runs gave as their result, or images in their content, so
   -- this can't read anything else.
   ("GET", ["file"]) | Just p <- param "path" -> do

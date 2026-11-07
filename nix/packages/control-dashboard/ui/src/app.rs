@@ -81,6 +81,22 @@ fn ids(key: &str) -> (NodeId, PinId, PinId) {
     (NodeId::new(h), PinId::new(h), PinId::new(h | 1))
 }
 
+/// Node positions from imnodes' saved state, by node id.
+fn placements(ini: &str) -> HashMap<i32, [f32; 2]> {
+    let mut node = None;
+    let mut out = HashMap::new();
+    for l in ini.lines() {
+        if let Some(n) = l.strip_prefix("[node.").and_then(|l| l.strip_suffix(']')) {
+            node = n.parse().ok();
+        } else if let (Some(n), Some((x, y))) = (node, l.strip_prefix("origin=").and_then(|o| o.split_once(',')))
+            && let (Ok(x), Ok(y)) = (x.parse(), y.parse())
+        {
+            out.insert(n, [x, y]);
+        }
+    }
+    out
+}
+
 fn fmt_duration(secs: f64) -> String {
     let ms = (secs * 1000.0).max(0.0) as i64;
     let s = ms / 1000;
@@ -295,8 +311,13 @@ struct Canvas {
     editor: Option<EditorContext>,
     /// imnodes can't zoom: fonts, style and positions are all scaled by this instead.
     zoom: Option<f32>,
-    /// How tall each node was last drawn, at zoom 1: a row is as tall as its tallest.
-    heights: HashMap<String, f32>,
+    /// How big each node was last drawn, at zoom 1: a column is as wide as
+    /// its widest, and a row as tall as its tallest.
+    sizes: HashMap<String, [f32; 2]>,
+    /// Nodes moved by hand, at zoom 1, until the window closes.
+    moved: HashMap<String, [f32; 2]>,
+    /// The node being dragged, while it is.
+    dragging: Option<String>,
     /// What imnodes has selected, so picking elsewhere isn't undone.
     picked: Option<String>,
     /// A node to bring to the middle.
@@ -306,7 +327,7 @@ struct Canvas {
 impl Canvas {
     /// Draws the graph where the server placed it; returns a trigger clicked.
     #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, ui: &Ui, nodes: &dear_imnodes::Context, shown: &[Shown], ghosts: &[net::Ghost], links: &[net::Link], places: &HashMap<String, (usize, usize)>, selected: &mut Option<String>, images: &HashMap<String, Picture>) -> Option<net::TriggerRef> {
+    fn draw(&mut self, ui: &Ui, nodes: &dear_imnodes::Context, net: &Net, shown: &[Shown], ghosts: &[net::Ghost], links: &[net::Link], places: &HashMap<String, (usize, usize)>, selected: &mut Option<String>, images: &HashMap<String, Picture>) -> Option<net::TriggerRef> {
         let editor = self.editor.get_or_insert_with(|| nodes.create_editor_context());
         let zoom = self.zoom.get_or_insert(1.0);
         let io = ui.io();
@@ -326,15 +347,18 @@ impl Canvas {
             }
         }
         let z = *zoom;
-        // Columns leave room for a label between a node and the next.
-        const COLUMN: f32 = 600.0;
-        let rows = places.values().map(|p| p.1 + 1).max().unwrap_or(0);
-        let mut tall = vec![0.0f32; rows];
-        for (k, (_, r)) in places {
-            tall[*r] = tall[*r].max(self.heights.get(k).copied().unwrap_or(80.0));
+        // A column is as wide as its widest node, a row as tall as its
+        // tallest, and columns leave room for a label between them.
+        let size = |k: &str, i: usize| self.sizes.get(k).map_or([300.0, 80.0][i], |s| s[i]);
+        let mut wide = vec![0.0f32; places.values().map(|p| p.0 + 1).max().unwrap_or(0)];
+        let mut tall = vec![0.0f32; places.values().map(|p| p.1 + 1).max().unwrap_or(0)];
+        for (k, (c, r)) in places {
+            wide[*c] = wide[*c].max(size(k, 0));
+            tall[*r] = tall[*r].max(size(k, 1));
         }
-        let top: Vec<f32> = tall.iter().scan(40.0, |y, h| Some(std::mem::replace(y, *y + h + 40.0))).collect();
-        let at = |k: &str| places.get(k).map_or([0.0; 2], |(c, r)| [60.0 + *c as f32 * COLUMN, top[*r]]);
+        let starts = |v: &[f32], first: f32, gap: f32| v.iter().scan(first, |x, w| Some(std::mem::replace(x, *x + w + if *w > 0.0 { gap } else { 0.0 }))).collect::<Vec<_>>();
+        let (left, top) = (starts(&wide, 60.0, 160.0), starts(&tall, 40.0, 40.0));
+        let at = |k: &str| self.moved.get(k).copied().unwrap_or_else(|| places.get(k).map_or([0.0; 2], |(c, r)| [left[*c], top[*r]]));
         if let Some(k) = self.focus.take() {
             let ([w, h], p) = (ui.content_region_avail(), at(&k));
             nodes.bind_editor(editor).reset_panning([w / 2.0 - (p[0] + 100.0) * z, h / 2.0 - p[1] * z]);
@@ -342,10 +366,10 @@ impl Canvas {
         let _font = ui.push_font_with_size(None, ui.clone_style().font_size_base() * z);
         let setup = ui.imnodes(nodes).editor(Some(editor));
         quiet(&setup, z);
-        for k in shown.iter().map(|n| n.key).chain(ghosts.iter().map(|g| g.key.as_str())) {
+        let keys: Vec<&str> = shown.iter().map(|n| n.key).chain(ghosts.iter().map(|g| g.key.as_str())).collect();
+        for k in keys.iter().filter(|k| self.dragging.as_deref() != Some(k)) {
             let p = at(k);
             setup.set_node_pos_grid(ids(k).0, [p[0] * z, p[1] * z]);
-            setup.set_node_draggable(ids(k).0, false);
         }
         let ed = setup.begin_nodes();
         let mut geo = HashMap::new();
@@ -363,7 +387,24 @@ impl Canvas {
             ed.link(LinkId::new(ids(&format!("{from}|{to}")).0.raw()), ids(from).2, ids(to).1);
         }
         let post = ed.end();
-        self.heights = geo.iter().map(|(k, g)| (k.to_string(), (g.max[1] - g.min[1]) / z)).collect();
+        // A node dragged stays where it's dropped: imnodes only says where in its saved state.
+        if ui.is_mouse_clicked(MouseButton::Left) && ui.is_window_hovered_with_flags(WindowHoveredFlags::CHILD_WINDOWS) {
+            self.dragging = post.hovered_node().and_then(|n| keys.iter().find(|k| ids(k).0 == n)).map(|k| k.to_string());
+        }
+        if let Some(k) = self.dragging.take_if(|_| !ui.is_mouse_down(MouseButton::Left))
+            && let Some(p) = placements(&post.save_state_to_ini_string()).get(&ids(&k).0.raw())
+        {
+            let (p, was) = ([p[0] / z, p[1] / z], at(&k));
+            if (p[0] - was[0]).abs() + (p[1] - was[1]).abs() > 1.0 {
+                self.moved.insert(k, p);
+            }
+        }
+        // Nodes are placed by how big they were last drawn: if that changed, draw again.
+        let sizes: HashMap<String, [f32; 2]> = geo.iter().map(|(k, g)| (k.to_string(), [(g.max[0] - g.min[0]) / z, (g.max[1] - g.min[1]) / z])).collect();
+        if sizes.iter().any(|(k, s)| self.sizes.get(k).is_none_or(|t| (s[0] - t[0]).abs() + (s[1] - t[1]).abs() > 1.0)) {
+            net.wake();
+        }
+        self.sizes = sizes;
 
         let dl = ui.get_foreground_draw_list();
         let (lo, size) = (ui.window_pos(), ui.window_size());
@@ -564,17 +605,33 @@ enum Action {
     Go(usize, String),
     Send(net::TriggerRef),
     Ask(String),
+    Forget(Vec<String>),
+}
+
+/// Whether every word of the text is in `s`.
+fn fits(s: &str, text: &str) -> bool {
+    let s = s.to_lowercase();
+    let mut words = text.split_whitespace().map(str::to_lowercase).peekable();
+    words.peek().is_some() && words.all(|w| s.contains(&w))
 }
 
 /// What the command bar offers for its text: going to whatever matches,
-/// sending a trigger, or asking Claude about the history.
+/// sending a trigger, forgetting topics ("forget …"), or asking Claude about
+/// the history.
 fn actions(view: &View, text: &str) -> Vec<(String, Action)> {
-    let words: Vec<String> = text.split_whitespace().map(str::to_lowercase).collect();
-    let fits = |s: &str| !words.is_empty() && words.iter().all(|w| s.to_lowercase().contains(w.as_str()));
+    let topics = || [&view.nodes, &view.machines, &view.services].into_iter().flatten().map(|i| &i.topic);
+    if let Some(rest) = text.trim().strip_prefix("forget ") {
+        let all: Vec<String> = topics().filter(|t| fits(t, rest)).cloned().collect();
+        let mut out: Vec<(String, Action)> = all.iter().map(|t| (format!("Forget {t}"), Action::Forget(vec![t.clone()]))).collect();
+        if all.len() > 1 {
+            out.insert(0, (format!("Forget all {} of these", all.len()), Action::Forget(all)));
+        }
+        return out;
+    }
     let go = |tab: usize, items: &[Item]| items.iter().map(move |i| (format!("Go to {}", i.topic), Action::Go(tab, i.topic.clone()))).collect::<Vec<_>>();
     let mut out: Vec<(String, Action)> = [go(1, &view.nodes), go(2, &view.machines), go(3, &view.services)].into_iter().flatten().collect();
     out.extend(view.now.iter().flat_map(|a| a.triggers.iter().map(|t| (format!("Send \"{}\" to {}", t.label, a.key), Action::Send(net::TriggerRef { run: t.run.clone(), index: t.index })))));
-    out.retain(|(l, _)| fits(l));
+    out.retain(|(l, _)| fits(l, text));
     if let Some(q) = Some(text.trim()).filter(|t| !t.is_empty()) {
         out.push((format!("Ask Claude: {q}"), Action::Ask(q.to_owned())));
     }
@@ -711,7 +768,7 @@ impl Dashboard {
                 let side = if self.selected.is_some() { 460.0 } else { 0.0 };
                 ui.child_window("page").size([width - side, 0.0]).flags(if i == 1 { WindowFlags::NO_SCROLL_WITH_MOUSE } else { WindowFlags::empty() }).build(ui, || match i {
                     0 => now_page(ui, &view.now, &mut self.selected, &mut w),
-                    1 => w.send = self.canvas.draw(ui, nodes, &shown, &view.ghosts, &view.links, &view.places, &mut self.selected, &self.images).or(w.send.take()),
+                    1 => w.send = self.canvas.draw(ui, nodes, net, &shown, &view.ghosts, &view.links, &view.places, &mut self.selected, &self.images).or(w.send.take()),
                     2 => list_page(ui, items, "system/", &mut self.selected),
                     _ => list_page(ui, items, "healthcheck/", &mut self.selected),
                 });
@@ -744,7 +801,7 @@ impl Dashboard {
                     c.shown = true;
                     let before = c.text.clone();
                     ui.set_next_item_width(-1.0);
-                    let enter = ui.input_text("##command", &mut c.text).hint("Go to, send a trigger, or ask Claude").enter_returns_true(true).build();
+                    let enter = ui.input_text("##command", &mut c.text).hint("Go to, send a trigger, forget …, or ask Claude").enter_returns_true(true).build();
                     let mut acts = actions(view, &c.text);
                     acts.truncate(12);
                     if c.text != before {
@@ -800,6 +857,12 @@ impl Dashboard {
             Some(Action::Ask(q)) => {
                 net.ask(&q);
                 self.answer = Some((q, None));
+            }
+            Some(Action::Forget(ts)) => {
+                if self.selected.as_ref().is_some_and(|s| ts.contains(s)) {
+                    self.selected = None;
+                }
+                net.forget(&ts);
             }
             None => {}
         }

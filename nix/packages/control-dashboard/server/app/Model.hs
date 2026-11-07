@@ -26,8 +26,9 @@ data Run = Run
   , end :: Maybe (Timed EvtDone)
   }
 
--- | A line of the history file: what 'react' handed us.
-data Logged = Started EventId (Timed (EvtMsg Value)) | Finished UUID (Timed EvtDone)
+-- | A line of the history file: what 'react' handed us, or a topic the user
+-- asked to forget.
+data Logged = Started EventId (Timed (EvtMsg Value)) | Finished UUID (Timed EvtDone) | Forgot Text
   deriving (Generic, ToJSON, FromJSON)
 
 data State = State
@@ -48,6 +49,7 @@ grace = 60
 
 apply :: Logged -> State -> State
 apply (Finished i d) st = st {runs = Map.adjust (\r -> r {end = Just d}) i st.runs}
+apply (Forgot t) st = st {runs = foldr Map.delete st.runs (Map.findWithDefault [] t st.byTopic), byTopic = Map.delete t st.byTopic}
 apply (Started e s) st
   | Map.member e.correlationId st.runs || "test/" `T.isPrefixOf` t = st
   | otherwise = st {runs = foldr Map.delete runs' old, byTopic = Map.insert t kept st.byTopic}
@@ -191,36 +193,45 @@ graph st ix = (nodes, ghosts ++ awaitedGhosts, plain ++ viaTriggers ++ pending +
     relative t f = let (a, b) = (T.splitOn "/" t, T.splitOn "/" f) in T.intercalate "/" (drop (length (takeWhile id (zipWith (==) (init a) b))) b)
     expected trig = let tt = unTopic trig.triggerTopic in maybe tt snd (listToMaybe [l | l <- reactions, fst l == tt, not (hidden (snd l))])
 
--- | Where each node goes, as a column and a row: a column per step down
--- the longest chain of links to it, and a row per chain. A node's first
--- link further right stays on its row, and the nodes hanging under it take
--- the rows right below. Nodes are visited in the order given, those nothing
--- links to first, and a link back up a chain doesn't count.
-places :: [Text] -> [(Text, Text)] -> [(Text, Text)] -> Map Text (Int, Int)
-places keys links under = snd (foldl visit (0, Map.empty) order)
+-- | Where each node goes, as a column and a row. Each block, a group, goes
+-- beside the last. In a block, a node's column is twice its step down the
+-- longest chain of links to it, and the next column is for the nodes that
+-- hang beside it. A node's first link further right stays on its row, and
+-- its other links and what else hangs beside it take new rows. Nodes nothing
+-- links to come first, and a link back up a chain, or out of the block,
+-- doesn't count.
+places :: [[Text]] -> [(Text, Text)] -> [(Text, Text)] -> Map Text (Int, Int)
+places blocks links under = fst (foldl block (Map.empty, 0) blocks)
   where
-    order = filter (`notElem` map snd links) keys ++ keys
-    forward = snd (foldl (\acc k -> walk [] k acc) (Set.empty, []) order)
-    walk path k (seen, es)
-      | Set.member k seen = (seen, es)
-      | otherwise = foldl step (Set.insert k seen, es) [b | (a, b) <- links, a == k]
+    block (m, off) keys = (Map.union m (Map.map (\(c, r) -> (c + off, r)) local), off + 1 + maximum (-1 : map fst (Map.elems local)))
+      where local = layout keys [(a, b) | (a, b) <- links, a `elem` keys, b `elem` keys]
+    layout keys ls = snd (foldl visit (0, Map.empty) order)
       where
-        step acc b
-          | b `elem` k : path = acc
-          | otherwise = (\(s, e) -> (s, (k, b) : e)) (walk (k : path) b acc)
-    col :: Text -> Int
-    col k = maximum (0 : [1 + col a | (a, b) <- forward, b == k])
-    visit acc@(next, m) k
-      | Map.member k m = acc
-      | otherwise = place k next (next + 1, m)
-    place k row (next, m) = go True (foldl below (next, Map.insert k (col k, row) m) [c | (p, c) <- under, p == k]) [b | (a, b) <- links, a == k]
-      where
-        below (n, m') c = (n + 1, Map.insert c (col k, n) m')
-        go _ acc [] = acc
-        go first acc@(n, m') (t : ts)
-          | Map.member t m' = go first acc ts
-          | first, col t > col k = go False (place t row acc) ts
-          | otherwise = go False (place t n (n + 1, m')) ts
+        order = filter (`notElem` map snd ls) keys ++ keys
+        forward = snd (foldl (\acc k -> walk [] k acc) (Set.empty, []) order)
+        walk path k (seen, es)
+          | Set.member k seen = (seen, es)
+          | otherwise = foldl step (Set.insert k seen, es) [b | (a, b) <- ls, a == k]
+          where
+            step acc b
+              | b `elem` k : path = acc
+              | otherwise = (\(s, e) -> (s, (k, b) : e)) (walk (k : path) b acc)
+        col :: Text -> Int
+        col k = 2 * depth k
+        depth k = maximum (0 : [1 + depth a | (a, b) <- forward, b == k])
+        visit acc@(next, m) k
+          | Map.member k m = acc
+          | otherwise = place k next (next + 1, m)
+        place k row (next, m) = go True (foldl hang (next, Map.insert k (col k, row) m) (zip [0 :: Int ..] [c | (p, c) <- under, p == k])) [b | (a, b) <- ls, a == k]
+          where
+            hang (n, m') (i, c)
+              | i == 0 = (n, Map.insert c (col k + 1, row) m')
+              | otherwise = (n + 1, Map.insert c (col k + 1, n) m')
+            go _ acc [] = acc
+            go first acc@(n, m') (t : ts)
+              | Map.member t m' = go first acc ts
+              | first, col t > col k = go False (place t row acc) ts
+              | otherwise = go False (place t n (n + 1, m')) ts
 
 -- | MQTT topic filter matching, with @+@ and @#@.
 matches :: Text -> Text -> Bool

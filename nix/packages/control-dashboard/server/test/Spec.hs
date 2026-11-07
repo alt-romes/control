@@ -63,9 +63,13 @@ main = do
   check "trace" [(d, topicOf x) | (d, x) <- trace st' (index st') r'] [(0, "script/s"), (1, "trigger/x")]
   check "strips" [[s | Tick s _ <- recent now x t] | (x, t) <- [(st', "script/s"), (waiting, "script/w")]] [[Bad], [Fine]]
 
-  -- Places: a column per step down a chain, a node's first link on its row,
-  -- what it said right below it, and its other links on rows of their own.
-  check "places" (Map.toList (places ["a", "b", "c", "d"] [("a", "b"), ("a", "c"), ("b", "d")] [("a", "a#content")]))
-    [("a", (0, 0)), ("a#content", (0, 1)), ("b", (1, 0)), ("c", (1, 2)), ("d", (2, 0))]
+  -- Places: two columns per step down a chain, the second for what hangs
+  -- beside a node; a node's first link on its row, its others below; and
+  -- each block beside the last.
+  check "places" (Map.toList (places [["a", "b", "c", "d"], ["x"]] [("a", "b"), ("a", "c"), ("b", "d")] [("a", "a#content"), ("a", "a#result")]))
+    [("a", (0, 0)), ("a#content", (1, 0)), ("a#result", (1, 1)), ("b", (2, 0)), ("c", (2, 2)), ("d", (4, 0)), ("x", (5, 0))]
   -- A cycle doesn't push anything right, and a link back takes a row of its own.
-  check "cycle" (Map.toList (places ["a", "b"] [("a", "b"), ("b", "a")] [])) [("a", (0, 0)), ("b", (1, 0))]
+  check "cycle" (Map.toList (places [["a", "b"]] [("a", "b"), ("b", "a")] [])) [("a", (0, 0)), ("b", (2, 0))]
+
+  -- Forgetting a topic drops its runs.
+  check "forgot" (Map.keys (apply (Forgot "script/s") st').byTopic) ["trigger/x"]
