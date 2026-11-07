@@ -54,7 +54,10 @@
             create = "maildir";
           };
           mu.enable = true;
-          neomutt.enable = true;
+          neomutt = {
+            enable = true;
+            extraConfig = "alternates 'rodrigo@kanjideck\\.com'";
+          };
           msmtp.enable = true;
           notmuch.enable = true;
           primary = true;
