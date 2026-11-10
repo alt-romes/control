@@ -76,6 +76,7 @@
     home-manager.users.romes.programs.custom.doom-emacs = true;
     home-manager.users.romes.programs.custom.mail-events = true;
     home-manager.users.romes.programs.custom.task-events = true;
+    home-manager.users.romes.programs.satisago.backup = "git@github.com:alt-romes/satisago-tasks-export.git";
 
     # --- Users ------------------------------------------------------------------
 
