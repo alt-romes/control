@@ -4,8 +4,8 @@
 Windows (`ui/`, and any other) only draw what it says. Everything is JSON;
 times are ISO 8601 UTC, durations are seconds.
 
-A plain `GET` of any other path serves the server's `--web` directory: the
-dashboard built for browsers, at `/`.
+A plain `GET /` is the dashboard as a page for browsers: the graph as an
+indented list, refreshed every few seconds.
 
 ## `GET /` as a WebSocket: the view
 
@@ -76,8 +76,7 @@ longer bad, `dashboard/healthy/<topic>`. Anything may react to them.
   "subtasks": [{"topic": "…", "problems": ["…"], "said": … or null}],
   "triggers": [{"index": 0, "label": "retry"}],
   "log": "the end of its log" or null,
-  "trace": [{"id", "topic", "label", "start", "end", "depth": 0, "status": "bad"}],
-  "diagnosis": "what Claude made of it" or null, "diagnosable": true
+  "trace": [{"id", "topic", "label", "start", "end", "depth": 0, "status": "bad"}]
 }]
 ```
 
@@ -87,30 +86,8 @@ logs are.
 
 `trace` is the chain the run is part of, from the run that began it, each run
 followed by its subtasks and reactions, `depth` deep; empty when it's alone.
-`diagnosable` says Claude can be asked about it (see below).
-
-## `POST /api/forget`: forget topics
-
-Body `{"topics": ["…"]}`. Their runs are dropped, from the history too, until
-they run again.
 
 ## `POST /api/send`: send a pending trigger
 
 Body `{"run": "uuid", "index": 0}`. `200` once sent; otherwise a status with
 the reason as text.
-
-## Claude
-
-With `--claude`, the server hands the `claude` CLI what it knows, with no
-tools and in a sandbox, and answers `200` with its reply as text once it has
-one (it takes a while). One question is asked at a time.
-
-- `POST /api/diagnose`, body `{"run": "uuid"}`: what went wrong with a run
-  that has problems. Replies are kept, and are the run's `diagnosis`.
-- `POST /api/ask`, body `{"question": "…"}`: anything about every topic's
-  problems and last runs.
-
-## `GET /file?path=P`: a file a run gave as its result
-
-Only paths that are some run's `said.result`, or images (`.png`, `.jpg`)
-named in some run's content, are served.

@@ -26,9 +26,8 @@ data Run = Run
   , end :: Maybe (Timed EvtDone)
   }
 
--- | A line of the history file: what 'react' handed us, or a topic the user
--- asked to forget.
-data Logged = Started EventId (Timed (EvtMsg Value)) | Finished UUID (Timed EvtDone) | Forgot Text
+-- | A line of the history file: what 'react' handed us.
+data Logged = Started EventId (Timed (EvtMsg Value)) | Finished UUID (Timed EvtDone)
   deriving (Generic, ToJSON, FromJSON)
 
 data State = State
@@ -49,7 +48,6 @@ grace = 60
 
 apply :: Logged -> State -> State
 apply (Finished i d) st = st {runs = Map.adjust (\r -> r {end = Just d}) i st.runs}
-apply (Forgot t) st = st {runs = foldr Map.delete st.runs (Map.findWithDefault [] t st.byTopic), byTopic = Map.delete t st.byTopic}
 apply (Started e s) st
   | Map.member e.correlationId st.runs || "test/" `T.isPrefixOf` t = st
   | otherwise = st {runs = foldr Map.delete runs' old, byTopic = Map.insert t kept st.byTopic}

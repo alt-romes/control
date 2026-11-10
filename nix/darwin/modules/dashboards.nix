@@ -24,16 +24,6 @@
           type = lib.types.nullOr lib.types.str;
           default = null;
         };
-        claude = lib.mkOption {
-          description = ''
-            The claude CLI, to diagnose runs that went wrong and answer questions
-            about the history. It only replies:
-            no tools, settings or MCP servers, in a sandbox that can't read the
-            home directory.
-          '';
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-        };
       };
 
       config = {
@@ -43,10 +33,8 @@
             exec ${lib.getExe self-pkgs.control-dashboard-server} \
               --port 5001 \
               --host 127.0.0.1 \
-              --web ${self-pkgs.control-dashboard-web} \
               ${flags "require" cfg.requiredHealthchecks} \
-              ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)} \
-              ${flags "claude" (lib.optional (cfg.claude != null) cfg.claude)}
+              ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)}
           '';
           serviceConfig = {
             RunAtLoad = true;
@@ -56,8 +44,7 @@
           };
         };
 
-        # Reachable locally and on the wireguard VPN, for windows elsewhere;
-        # browsers get the dashboard itself at dash.localhost.
+        # Reachable locally and on the wireguard VPN, by windows and browsers.
         services.caddy.virtualHosts = {
           "dash.localhost"     = "127.0.0.1:5001";
           "control.mogbit.com" = "127.0.0.1:5001";

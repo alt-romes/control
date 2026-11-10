@@ -43,6 +43,7 @@
         self.homeModules.llm
         self.homeModules.emacs
         self.homeModules.email
+        self.homeModules.task-events
         self.homeModules.colors
         self.homeModules.fonts
         self.homeModules.static_haskell

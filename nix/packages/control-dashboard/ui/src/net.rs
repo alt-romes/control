@@ -7,8 +7,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::Duration;
-use web_time::Instant;
+use std::time::{Duration, Instant};
 
 #[derive(Deserialize, Default)]
 pub struct View {
@@ -109,8 +108,6 @@ pub struct Run {
     pub triggers: Vec<Pending>,
     pub log: Option<String>,
     pub trace: Vec<Span>,
-    pub diagnosis: Option<String>,
-    pub diagnosable: bool,
 }
 
 /// A run in the chain the shown one is part of.
@@ -150,9 +147,6 @@ pub enum Msg {
     Gone(String),
     Details(String, Vec<Run>),
     Sent(Result<(), String>),
-    Diagnosed(String, Result<(), String>),
-    Answer(Result<String, String>),
-    Image(String, Result<Vec<u8>, String>),
 }
 
 pub struct Net {
@@ -219,46 +213,6 @@ impl Net {
         self.fetch(req, |r| Some(Msg::Sent(r.map(|_| ()))));
     }
 
-    /// Asks Claude about a run: it takes a while.
-    pub fn diagnose(&self, run: &str) {
-        let run = run.to_owned();
-        self.fetch(slow(self.post("diagnose", serde_json::json!({"run": run}))), |r| Some(Msg::Diagnosed(run, r.map(|_| ()))));
-    }
-
-    /// Asks Claude about the history: it takes a while too.
-    pub fn ask(&self, question: &str) {
-        self.fetch(slow(self.post("ask", serde_json::json!({"question": question}))), |r| {
-            Some(Msg::Answer(r.map(|b| String::from_utf8_lossy(&b).into_owned())))
-        });
-    }
-
-    /// Forgets topics: their runs are dropped, until they run again.
-    pub fn forget(&self, topics: &[String]) {
-        self.fetch(self.post("forget", serde_json::json!({"topics": topics})), |r| Some(Msg::Sent(r.map(|_| ()))));
-    }
-
-    /// An image in a run's content or result.
-    pub fn image(&self, path: &str) {
-        let path = path.to_owned();
-        self.fetch(ehttp::Request::get(self.file_url(&path)), |r| Some(Msg::Image(path, r)));
-    }
-
-    pub fn file_url(&self, path: &str) -> String {
-        format!("{}/file?path={}", self.server, encode(path))
-    }
-
-    /// A file a run gave as its result, from the server, to open.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn file(&self, path: &str, then: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
-        ehttp::fetch(ehttp::Request::get(self.file_url(path)), move |r| {
-            then(r.map_err(|e| e.to_string()).and_then(|r| if r.ok { Ok(r.bytes) } else { Err(r.text().unwrap_or("").to_owned()) }))
-        });
-    }
-
-    fn post(&self, path: &str, body: Value) -> ehttp::Request {
-        ehttp::Request::post(format!("{}/api/{path}", self.server), serde_json::to_vec(&body).unwrap())
-    }
-
     fn fetch(&self, req: ehttp::Request, msg: impl FnOnce(Result<Vec<u8>, String>) -> Option<Msg> + Send + 'static) {
         let (tx, wake) = (self.tx.clone(), self.wake.clone());
         ehttp::fetch(req, move |r| {
@@ -269,12 +223,6 @@ impl Net {
             }
         });
     }
-}
-
-/// Claude can take minutes.
-fn slow(mut req: ehttp::Request) -> ehttp::Request {
-    req.timeout = Some(Duration::from_secs(330));
-    req
 }
 
 fn encode(s: &str) -> String {

@@ -4,10 +4,9 @@
 -- windows. See ../protocol.md.
 module Main (main) where
 
-import Claude (Question (..), ask, brief, overview)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (race_)
-import Control.Concurrent.MVar (MVar, newMVar, withMVar)
+import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (IOException, SomeException, displayException, try)
@@ -16,7 +15,8 @@ import Data.Aeson (FromJSON, ToJSON (..), Value (..), decode, decodeStrict, enco
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy.Char8 as BL8
-import Data.Foldable (for_, toList, traverse_)
+import Data.Foldable (find, for_, traverse_)
+import Data.Graph (dfs, graphFromEdges)
 import Data.List (groupBy, sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -27,10 +27,11 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
+import Data.Tree (Tree (..))
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
 import GHC.Generics (Generic)
+import Lucid (Html, body_, button_, charset_, class_, content_, div_, doctypehtml_, h2_, head_, httpEquiv_, li_, meta_, name_, onclick_, p_, renderBS, small_, span_, style_, title_, toHtml, ul_)
 import Model
 import Network.HTTP.Types (hContentType, status200, status400, status404, status500)
 import Network.MQTT.Topic (unTopic)
@@ -41,29 +42,27 @@ import qualified Network.WebSockets as WS
 import System.Directory (createDirectoryIfMissing, doesFileExist, getHomeDirectory)
 import System.Environment (getArgs)
 import System.Exit (ExitCode (..), exitWith)
-import System.FilePath (takeExtension, (</>))
+import System.FilePath ((</>))
 import System.IO
 
 usage :: String
 usage = unlines
-  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--logs PATTERN] [--claude PATH]"
-  , "                                [--session ID | --clean] [--state DIR] [--web DIR]"
+  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--logs PATTERN]"
+  , "                                [--session ID | --clean] [--state DIR]"
   , ""
   , "  --host, --port    where to serve (default: 127.0.0.1:5001)"
   , "  --require TOPIC   a topic that must have runs, e.g. healthcheck/scrollsent"
   , "  --logs PATTERN    where a failed script's log is, %s for the last level of its topic"
-  , "  --claude PATH     the claude CLI, to diagnose runs and answer questions about them"
   , "  --session ID      the broker session to resume (default: control-dashboard)"
   , "  --clean           no broker session: miss whatever happens while closed"
-  , "  --state DIR       history and Claude's diagnoses (default: ~/.local/state/control-dashboard)"
-  , "  --web DIR         the dashboard for browsers, served at /" ]
+  , "  --state DIR       history (default: ~/.local/state/control-dashboard)" ]
 
-data Opts = Opts {host :: String, port :: Int, require :: [Text], logs :: Maybe String, claude :: Maybe FilePath, session :: Maybe String, state :: FilePath, web :: Maybe FilePath}
+data Opts = Opts {host :: String, port :: Int, require :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath}
 
 opts :: IO Opts
 opts = do
   home <- getHomeDirectory
-  getArgs >>= go (Opts "127.0.0.1" 5001 [] Nothing Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard") Nothing)
+  getArgs >>= go (Opts "127.0.0.1" 5001 [] Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard"))
   where
     go o = \case
       [] -> pure o
@@ -71,30 +70,24 @@ opts = do
       "--port" : v : as -> go o {port = read v} as
       "--require" : v : as -> go o {require = o.require ++ [T.pack v]} as
       "--logs" : v : as -> go o {logs = Just v} as
-      "--claude" : v : as -> go o {claude = Just v} as
       "--session" : v : as -> go o {session = Just v} as
       "--clean" : as -> go o {session = Nothing} as
       "--state" : v : as -> go o {state = v} as
-      "--web" : v : as -> go o {web = Just v} as
       ["-h"] -> hPutStr stderr usage >> exitWith ExitSuccess
       a : _ -> hPutStr stderr ("unknown argument " <> a <> "\n" <> usage) >> exitWith (ExitFailure 2)
 
 -- | What the server knows, besides its options.
 data Env = Env
   { st :: TVar State
-  , record :: Logged -> IO ()
-    -- ^ Keeps a line in the history, and applies it.
   , view :: TVar BL8.ByteString
     -- ^ What the windows are sent, as it was last judged.
-  , asking :: MVar ()
-    -- ^ Held while Claude is asked something, so one thing is asked at a time.
   }
 
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   o <- opts
-  createDirectoryIfMissing True (o.state </> "diagnoses")
+  createDirectoryIfMissing True o.state
   let historyFile = o.state </> "events.jsonl"
   st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require False) =<< loadHistory historyFile
   history <- openFile historyFile AppendMode
@@ -102,7 +95,7 @@ main = do
   let record l = do
         withMVar lock \_ -> BL8.hPut history (encode l <> "\n") >> hFlush history
         atomically (modifyTVar' st (apply l))
-  env <- Env st record <$> newTVarIO "" <*> newMVar ()
+  env <- Env st <$> newTVarIO ""
   _ <- forkIO (listen o.session st record)
   _ <- forkIO (judge env)
   putStrLn ("Serving on http://" <> o.host <> ":" <> show o.port)
@@ -181,7 +174,11 @@ data Item = Item {topic :: Text, status :: Health, last :: Maybe UTCTime, stats 
   deriving (Generic, ToJSON)
 
 -- | Something that needs you: what's wrong, and what waits for you to send a trigger.
-data Attention = Attention {key :: Text, status :: Health, problems :: [Text], triggers :: [Value]}
+data Attention = Attention {key :: Text, status :: Health, problems :: [Text], triggers :: [Sendable]}
+  deriving (Generic, ToJSON)
+
+-- | A pending trigger, and what 'Send' needs to send it.
+data Sendable = Sendable {run :: UUID, index :: Int, label :: Text}
   deriving (Generic, ToJSON)
 
 -- | What a node's latest run started with, or finished with, as a node under it.
@@ -212,7 +209,7 @@ view now st = View st.connected (foldr (min . (.status)) Fine attention) attenti
     attention =
       [Attention i.topic Bad i.problems [] | i <- items, i.status == Bad]
         ++ [Attention i.topic Waiting [] (sends i.topic) | i <- items, i.status == Waiting]
-    sends t = [object ["run" .= r.eid.correlationId, "index" .= i, "label" .= trig.triggerLabel] | Just r <- [latest st t], (i, trig) <- pendingTriggers ix r]
+    sends t = [Sendable r.eid.correlationId i (T.pack trig.triggerLabel) | Just r <- [latest st t], (i, trig) <- pendingTriggers ix r]
     said = [Said (t <> "#" <> k) t k v | t <- topics, Just r <- [latest st t], (k, Just v) <- [("content", r.start.e.content), ("result", r.end >>= (.e.result))]]
     -- A block per group, with the ghosts its nodes announce.
     blocks = [map (.topic) ns ++ [g.key | g <- ghosts, g.announcer `elem` map (.topic) ns] | ns <- groupBy (\a b -> a.group == b.group) (sortOn (\i -> (i.group, i.topic)) nodes)]
@@ -259,15 +256,6 @@ live env pending = do
 data Send = Send {run :: UUID, index :: Int}
   deriving (Generic, FromJSON)
 
-data Diagnose = Diagnose {run :: UUID}
-  deriving (Generic, FromJSON)
-
-data Ask = Ask {question :: Text}
-  deriving (Generic, FromJSON)
-
-data Forget = Forget {topics :: [Text]}
-  deriving (Generic, FromJSON)
-
 http :: Opts -> Env -> Application
 http o env req respond = case (requestMethod req, pathInfo req) of
   ("GET", ["api", "topic"]) | Just t <- param "topic" -> do
@@ -282,56 +270,14 @@ http o env req respond = case (requestMethod req, pathInfo req) of
       Just (Send i n) | Just r <- Map.lookup i s.runs, Just t <- lookup n (zip [0 ..] (foldMap (fromMaybe [] . (.e.triggers)) r.end)) ->
         try @SomeException (sendTrigger r t) >>= either (\e -> text status500 (T.pack (displayException e))) (const (text status200 "Sent"))
       _ -> text status400 "No such trigger."
-  ("POST", ["api", "diagnose"]) | Just c <- o.claude -> do
-    body <- lazyRequestBody req
+  ("GET", []) -> do
     (now, s) <- (,) <$> getCurrentTime <*> readTVarIO env.st
-    case decode body of
-      Just (Diagnose i) | Just r <- Map.lookup i s.runs -> do
-        a <- withMVar env.asking \_ -> readMaybe (diagnosisFile i) >>= \case
-          Just d -> pure (Right (T.decodeUtf8Lenient (BL8.toStrict d)))
-          Nothing -> do
-            a <- ask c Diagnosis . (\l -> brief now s l r) =<< logOf r
-            either (const (pure ())) (B8.writeFile (diagnosisFile i) . T.encodeUtf8) a
-            pure a
-        either (text status500) (text status200) a
-      _ -> text status400 "No such run."
-  ("POST", ["api", "ask"]) | Just c <- o.claude -> do
-    body <- lazyRequestBody req
-    (now, s) <- (,) <$> getCurrentTime <*> readTVarIO env.st
-    case decode body of
-      Just (Ask q) | not (T.null (T.strip q)) -> withMVar env.asking (\_ -> ask c History (overview now s q)) >>= either (text status500) (text status200)
-      _ -> text status400 "No question."
-  ("POST", ["api", "forget"]) -> do
-    body <- lazyRequestBody req
-    case decode body of
-      Just (Forget ts) -> traverse_ (env.record . Forgot) ts >> text status200 "Forgotten"
-      _ -> text status400 "No topics."
-  -- Only files runs gave as their result, or images in their content, so
-  -- this can't read anything else.
-  ("GET", ["file"]) | Just p <- param "path" -> do
-    s <- readTVarIO env.st
-    let given = [f | r <- Map.elems s.runs, Just d <- [r.end], Just (String f) <- [d.e.result]]
-          ++ [f | r <- Map.elems s.runs, f <- strings r.start.e.content, T.toLower (T.pack (takeExtension (T.unpack f))) `elem` [".png", ".jpg", ".jpeg"]]
-    if p `elem` given
-      then readMaybe (T.unpack p) >>= maybe (text status404 "Gone.") (respond . responseLBS status200 [(hContentType, mime (takeExtension (T.unpack p)))])
-      else text status404 "Not a result."
-  -- The dashboard for browsers: its files, by name, and nothing else.
-  ("GET", path) | Just dir <- o.web, all (\p -> not (T.null p) && T.head p /= '.') path -> do
-    let name = if null path then "index.html" else T.unpack (T.intercalate "/" path)
-    readMaybe (dir </> name) >>= maybe (text status404 "Not found.") (respond . responseLBS status200 [(hContentType, mime (takeExtension name))])
+    respond (responseLBS status200 [(hContentType, "text/html; charset=utf-8")] (renderBS (page now (view now s))))
   _ -> text status404 "Not found."
   where
-    diagnosisFile i = o.state </> "diagnoses" </> UUID.toString i <> ".txt"
     param k = T.decodeUtf8 <$> (lookup k (queryString req) >>= id)
     json = respond . responseLBS status200 [(hContentType, "application/json")] . encode
     text s = respond . responseLBS s [(hContentType, "text/plain; charset=utf-8")] . BL8.fromStrict . T.encodeUtf8
-    readMaybe f = doesFileExist f >>= \e -> if e then Just <$> BL8.readFile f else pure Nothing
-    mime = \case ".html" -> "text/html; charset=utf-8"; ".js" -> "text/javascript"; ".wasm" -> "application/wasm"; ".pdf" -> "application/pdf"; ".png" -> "image/png"; ".jpg" -> "image/jpeg"; ".jpeg" -> "image/jpeg"; ".svg" -> "image/svg+xml"; _ -> "application/octet-stream"
-    strings = \case
-      Just (String t) -> [t]
-      Just (Object m) -> concatMap (strings . Just) (toList m)
-      Just (Array a) -> concatMap (strings . Just) (toList a)
-      _ -> []
     -- Only a log that's there: a missing one says nothing about the run.
     logOf r = case o.logs of
       Just p -> either (const Nothing) (Just . T.unlines . lastN 30 . filter (not . T.null . T.strip) . T.lines)
@@ -344,7 +290,6 @@ http o env req respond = case (requestMethod req, pathInfo req) of
           chain = trace s ix r
           statusOf x = let Tick h _ = tick now x in h
       tailOfLog <- if bad r then logOf r else pure Nothing
-      diagnosis <- readMaybe (diagnosisFile r.eid.correlationId)
       pure $ object
         [ "id" .= r.eid.correlationId
         , "label" .= r.start.e.label
@@ -359,6 +304,61 @@ http o env req respond = case (requestMethod req, pathInfo req) of
         , "log" .= tailOfLog
         , "trace" .= if length chain < 2 then [] else
             [object ["id" .= x.eid.correlationId, "topic" .= topicOf x, "label" .= x.start.e.label, "start" .= x.start.at, "end" .= fmap (.at) x.end, "depth" .= d, "status" .= statusOf x] | (d, x) <- chain]
-        , "diagnosis" .= fmap (T.decodeUtf8Lenient . BL8.toStrict) diagnosis
-        , "diagnosable" .= (isJust o.claude && bad r)
         ]
+
+-- * The page for browsers
+
+-- | The view as one page: the graph as an indented list, each node followed
+-- by what its links lead to.
+page :: UTCTime -> View -> Html ()
+page now v = doctypehtml_ do
+  head_ do
+    meta_ [charset_ "utf-8"]
+    meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
+    meta_ [httpEquiv_ "refresh", content_ "5"]
+    title_ "Control"
+    style_ css
+  body_ do
+    unless v.connected (p_ [class_ "bad"] "The server can't reach the broker.")
+    h2_ "Now"
+    when (null v.now) (p_ [class_ "dim"] "Nothing needs you.")
+    ul_ $ for_ v.now \a -> li_ do
+      span_ [class_ (cls a.status)] (toHtml a.key)
+      for_ a.triggers \t -> sendButton t.run t.index t.label
+      traverse_ (div_ . toHtml) a.problems
+    h2_ "Events"
+    ul_ (traverse_ tree forest)
+    h2_ "Machines"
+    ul_ (traverse_ (li_ . item) v.machines)
+    h2_ "Healthchecks"
+    ul_ (traverse_ (li_ . item) v.services)
+  where
+    css :: Text
+    css = "body{font:15px/1.5 system-ui;max-width:50em;margin:auto;padding:1em;overflow-wrap:anywhere}:root{color-scheme:light dark}\
+          \ul{list-style:none;padding-left:1.2em}body>ul{padding:0}small,.dim{opacity:.6}button{margin-left:.5em}\
+          \.bad{color:#d33}.waiting{color:#b80}.running{color:#48c}"
+    cls :: Health -> Text
+    cls = T.toLower . T.pack . show
+    item :: Item -> Html ()
+    item i = do
+      span_ [class_ (cls i.status)] (toHtml i.topic)
+      small_ (toHtml (maybe "" (" " <>) i.stats <> maybe " never seen" (\t -> " " <> fmtDuration (diffUTCTime now t) <> " ago") i.last))
+      for_ i.problems (div_ [class_ "bad"] . toHtml)
+    -- Each node once: under the first that links to it, or by itself.
+    keys = map (.topic) v.nodes ++ map (.key) v.ghosts
+    (graph', fromVertex, toVertex) = graphFromEdges [(k, k, [l.to | l <- v.links, l.from == k]) | k <- keys]
+    forest = dfs graph' (mapMaybe toVertex (filter (`notElem` map (.to) v.links) keys ++ keys))
+    tree :: Tree Int -> Html ()
+    tree (Node n kids) = li_ do
+      let (k, _, _) = fromVertex n
+      case find ((== k) . (.topic)) v.nodes of
+        Just i -> item i
+        -- A ghost: what a pending trigger, or a run's rules, expect to happen.
+        Nothing -> do
+          span_ [class_ "dim"] (toHtml (maybe k (.title) (find ((== k) . (.key)) v.ghosts)))
+          for_ (find ((== k) . (.to)) v.links) \l -> for_ ((,) <$> l.send <*> l.label) \((r, i), label) -> sendButton r i label
+      unless (null kids) (ul_ (traverse_ tree kids))
+
+sendButton :: UUID -> Int -> Text -> Html ()
+sendButton r i label = button_ [onclick_ ("fetch('/api/send',{method:'POST',body:'" <> body <> "'}).then(()=>location.reload())")] (toHtml label)
+  where body = T.decodeUtf8 (BL8.toStrict (encode (object ["run" .= r, "index" .= i])))

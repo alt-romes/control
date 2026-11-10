@@ -14,7 +14,6 @@
     control-dashboard = {
       requiredHealthchecks = [ "healthcheck/kanjideck/fulfillment-server" "healthcheck/scrollsent" ];
       logPattern = "/tmp/org.romes.%s.err.log"; # the launchd agents' stderr
-      claude = lib.getExe inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
     };
 
     homebrew = {

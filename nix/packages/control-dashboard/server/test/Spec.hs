@@ -70,6 +70,3 @@ main = do
     [("a", (0, 0)), ("a#content", (1, 0)), ("a#result", (1, 1)), ("b", (2, 0)), ("c", (2, 2)), ("d", (4, 0)), ("x", (5, 0))]
   -- A cycle doesn't push anything right, and a link back takes a row of its own.
   check "cycle" (Map.toList (places [["a", "b"]] [("a", "b"), ("b", "a")] [])) [("a", (0, 0)), ("b", (2, 0))]
-
-  -- Forgetting a topic drops its runs.
-  check "forgot" (Map.keys (apply (Forgot "script/s") st').byTopic) ["trigger/x"]

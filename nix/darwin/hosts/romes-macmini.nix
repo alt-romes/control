@@ -24,6 +24,7 @@
       self.darwinModules.finances
       self.darwinModules.backups
       self.darwinModules.kanjideck-label-printer
+      self.darwinModules.dashboard-dot
     ];
 
     services.control-events-node = {
@@ -34,6 +35,8 @@
       nodeId   = "m4-macmini-2024";
       system-healthcheck = true;
     };
+
+    control-dashboard.dot.enable = true;
 
     # --------------------------------------------------------------------------------
     # My modules
@@ -72,6 +75,7 @@
   
     home-manager.users.romes.programs.custom.doom-emacs = true;
     home-manager.users.romes.programs.custom.mail-events = true;
+    home-manager.users.romes.programs.custom.task-events = true;
 
     # --- Users ------------------------------------------------------------------
 

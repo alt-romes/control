@@ -32,13 +32,13 @@ common shared
 executable control-dashboard-server
   import:           shared
   main-is:          Main.hs
-  other-modules:    Claude, Model
+  other-modules:    Model
   hs-source-dirs:   app
   ghc-options:      -threaded
   build-depends:
       async
     , http-types
-    , process
+    , lucid
     , stm
     , wai
     , wai-websockets

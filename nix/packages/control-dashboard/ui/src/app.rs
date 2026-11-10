@@ -1,12 +1,11 @@
-//! The dashboard's one window, whatever runs it: dear-app natively, or winit
-//! and wgpu in a browser.
+//! The dashboard's one window.
 
 use crate::net::{self, Attention, Done, Health, Item, Msg, Net, Run, Span, Tick, View};
 use chrono::{DateTime, Local, Utc};
-use dear_imgui_rs::{Condition, DrawListMut, Key, ManagedTextureId, MouseButton, OwnedTextureData, StyleColor, TabItemFlags, TextureFormat, Ui, WindowFlags, WindowHoveredFlags};
+use dear_imgui_rs::{Condition, DrawListMut, MouseButton, StyleColor, Ui, WindowFlags, WindowHoveredFlags};
 use dear_imnodes::{ColorElement, EditorContext, ImNodesExt, LinkId, NodeEditor, NodeEditorSetup, NodeId, PinId, PinShape};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -22,29 +21,6 @@ pub struct Dashboard {
     run: Option<String>,
     error: Option<String>,
     tab: usize,
-    /// A tab to switch to.
-    go: Option<usize>,
-    /// Runs Claude is being asked about.
-    asking: HashSet<String>,
-    /// A question about the history, and Claude's answer once it's here.
-    answer: Option<(String, Option<String>)>,
-    images: HashMap<String, Picture>,
-    /// Images decoded and not yet textures.
-    decoded: Vec<(String, u32, u32, Vec<u8>)>,
-    command: Option<Command>,
-}
-
-enum Picture {
-    Loading,
-    Shown(ManagedTextureId, [f32; 2]),
-    Broken,
-}
-
-#[derive(Default)]
-struct Command {
-    text: String,
-    pick: usize,
-    shown: bool,
 }
 
 const RED: [f32; 4] = [0.75, 0.2, 0.2, 1.0];
@@ -143,7 +119,7 @@ enum Look {
     Ghost,
 }
 
-fn node(ui: &Ui, ed: &NodeEditor, s: &Shown, look: Look, zoom: f32, images: &HashMap<String, Picture>) -> Geo {
+fn node(ui: &Ui, ed: &NodeEditor, s: &Shown, look: Look, zoom: f32) -> Geo {
     use ColorElement::*;
     let (id, input, output) = ids(s.key);
     let ghost = matches!(look, Look::Ghost);
@@ -179,23 +155,9 @@ fn node(ui: &Ui, ed: &NodeEditor, s: &Shown, look: Look, zoom: f32, images: &Has
         ui.text_colored(RED_TEXT, clip(p, 60));
         below(ui);
     }
-    match &s.body {
-        Body::Lines(ls) => ls.iter().for_each(|l| {
-            ui.text(l);
-            below(ui);
-        }),
-        Body::Image(p) => {
-            match images.get(p) {
-                Some(Picture::Shown(t, [w, h])) => {
-                    let f = (240.0 / w.max(*h)).min(1.0) * zoom;
-                    ui.image(*t, [w * f, h * f]);
-                }
-                Some(Picture::Broken) => ui.text_disabled(clip(p, 60)),
-                _ => ui.text_disabled("Loading…"),
-            }
-            below(ui);
-        }
-        Body::None => {}
+    for l in &s.body {
+        ui.text(l);
+        below(ui);
     }
     let pad = 8.0 * zoom;
     Geo { min: [min[0] - pad, min[1] - pad], max: [max[0].max(bottom[0]) + pad, bottom[1] + pad], y: (row.0[1] + row.1[1]) / 2.0 }
@@ -253,32 +215,13 @@ fn dashed(dl: &DrawListMut, a: [f32; 2], b: [f32; 2]) {
     seg([a[0], b[1]], a);
 }
 
-/// What a node shows below its problems.
-enum Body {
-    None,
-    Lines(Vec<String>),
-    Image(String),
-}
-
-/// A run's content or result: an image if it names one, else its fields.
-fn body(v: &Value) -> Body {
-    if let Some(p) = image_in(v) {
-        return Body::Image(p.to_owned());
-    }
+/// A run's content or result, as the lines a node shows below its problems.
+fn body(v: &Value) -> Vec<String> {
     let lines: Vec<String> = match v {
         Value::Object(m) => m.iter().filter(|(_, v)| !matches!(v, Value::Null) && v.as_str() != Some("")).map(|(k, v)| clip(&format!("{k}: {}", v.as_str().map_or_else(|| v.to_string(), str::to_owned)), 60)).collect(),
         v => json(v).lines().map(|l| clip(l, 60)).collect(),
     };
-    Body::Lines(lines.into_iter().take(8).collect())
-}
-
-fn image_in(v: &Value) -> Option<&str> {
-    match v {
-        Value::String(s) => (s.starts_with('/') && [".png", ".jpg", ".jpeg"].iter().any(|e| s.to_lowercase().ends_with(e))).then_some(s.as_str()),
-        Value::Array(a) => a.iter().find_map(image_in),
-        Value::Object(m) => m.values().find_map(image_in),
-        _ => None,
-    }
+    lines.into_iter().take(8).collect()
 }
 
 /// A node on the graph: an event's topic, or what its last run said.
@@ -290,14 +233,14 @@ struct Shown<'a> {
     problems: &'a [String],
     group: Option<&'a str>,
     recent: &'a [Tick],
-    body: Body,
+    body: Vec<String>,
     /// The node this one hangs under.
     under: Option<&'a str>,
 }
 
 impl<'a> Shown<'a> {
     fn item(i: &'a Item) -> Self {
-        Shown { key: &i.topic, title: &i.topic, sub: ago(i.last), color: color(i.status), problems: &i.problems, group: i.group.as_deref(), recent: &i.recent, body: Body::None, under: None }
+        Shown { key: &i.topic, title: &i.topic, sub: ago(i.last), color: color(i.status), problems: &i.problems, group: i.group.as_deref(), recent: &i.recent, body: vec![], under: None }
     }
 
     fn said(s: &'a net::Said, group: Option<&'a str>) -> Self {
@@ -320,14 +263,12 @@ struct Canvas {
     dragging: Option<String>,
     /// What imnodes has selected, so picking elsewhere isn't undone.
     picked: Option<String>,
-    /// A node to bring to the middle.
-    focus: Option<String>,
 }
 
 impl Canvas {
     /// Draws the graph where the server placed it; returns a trigger clicked.
     #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, ui: &Ui, nodes: &dear_imnodes::Context, net: &Net, shown: &[Shown], ghosts: &[net::Ghost], links: &[net::Link], places: &HashMap<String, (usize, usize)>, selected: &mut Option<String>, images: &HashMap<String, Picture>) -> Option<net::TriggerRef> {
+    fn draw(&mut self, ui: &Ui, nodes: &dear_imnodes::Context, net: &Net, shown: &[Shown], ghosts: &[net::Ghost], links: &[net::Link], places: &HashMap<String, (usize, usize)>, selected: &mut Option<String>) -> Option<net::TriggerRef> {
         let editor = self.editor.get_or_insert_with(|| nodes.create_editor_context());
         let zoom = self.zoom.get_or_insert(1.0);
         let io = ui.io();
@@ -359,10 +300,6 @@ impl Canvas {
         let starts = |v: &[f32], first: f32, gap: f32| v.iter().scan(first, |x, w| Some(std::mem::replace(x, *x + w + if *w > 0.0 { gap } else { 0.0 }))).collect::<Vec<_>>();
         let (left, top) = (starts(&wide, 60.0, 160.0), starts(&tall, 40.0, 40.0));
         let at = |k: &str| self.moved.get(k).copied().unwrap_or_else(|| places.get(k).map_or([0.0; 2], |(c, r)| [left[*c], top[*r]]));
-        if let Some(k) = self.focus.take() {
-            let ([w, h], p) = (ui.content_region_avail(), at(&k));
-            nodes.bind_editor(editor).reset_panning([w / 2.0 - (p[0] + 100.0) * z, h / 2.0 - p[1] * z]);
-        }
         let _font = ui.push_font_with_size(None, ui.clone_style().font_size_base() * z);
         let setup = ui.imnodes(nodes).editor(Some(editor));
         quiet(&setup, z);
@@ -374,11 +311,11 @@ impl Canvas {
         let ed = setup.begin_nodes();
         let mut geo = HashMap::new();
         for n in shown {
-            geo.insert(n.key, node(ui, &ed, n, Look::Title(n.color), z, images));
+            geo.insert(n.key, node(ui, &ed, n, Look::Title(n.color), z));
         }
         for g in ghosts {
-            let s = Shown { key: &g.key, title: &g.title, sub: "expected".into(), color: None, problems: &[], group: None, recent: &[], body: Body::None, under: None };
-            geo.insert(g.key.as_str(), node(ui, &ed, &s, Look::Ghost, z, images));
+            let s = Shown { key: &g.key, title: &g.title, sub: "expected".into(), color: None, problems: &[], group: None, recent: &[], body: vec![], under: None };
+            geo.insert(g.key.as_str(), node(ui, &ed, &s, Look::Ghost, z));
         }
         let hung = shown.iter().filter_map(|s| s.under.map(|u| (u, s.key)));
         for (from, to) in links.iter().map(|l| (l.from.as_str(), l.to.as_str())).chain(hung) {
@@ -461,14 +398,12 @@ impl Canvas {
 #[derive(Default)]
 struct Wants {
     send: Option<net::TriggerRef>,
-    open: Option<String>,
-    diagnose: Option<String>,
     /// A topic to show, and which of its runs.
     show: Option<(String, String)>,
 }
 
 /// A topic's runs, and the chosen one in full.
-fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, asking: &HashSet<String>, w: &mut Wants) {
+fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, w: &mut Wants) {
     if runs.is_empty() {
         ui.text_disabled("No runs seen.");
     }
@@ -491,7 +426,7 @@ fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, asking: &HashSet<String
     }
     match &r.said {
         None => ui.text_disabled(format!("Running for {}", fmt_duration(r.took))),
-        Some(s) => w.open = w.open.take().or(said(ui, s, &r.id)),
+        Some(s) => said(ui, s),
     }
     if !r.trace.is_empty() {
         ui.separator();
@@ -502,7 +437,7 @@ fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, asking: &HashSet<String
         ui.separator();
         ui.text_disabled(&s.topic);
         match &s.said {
-            Some(d) => w.open = w.open.take().or(said(ui, d, &s.topic)),
+            Some(d) => said(ui, d),
             None => red(ui, &s.problems.join("\n")),
         }
     }
@@ -510,15 +445,6 @@ fn runs(ui: &Ui, runs: &[Run], run: &mut Option<String>, asking: &HashSet<String
         if ui.button(format!("{}##trigger{}", p.label, p.index)) {
             w.send = Some(net::TriggerRef { run: r.id.clone(), index: p.index });
         }
-    }
-    if let Some(d) = &r.diagnosis {
-        ui.separator();
-        ui.text_disabled("Claude");
-        ui.text_wrapped(d);
-    } else if r.diagnosable && asking.contains(&r.id) {
-        ui.text_disabled("Asking Claude…");
-    } else if r.diagnosable && ui.small_button(format!("Ask Claude##{}", r.id)) {
-        w.diagnose = Some(r.id.clone());
     }
     if let Some(l) = &r.log {
         ui.separator();
@@ -601,53 +527,10 @@ fn list_page(ui: &Ui, items: &[Item], prefix: &str, selected: &mut Option<String
     }
 }
 
-enum Action {
-    Go(usize, String),
-    Send(net::TriggerRef),
-    Ask(String),
-    Forget(Vec<String>),
-}
-
-/// Whether every word of the text is in `s`.
-fn fits(s: &str, text: &str) -> bool {
-    let s = s.to_lowercase();
-    let mut words = text.split_whitespace().map(str::to_lowercase).peekable();
-    words.peek().is_some() && words.all(|w| s.contains(&w))
-}
-
-/// What the command bar offers for its text: going to whatever matches,
-/// sending a trigger, forgetting topics ("forget …"), or asking Claude about
-/// the history.
-fn actions(view: &View, text: &str) -> Vec<(String, Action)> {
-    let topics = || [&view.nodes, &view.machines, &view.services].into_iter().flatten().map(|i| &i.topic);
-    if let Some(rest) = text.trim().strip_prefix("forget ") {
-        let all: Vec<String> = topics().filter(|t| fits(t, rest)).cloned().collect();
-        let mut out: Vec<(String, Action)> = all.iter().map(|t| (format!("Forget {t}"), Action::Forget(vec![t.clone()]))).collect();
-        if all.len() > 1 {
-            out.insert(0, (format!("Forget all {} of these", all.len()), Action::Forget(all)));
-        }
-        return out;
-    }
-    let go = |tab: usize, items: &[Item]| items.iter().map(move |i| (format!("Go to {}", i.topic), Action::Go(tab, i.topic.clone()))).collect::<Vec<_>>();
-    let mut out: Vec<(String, Action)> = [go(1, &view.nodes), go(2, &view.machines), go(3, &view.services)].into_iter().flatten().collect();
-    out.extend(view.now.iter().flat_map(|a| a.triggers.iter().map(|t| (format!("Send \"{}\" to {}", t.label, a.key), Action::Send(net::TriggerRef { run: t.run.clone(), index: t.index })))));
-    out.retain(|(l, _)| fits(l, text));
-    if let Some(q) = Some(text.trim()).filter(|t| !t.is_empty()) {
-        out.push((format!("Ask Claude: {q}"), Action::Ask(q.to_owned())));
-    }
-    out
-}
-
 /// Errors wrap: they're the part worth reading in full.
 fn red(ui: &Ui, s: &str) {
     let _c = ui.push_style_color(StyleColor::Text, RED_TEXT);
     ui.text_wrapped(s);
-}
-
-/// Decoded to at most 512 pixels a side: enough for a node.
-fn decode(bytes: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
-    let i = image::load_from_memory(bytes).ok()?.thumbnail(512, 512).to_rgba8();
-    Some((i.width(), i.height(), i.into_raw()))
 }
 
 impl Dashboard {
@@ -658,15 +541,6 @@ impl Dashboard {
     /// `wake` asks for a frame, when something arrives.
     pub fn connect(&mut self, wake: Arc<dyn Fn() + Send + Sync>) {
         self.net = Some(Net::new(self.server.clone(), wake));
-    }
-
-    /// Images decoded since the last frame become textures: Dear ImGui's
-    /// context can only take them between frames.
-    pub fn textures(&mut self, register: &mut dyn FnMut(OwnedTextureData) -> ManagedTextureId) {
-        for (path, w, h, rgba) in self.decoded.drain(..) {
-            let p = OwnedTextureData::from_pixels(TextureFormat::RGBA32, w, h, &rgba).map_or(Picture::Broken, |t| Picture::Shown(register(t), [w as f32, h as f32]));
-            self.images.insert(path, p);
-        }
     }
 
     pub fn frame(&mut self, ui: &Ui, nodes: &dear_imnodes::Context) {
@@ -683,48 +557,11 @@ impl Dashboard {
                 Msg::Gone(e) => self.gone = Some(e),
                 Msg::Details(t, d) => self.details = Some((t, d)),
                 Msg::Sent(r) => self.error = r.err(),
-                Msg::Diagnosed(run, r) => {
-                    self.asking.remove(&run);
-                    self.error = r.err().map(|e| format!("Claude couldn't diagnose it: {e}"));
-                    if let Some(t) = &self.selected {
-                        net.details(t);
-                    }
-                }
-                Msg::Answer(r) => match r {
-                    Ok(a) => self.answer = self.answer.take().map(|(q, _)| (q, Some(a))),
-                    Err(e) => {
-                        self.answer = None;
-                        self.error = Some(format!("Claude couldn't answer: {e}"));
-                    }
-                },
-                Msg::Image(p, r) => match r.ok().and_then(|b| decode(&b)) {
-                    Some((w, h, rgba)) => self.decoded.push((p, w, h, rgba)),
-                    None => _ = self.images.insert(p, Picture::Broken),
-                },
             }
         }
         let view = &self.view;
-        for s in &view.said {
-            if let Some(p) = image_in(&s.value).filter(|p| !self.images.contains_key(*p)) {
-                self.images.insert(p.to_owned(), Picture::Loading);
-                #[cfg(not(target_arch = "wasm32"))]
-                if let Ok(b) = std::fs::read(p) {
-                    match decode(&b) {
-                        Some((w, h, rgba)) => self.decoded.push((p.to_owned(), w, h, rgba)),
-                        None => _ = self.images.insert(p.to_owned(), Picture::Broken),
-                    }
-                    continue;
-                }
-                net.image(p);
-            }
-        }
         let before = self.selected.clone();
         let mut w = Wants::default();
-        let mut act = None;
-        let io = ui.io();
-        if (io.key_super() || io.key_ctrl()) && ui.is_key_pressed(Key::K) {
-            self.command = Some(Command::default());
-        }
 
         let flags = WindowFlags::NO_DECORATION | WindowFlags::NO_MOVE | WindowFlags::NO_SAVED_SETTINGS | WindowFlags::NO_BRING_TO_FRONT_ON_FOCUS;
         ui.window("control").position([0.0, 0.0], Condition::Always).size(ui.io().display_size(), Condition::Always).flags(flags).build(|| {
@@ -754,21 +591,18 @@ impl Dashboard {
                     vec![]
                 };
                 let label = if i == 0 && !view.now.is_empty() { format!("{name}  {}###{i}", view.now.len()) } else { format!("{name}###{i}") };
-                let item = ui.tab_item_with_flags(label, None, if self.go == Some(i) { TabItemFlags::SET_SELECTED } else { TabItemFlags::NONE });
+                let item = ui.tab_item(label);
                 colors.into_iter().rev().for_each(drop);
                 let Some(_item) = item else { continue };
-                if self.tab != i && self.go != Some(i) {
+                if self.tab != i {
                     self.selected = None;
                 }
                 self.tab = i;
-                if self.go == Some(i) {
-                    self.go = None;
-                }
                 let [width, _] = ui.content_region_avail();
                 let side = if self.selected.is_some() { 460.0 } else { 0.0 };
                 ui.child_window("page").size([width - side, 0.0]).flags(if i == 1 { WindowFlags::NO_SCROLL_WITH_MOUSE } else { WindowFlags::empty() }).build(ui, || match i {
                     0 => now_page(ui, &view.now, &mut self.selected, &mut w),
-                    1 => w.send = self.canvas.draw(ui, nodes, net, &shown, &view.ghosts, &view.links, &view.places, &mut self.selected, &self.images).or(w.send.take()),
+                    1 => w.send = self.canvas.draw(ui, nodes, net, &shown, &view.ghosts, &view.links, &view.places, &mut self.selected).or(w.send.take()),
                     2 => list_page(ui, items, "system/", &mut self.selected),
                     _ => list_page(ui, items, "healthcheck/", &mut self.selected),
                 });
@@ -777,95 +611,12 @@ impl Dashboard {
                     ui.child_window("side").build(ui, || {
                         if let Some((_, r)) = self.details.as_ref().filter(|d| d.0 == *t) {
                             ui.text_disabled(t);
-                            runs(ui, r, &mut self.run, &self.asking, &mut w);
+                            runs(ui, r, &mut self.run, &mut w);
                         }
                     });
                 }
             }
         });
-
-        let size = ui.io().display_size();
-        if let Some(c) = &mut self.command {
-            let mut open = true;
-            ui.window("command")
-                .position([(size[0] - 600.0) / 2.0, 80.0], Condition::Always)
-                .size([600.0, 0.0], Condition::Always)
-                .flags(WindowFlags::NO_DECORATION | WindowFlags::NO_SAVED_SETTINGS | WindowFlags::ALWAYS_AUTO_RESIZE)
-                .focused(!c.shown)
-                .build(|| {
-                    if !c.shown {
-                        ui.set_keyboard_focus_here();
-                    } else if !ui.is_window_focused() || ui.is_key_pressed(Key::Escape) {
-                        open = false;
-                    }
-                    c.shown = true;
-                    let before = c.text.clone();
-                    ui.set_next_item_width(-1.0);
-                    let enter = ui.input_text("##command", &mut c.text).hint("Go to, send a trigger, forget …, or ask Claude").enter_returns_true(true).build();
-                    let mut acts = actions(view, &c.text);
-                    acts.truncate(12);
-                    if c.text != before {
-                        c.pick = 0;
-                    }
-                    if ui.is_key_pressed(Key::DownArrow) {
-                        c.pick = (c.pick + 1).min(acts.len().saturating_sub(1));
-                    }
-                    if ui.is_key_pressed(Key::UpArrow) {
-                        c.pick = c.pick.saturating_sub(1);
-                    }
-                    let mut chosen = enter.then_some(c.pick);
-                    for (i, (label, _)) in acts.iter().enumerate() {
-                        if ui.selectable_config(format!("{label}##{i}")).selected(i == c.pick).build() {
-                            chosen = Some(i);
-                        }
-                    }
-                    if let Some(i) = chosen.filter(|i| *i < acts.len()) {
-                        act = Some(acts.swap_remove(i).1);
-                        open = false;
-                    }
-                });
-            if !open {
-                self.command = None;
-            }
-        }
-        if let Some((q, a)) = &self.answer {
-            let mut open = true;
-            ui.window("Claude")
-                .position([(size[0] - 720.0) / 2.0, 80.0], Condition::Appearing)
-                .size([720.0, 0.0], Condition::Appearing)
-                .flags(WindowFlags::NO_SAVED_SETTINGS | WindowFlags::NO_COLLAPSE)
-                .opened(&mut open)
-                .build(|| {
-                    ui.text_disabled(q);
-                    ui.separator();
-                    match a {
-                        Some(a) => ui.text_wrapped(a),
-                        None => ui.text_disabled("Thinking…"),
-                    }
-                });
-            if !open {
-                self.answer = None;
-            }
-        }
-        match act {
-            Some(Action::Go(tab, key)) => {
-                self.go = Some(tab);
-                self.canvas.focus = (tab == 1).then(|| key.clone());
-                self.selected = Some(key);
-            }
-            Some(Action::Send(t)) => w.send = Some(t),
-            Some(Action::Ask(q)) => {
-                net.ask(&q);
-                self.answer = Some((q, None));
-            }
-            Some(Action::Forget(ts)) => {
-                if self.selected.as_ref().is_some_and(|s| ts.contains(s)) {
-                    self.selected = None;
-                }
-                net.forget(&ts);
-            }
-            None => {}
-        }
 
         if self.selected != before {
             self.run = None;
@@ -880,33 +631,17 @@ impl Dashboard {
             self.selected = Some(t);
             self.run = Some(run);
         }
-        if let Some(r) = w.diagnose {
-            self.asking.insert(r.clone());
-            net.diagnose(&r);
-        }
         if let Some(t) = w.send {
             net.send(&t);
-        }
-        if let Some(p) = w.open {
-            open_file(net, p);
         }
     }
 }
 
-/// A finished run's summary and result; returns a result file to open.
-fn said(ui: &Ui, s: &Done, id: &str) -> Option<String> {
+/// A finished run's summary and result.
+fn said(ui: &Ui, s: &Done) {
     if s.success { ui.text_wrapped(&s.summary) } else { red(ui, &s.summary) }
-    match &s.result {
-        Some(Value::String(r)) => {
-            let open = r.starts_with('/') && ui.small_button(format!("Open##{id}"));
-            ui.text_wrapped(r);
-            open.then(|| r.clone())
-        }
-        Some(v) => {
-            ui.text_wrapped(json(v));
-            None
-        }
-        None => None,
+    if let Some(v) = &s.result {
+        ui.text_wrapped(json(v));
     }
 }
 
@@ -915,29 +650,4 @@ fn json(v: &Value) -> String {
         Value::String(s) => s.clone(),
         v => serde_json::to_string_pretty(v).unwrap(),
     }
-}
-
-/// In a browser, the server's copy, in a new tab.
-#[cfg(target_arch = "wasm32")]
-fn open_file(net: &Net, path: String) {
-    if let Some(w) = web_sys::window() {
-        _ = w.open_with_url_and_target(&net.file_url(&path), "_blank");
-    }
-}
-
-/// Opened here if this machine has it, else fetched from the server first.
-#[cfg(not(target_arch = "wasm32"))]
-fn open_file(net: &Net, path: String) {
-    if std::path::Path::new(&path).exists() {
-        _ = std::process::Command::new("open").arg(&path).spawn();
-        return;
-    }
-    let name = path.rsplit('/').next().unwrap_or("result").to_owned();
-    net.file(&path.clone(), move |r| match r.and_then(|b| {
-        let f = std::env::temp_dir().join(&name);
-        std::fs::write(&f, b).map(|_| f).map_err(|e| e.to_string())
-    }) {
-        Ok(f) => _ = std::process::Command::new("open").arg(f).spawn(),
-        Err(e) => eprintln!("Couldn't fetch {path}: {e}"),
-    });
 }
