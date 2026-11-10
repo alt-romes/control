@@ -1,2 +1,7 @@
 archive/.qemu/*/*.qcow2
 archive/.qemu/*/*.iso
+keys/
+vms/fukusuke/ip
+*.qcow2
+vms/*.img
+result
