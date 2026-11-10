@@ -125,6 +125,7 @@
         self-pkgs.speedscope # open profiles in the speedscope flamegraph viewer: speedscope <file>
 
         mosh
+        taskwarrior-tui
 
         # imhex
 
