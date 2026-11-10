@@ -137,6 +137,11 @@
       owner = "romes";
     };
 
+    age.secrets.taskwarrior-sync = lib.mkIf (builtins.pathExists ./_agenix/taskwarrior-sync.age) {
+      file = ./_agenix/taskwarrior-sync.age;
+      owner = "romes";
+    };
+
     # ------------------------------------------------------------------------
     # Users & Home Manager
 
