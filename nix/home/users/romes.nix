@@ -70,6 +70,11 @@
       programs.satisago = {
         enable = true;
         root = "${config.home.homeDirectory}/control/satisago";
+        sync = lib.mkIf (osConfig ? age && osConfig.age.secrets ? taskwarrior-sync) {
+          url = "https://tasks.mogbit.com";
+          clientId = "4408f5f8-0d81-4693-b894-a0bd0348f875"; # allowed in mogbit's taskchampion.nix
+          encryptionSecretFile = osConfig.age.secrets.taskwarrior-sync.path;
+        };
       };
 
       xdg.configFile."matterhorn/config.ini" = lib.mkIf (osConfig ? age && osConfig.age.secrets ? wt-mattermost-token) {
