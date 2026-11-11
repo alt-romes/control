@@ -17,7 +17,9 @@
           - To browse Haskell dependencies use `cabal repl` to enter a REPL with the project packages.
             To browse a package which is not yet a dependency of the project, use `cabal repl --build-depends=<pkg>`.
             Do not look around with `ghc-pkg` nor directly for interface files
-          - Use --no-ext-diff when viewing git diffs; use --no-gpg-sign to commit
+          - Use --no-ext-diff when viewing git diffs; use --no-gpg-sign to
+            commit; prefer using my own words adapted from the prompt as the
+            commit message, only expand with more when really necessary
           - When editing a Haskell module, read the entire module before the
             edit. All changes should fit in the module holistically, rather than
             being `sed`ed in without consideration for the context in which the
