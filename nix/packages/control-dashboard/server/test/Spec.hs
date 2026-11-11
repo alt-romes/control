@@ -29,7 +29,7 @@ main = do
       now = read "2026-11-01 10:05:00 UTC" :: UTCTime
       run = started (eid a "script/s") (object ["at" .= ("2026-11-01T10:00:00Z" :: String), "e" .= object
               ["rules" .= object ["timeout" .= (60 :: Int), "reactions" .= ["trigger/x" :: String]], "label" .= ("s" :: String)]])
-      st0 = State mempty mempty [] True
+      st0 = State mempty mempty [] True (read "2026-11-01 00:00:00 UTC")
   let st = foldl (flip apply) st0
         [ run
         , finished (toJSON a) (object ["at" .= ("2026-11-01T10:00:01Z" :: String), "e" .= object
@@ -58,6 +58,13 @@ main = do
       w = fromJust (latest waiting "script/w")
   check "awaited" (awaitedReactions (index waiting) w) ["script/w/checking"]
   check "late" (problems now waiting (index waiting) w) ["No reaction on script/w/checking since it finished 4m 59s ago."]
+
+  -- A missed run is only a problem once the server has been awake long enough to see it.
+  let e = UUID.toText (UUID.fromWords 7 7 7 7)
+      due = apply (started (eid e "healthcheck/h") (object ["at" .= ("2026-11-01T09:55:00Z" :: String), "e" .= object
+        ["rules" .= object ["timeout" .= (600 :: Int), "expected" .= (120 :: Int)], "label" .= ("h" :: String)]])) st0
+      missed x = length (problems now x (index x) (fromJust (latest x "healthcheck/h")))
+  check "missed" (missed due, missed due {awake = read "2026-11-01 10:04:00 UTC"}) (1, 0)
 
   -- A run's chain: the trigger it announced was sent, and reacted to it.
   check "trace" [(d, topicOf x) | (d, x) <- trace st' (index st') r'] [(0, "script/s"), (1, "trigger/x")]

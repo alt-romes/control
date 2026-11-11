@@ -89,7 +89,8 @@ main = do
   o <- opts
   createDirectoryIfMissing True o.state
   let historyFile = o.state </> "events.jsonl"
-  st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require False) =<< loadHistory historyFile
+  now <- getCurrentTime
+  st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require False now) =<< loadHistory historyFile
   history <- openFile historyFile AppendMode
   lock <- newMVar ()
   let record l = do
@@ -143,17 +144,20 @@ sendTrigger r t = case T.breakOnEnd "/" (unTopic t.triggerTopic) of
 -- time change it too. Keeps the view the windows are sent, and announces each
 -- topic going bad, and healthy again, as events of its own.
 judge :: Env -> IO ()
-judge env = go Nothing
+judge env = getCurrentTime >>= go Nothing
   where
-    go before = do
+    go before seen = do
+      now <- getCurrentTime
+      -- A second that took this long was the computer sleeping.
+      when (diffUTCTime now seen > 30) $ atomically (modifyTVar' env.st \s -> s {awake = now})
       s <- readTVarIO env.st
-      v <- (`view` s) <$> getCurrentTime
+      let v = view now s
       atomically (writeTVar env.view (encode v))
       let bad = Map.fromList [(i.topic, i) | i <- v.machines ++ v.services ++ v.nodes, i.status == Bad]
       for_ before \b -> announce s (Map.difference bad b) (Map.keys (Map.difference b bad))
       wake <- registerDelay 1_000_000
       atomically $ (readTVar wake >>= check) `orElse` (readTVar env.st >>= check . (/= fingerprint s) . fingerprint)
-      go (Just bad)
+      go (Just bad) now
     fingerprint s = (Map.size s.runs, length (filter (isJust . (.end)) (Map.elems s.runs)), s.connected)
 
 -- | @dashboard/problem/<topic>@ for each topic gone bad, with what's wrong

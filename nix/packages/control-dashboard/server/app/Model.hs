@@ -36,6 +36,8 @@ data State = State
     -- ^ Newest first
   , required :: [Text]
   , connected :: Bool
+  , awake :: UTCTime
+    -- ^ Since when the server has been watching, without sleeping
   }
 
 -- | How many runs of each topic to remember.
@@ -138,7 +140,7 @@ problems now st ix r =
   [ "Failed: " <> firstLine (T.pack d.e.summary) | Just d <- [r.end], not d.e.success ]
   ++ [ verb <> " " <> fmtDuration took <> "; the limit is " <> fmtDuration limit <> "." | took > limit ]
   ++ [ "The next run was expected within " <> fmtDuration d <> ", but " <> maybe "hasn't started after " (const "started ") next <> fmtDuration gap <> "."
-     | Just d <- [rules.expected], gap > d + grace ]
+     | Just d <- [rules.expected], gap > d + grace, diffUTCTime now st.awake > d + grace ]
   ++ [ "No subtask " <> T.pack s <> "." | took > limit, s <- fromMaybe [] rules.subtasks
      , not (any (matches (topicOf r <> "/" <> T.pack s) . topicOf) children) ]
   ++ [ leaf (topicOf c) <> ": " <> p | c <- children, p <- problems now st ix c ]
