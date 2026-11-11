@@ -37,4 +37,5 @@ in
   "gitlab-haskell.age".publicKeys = romes-machines;
   "github-octo.age".publicKeys = romes-machines;
   "taskwarrior-sync.age".publicKeys = romes-machines; # included by taskrc (satisago)
+  "ctt-login.age".publicKeys = romes-machines; # login to CTT portal
 }
