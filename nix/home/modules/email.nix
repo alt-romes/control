@@ -31,7 +31,8 @@
         enable = true;
         new.tags = [ "unread" "inbox" ] ++ lib.optional watched "new";
         hooks = {
-          preNew = "${lib.getExe config.programs.mbsync.package} --all";
+          preNew = lib.optionalString watched "${lib.getExe osConfig.services.control-events-node.package} script mail/sync -- "
+                 + "${lib.getExe config.programs.mbsync.package} --all";
           postNew = lib.mkIf watched
             (lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.mail-events);
         };
