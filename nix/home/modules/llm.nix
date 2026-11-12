@@ -91,6 +91,8 @@
           ];
         };
 
+        skills.socratic-tutor = "${inputs.janestreet-agent-skills}/socratic-tutor";
+
         skills.failing-tests-to-tmux = ''
           ---
           name: failing-tests-to-tmux

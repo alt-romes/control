@@ -35,6 +35,8 @@
     cob-cli.url         = "github:alt-romes/cob-cli";
     supvan-cups.url     = "github:heeen/supvan-cups";
     supvan-cups.flake   = false;
+    janestreet-agent-skills.url   = "github:janestreet/agent_skills";
+    janestreet-agent-skills.flake = false;
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";

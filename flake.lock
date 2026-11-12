@@ -342,6 +342,22 @@
         "type": "github"
       }
     },
+    "janestreet-agent-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793728425,
+        "narHash": "sha256-bKGKDaK2pSJsp5uVMUQDcj8J+N9nX2fDdeU1DXM2qLw=",
+        "owner": "janestreet",
+        "repo": "agent_skills",
+        "rev": "7c6715c29548a3b39d4a9545c698ee4fd17a7213",
+        "type": "github"
+      },
+      "original": {
+        "owner": "janestreet",
+        "repo": "agent_skills",
+        "type": "github"
+      }
+    },
     "kanjideck-fulfillment": {
       "flake": false,
       "locked": {
@@ -542,6 +558,7 @@
         "home-manager": "home-manager",
         "import-tree": "import-tree",
         "invoicexpress-hs": "invoicexpress-hs",
+        "janestreet-agent-skills": "janestreet-agent-skills",
         "kanjideck-fulfillment": "kanjideck-fulfillment",
         "kimai-client": "kimai-client",
         "mercury-cli": "mercury-cli",
