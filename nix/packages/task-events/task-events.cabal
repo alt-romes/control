@@ -17,6 +17,7 @@ executable task-events
     OverloadedStrings
   build-depends:
       aeson
+    , bytestring
     , base
     , control-events
     , net-mqtt

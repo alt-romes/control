@@ -16,7 +16,7 @@
     ];
   };
 
-  flake.darwinModules.romes-macmini = { pkgs, config, ... }: {
+  flake.darwinModules.romes-macmini = { pkgs, lib, config, ... }: {
   
     imports = [
       self.darwinModules.base
@@ -75,7 +75,6 @@
   
     home-manager.users.romes.programs.custom.doom-emacs = true;
     home-manager.users.romes.programs.custom.mail-events = true;
-    home-manager.users.romes.programs.custom.task-events = true;
     home-manager.users.romes.programs.satisago.backup = "git@github.com:alt-romes/satisago-tasks-export.git";
 
     # --- Users ------------------------------------------------------------------
@@ -88,6 +87,16 @@
   
     # Background linux VM runner process is enabled per-machine as needed
     process.linux-builder.enable = true;
+
+    # --- Automations ------------------------------------------------------------
+    
+    # A taskwarrior task for each mail to todo@mogbit.com, dashboard problem and announced trigger
+    automations.task-events = {
+      on = "#";
+      topic = null; # it reports the tasks it adds
+      path = [ config.home-manager.users.romes.programs.taskwarrior.package ];
+      script = "exec ${lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.task-events}";
+    };
   
     # --- Packages ---------------------------------------------------------------
   

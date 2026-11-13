@@ -8,6 +8,7 @@
       self.darwinModules.linux-builder
       self.darwinModules.caddy # Localhost reverse proxy
       self.darwinModules.dashboards
+      self.darwinModules.automations
       inputs.control-events.darwinModules.control-events
     ];
 

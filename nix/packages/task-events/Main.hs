@@ -2,14 +2,16 @@
 -- todo@mogbit.com (its subject is what one would type after @task add@),
 -- problems the dashboard announces, and triggers runs announce for the user
 -- to send. Adding a task is an event reacting to what caused it.
+--
+-- A reaction to every event: reads the event from stdin, as the reactions
+-- server gives it.
 module Main (main) where
 
-import Control.Concurrent (threadDelay)
 import Control.Events
-import Control.Exception (SomeException, displayException, try)
-import Control.Monad (forever, guard, unless, when)
+import Control.Monad (guard, unless, when)
 import Data.Aeson (FromJSON, Value, eitherDecode, withObject, (.:))
 import Data.Aeson.Types (Parser, parseMaybe)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (for_)
 import Data.List (isInfixOf)
 import Data.Maybe (fromMaybe)
@@ -17,19 +19,19 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Network.MQTT.Topic (unTopic)
-import System.IO (hPutStrLn, stderr)
 import System.Process.Typed (proc, readProcessStdout_, runProcess_)
+
+data Occurred = Occurred
+  { event    :: EventId
+  , start    :: Timed (EvtMsg Value)
+  , finished :: Timed EvtDone
+  }
+  deriving (Generic, FromJSON)
 
 main :: IO ()
 main = do
-  session <- newPersistentSession "task-events"
-  forever do
-    r <- try @SomeException $ withPersistentConn session (script <> "tasks") \c -> do
-      _ <- react c "#" \e s -> pure \d ->
-        try @SomeException (handle c e s d) >>= either (hPutStrLn stderr . displayException) pure
-      waitConnDisconnect c
-    hPutStrLn stderr ("mqtt: " <> either displayException (const "disconnected") r)
-    threadDelay 5_000_000
+  o :: Occurred <- either fail pure . eitherDecode =<< LBS.getContents
+  withConn (script <> "tasks") \c -> handle c o.event o.start o.finished
 
 handle :: Conn s -> EventId -> Timed (EvtMsg Value) -> Timed EvtDone -> IO ()
 handle c e s d = unless ("test/" `T.isPrefixOf` topic) do
