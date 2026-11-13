@@ -45,9 +45,6 @@
           - Investigate a failing test: build first,
             then `hu run -d debug -j8 --freeze1 test --only="<test-name>" --keep-test-files -VVV`
           - If you're given commands using a different build-root, use it instead of `debug`
-          - Look up GHC issues/MRs: `ghc-index preview issue|mr <N>` renders a
-            gitlab.haskell.org ghc/ghc ticket as Markdown (prefer over WebFetch);
-            `ghc-index sync` refreshes the local index if stale.
           EOF
           fi
         '';
@@ -92,6 +89,7 @@
         };
 
         skills.socratic-tutor = "${inputs.janestreet-agent-skills}/socratic-tutor";
+        skills.ghc-gitlab = "${inputs.fetch-gitlab}/skill/ghc-gitlab";
 
         skills.failing-tests-to-tmux = ''
           ---

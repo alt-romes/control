@@ -78,7 +78,11 @@
         };
       };
 
-      xdg.configFile."matterhorn/config.ini" = lib.mkIf (osConfig ? age && osConfig.age.secrets ? wt-mattermost-token) {
+      home.file.".fetch-gitlab/gitlab-token" = lib.mkIf (osConfig ? age && osConfig.age.secrets ? gitlab-haskell) {
+        source = config.lib.file.mkOutOfStoreSymlink osConfig.age.secrets.gitlab-haskell.path;
+      };
+
+      xdg.configFile."matterhorn/config.ini" =lib.mkIf (osConfig ? age && osConfig.age.secrets ? wt-mattermost-token) {
         text = ''
           [mattermost]
           host: mattermost.well-typed.com
@@ -121,7 +125,7 @@
         nixos-rebuild-ng # better version?
 
         gh glab # github/gitlab cli
-        self-pkgs.gitlab-index # local fzf index of issues/MRs
+        self-pkgs.fetch-gitlab sqlite # local sqlite store of GHC issues/MRs
         self-pkgs.prof-diff-test # differential GHC compiler flamegraphs across two trees
         self-pkgs.speedscope # open profiles in the speedscope flamegraph viewer: speedscope <file>
 

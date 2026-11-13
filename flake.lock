@@ -228,6 +228,22 @@
         "type": "github"
       }
     },
+    "fetch-gitlab": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794568353,
+        "narHash": "sha256-m/Kjbl7isLTBIkEUg0r6j7YuRO25IeWmqZ1BaBI1n9M=",
+        "owner": "AndreasPK",
+        "repo": "fetch-gitlab",
+        "rev": "8c9e2ef0a3ec458c3181b61c8b7a74fa060615b7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "AndreasPK",
+        "repo": "fetch-gitlab",
+        "type": "github"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -552,6 +568,7 @@
         "cob-hs": "cob-hs",
         "codex-cli-nix": "codex-cli-nix",
         "control-events": "control-events",
+        "fetch-gitlab": "fetch-gitlab",
         "flake-parts": "flake-parts",
         "flake-utils": "flake-utils",
         "hadrian-util": "hadrian-util",

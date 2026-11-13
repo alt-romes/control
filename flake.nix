@@ -37,6 +37,8 @@
     supvan-cups.flake   = false;
     janestreet-agent-skills.url   = "github:janestreet/agent_skills";
     janestreet-agent-skills.flake = false;
+    fetch-gitlab.url    = "github:AndreasPK/fetch-gitlab";
+    fetch-gitlab.flake  = false;
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";
