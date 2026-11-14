@@ -23,7 +23,6 @@
       self.darwinModules.duckdns
       self.darwinModules.finances
       self.darwinModules.backups
-      self.darwinModules.kanjideck-label-printer
       self.darwinModules.dashboard-dot
     ];
 
@@ -96,6 +95,14 @@
       topic = null; # it reports the tasks it adds
       path = [ config.home-manager.users.romes.programs.taskwarrior.package ];
       script = "exec ${lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.task-events}";
+    };
+
+    # Prints the shipping label of each paid Kanjideck order as it is fulfilled
+    automations.kanjideck-label-printer = {
+      on = "server/kanjideck/fulfillment-server/paid-order";
+      topic = null; # it reports the labels it prints
+      path = [ pkgs.python3Packages.weasyprint ]; # renders the labels, /usr/bin/lp prints them
+      script = "exec ${self.packages.${pkgs.stdenv.hostPlatform.system}.kanjideck-fulfillment}/bin/kanjideck-label-printer Supvan_T50M /var/tmp/kanjideck-labels";
     };
   
     # --- Packages ---------------------------------------------------------------

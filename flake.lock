@@ -377,11 +377,11 @@
     "kanjideck-fulfillment": {
       "flake": false,
       "locked": {
-        "lastModified": 1792445942,
-        "narHash": "sha256-QaDYN8n18GYlCxJAoM+qINCgKEycUdq4H/cJIk64tfs=",
+        "lastModified": 1794615427,
+        "narHash": "sha256-VFOELn3SY3kcEiSsFwc2mGPY/FPQpX2iqYBDzbNvQNw=",
         "ref": "refs/heads/master",
-        "rev": "f70a6f3a556e72b239a77acd16fafe11dd805820",
-        "revCount": 120,
+        "rev": "56bd4265f106d38440f80c3bafcb2915b7c5bcf1",
+        "revCount": 149,
         "type": "git",
         "url": "ssh://git@github.com/alt-romes/kanjideck-fulfillment"
       },
