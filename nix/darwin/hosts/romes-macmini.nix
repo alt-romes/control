@@ -16,7 +16,24 @@
     ];
   };
 
-  flake.darwinModules.romes-macmini = { pkgs, lib, config, ... }: {
+  flake.darwinModules.romes-macmini = { pkgs, lib, config, ... }:
+  let
+    # A step of kanjideck-ship, which reports itself; see the automations below.
+    kanjideckShip = name: script: {
+      on = "trigger/kanjideck/${name}";
+      path = [ config.nix.package pkgs.jq ]; # nix-shell runs the CTT scripts and WeasyPrint
+      environment.NIX_PATH = "nixpkgs=${pkgs.path}";
+      script = ''
+        export PATH=$PATH:/etc/profiles/per-user/romes/bin # msmtp emails the clients
+        trigger=$(cat)
+        batches=/var/tmp/kanjideck-ship
+        ${script}
+        cd ${inputs.kanjideck-fulfillment} # for the CTT scripts and the sheet template
+        exec ${self.packages.${pkgs.stdenv.hostPlatform.system}.kanjideck-fulfillment}/bin/kanjideck-ship \
+          mimes.cultofbits.com ${config.age.secrets.cob-kanjideck-token.path} --triggered "''${args[@]}" <<<"$trigger"
+      '';
+    };
+  in {
   
     imports = [
       self.darwinModules.base
@@ -102,6 +119,25 @@
       path = [ pkgs.python3Packages.weasyprint ]; # renders the labels, /usr/bin/lp prints them
       script = "exec ${self.packages.${pkgs.stdenv.hostPlatform.system}.kanjideck-fulfillment}/bin/kanjideck-label-printer Supvan_T50M /var/tmp/kanjideck-labels";
     };
+
+    # Ships the paid Kanjideck orders we post with CTT, a step per trigger sent
+    # from the dashboard: prepare a batch, expedite it, and mark it Sent from
+    # the warehouse typed with the trigger (CoB by default). The later steps
+    # are in the batch the last prepare made.
+    automations.kanjideck-ship = kanjideckShip "ship" ''
+      dir=$batches/$(date +%Y-%m-%d-%H%M%S)
+      mkdir -p "$dir" && ln -sfn "$dir" $batches/current
+      args=("$dir")
+    '';
+    automations.kanjideck-expedite = kanjideckShip "expedite" ''
+      dir=$(cd -P $batches/current && pwd) || exit 1
+      [ -s "$dir/orders" ] || { echo "No orders in $dir to expedite" >&2; exit 1; }
+      args=(--expedite "$dir" --orders "$(cat "$dir/orders")" --yes)
+    '';
+    automations.kanjideck-sent = kanjideckShip "sent" ''
+      dir=$(cd -P $batches/current && pwd) || exit 1
+      args=(--sent "$dir" --from "$(jq -r '.start.e.content // "CoB"' <<<"$trigger")")
+    '';
   
     # --- Packages ---------------------------------------------------------------
   
