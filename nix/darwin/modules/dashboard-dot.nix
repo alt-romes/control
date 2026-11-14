@@ -22,11 +22,9 @@
       };
 
       config = lib.mkIf cfg.enable {
-        launchd.user.agents.control-dashboard-dot.serviceConfig = {
-          ProgramArguments = [ (lib.getExe self-pkgs.control-dashboard-dot) "--server" cfg.server "--open" ] ++ cfg.open;
-          RunAtLoad = true;
-          KeepAlive = true;
-          StandardErrorPath = "/tmp/org.romes.control-dashboard-dot.err.log";
+        automations.control-dashboard-dot = {
+          keepAlive = true;
+          script = "exec ${lib.escapeShellArgs ([ (lib.getExe self-pkgs.control-dashboard-dot) "--server" cfg.server "--open" ] ++ cfg.open)}";
         };
       };
     };

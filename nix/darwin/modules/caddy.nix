@@ -39,14 +39,9 @@
       };
 
       config = mkIf cfg.enable {
-        launchd.user.agents.caddy = {
-          serviceConfig = {
-            ProgramArguments = [ "${pkgs.caddy}/bin/caddy" "run" "--config" "${caddyfile}" "--adapter" "caddyfile" ];
-            KeepAlive = true;
-            RunAtLoad = true;
-            StandardOutPath = "/tmp/org.romes.caddy.log";
-            StandardErrorPath = "/tmp/org.romes.caddy.error.log";
-          };
+        automations.caddy = {
+          keepAlive = true;
+          script = "exec ${pkgs.caddy}/bin/caddy run --config ${caddyfile} --adapter caddyfile";
         };
       };
     };

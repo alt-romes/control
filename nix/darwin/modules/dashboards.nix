@@ -28,7 +28,8 @@
 
       config = {
         # The server judging every control-event, for the dashboard's windows
-        launchd.user.agents.control-dashboard = {
+        automations.control-dashboard = {
+          keepAlive = true;
           script = ''
             exec ${lib.getExe self-pkgs.control-dashboard-server} \
               --port 5001 \
@@ -36,12 +37,6 @@
               ${flags "require" cfg.requiredHealthchecks} \
               ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)}
           '';
-          serviceConfig = {
-            RunAtLoad = true;
-            KeepAlive = true;
-            StandardOutPath   = "/tmp/org.romes.control-dashboard.out.log";
-            StandardErrorPath = "/tmp/org.romes.control-dashboard.err.log";
-          };
         };
 
         # Reachable locally and on the wireguard VPN, by windows and browsers.

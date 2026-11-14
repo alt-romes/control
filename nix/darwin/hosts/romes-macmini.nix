@@ -92,7 +92,6 @@
     # A taskwarrior task for each mail to todo@mogbit.com, dashboard problem and announced trigger
     automations.task-events = {
       on = "#";
-      topic = null; # it reports the tasks it adds
       path = [ config.home-manager.users.romes.programs.taskwarrior.package ];
       script = "exec ${lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.task-events}";
     };
@@ -100,7 +99,6 @@
     # Prints the shipping label of each paid Kanjideck order as it is fulfilled
     automations.kanjideck-label-printer = {
       on = "server/kanjideck/fulfillment-server/paid-order";
-      topic = null; # it reports the labels it prints
       path = [ pkgs.python3Packages.weasyprint ]; # renders the labels, /usr/bin/lp prints them
       script = "exec ${self.packages.${pkgs.stdenv.hostPlatform.system}.kanjideck-fulfillment}/bin/kanjideck-label-printer Supvan_T50M /var/tmp/kanjideck-labels";
     };
@@ -139,6 +137,7 @@
     # --- Secrets ----------------------------------------------------------------
 
     age.secrets.duckdns.file              = ../modules/_agenix/duckdns.age;
+    age.secrets.duckdns.owner             = "romes"; # read by the duckdns user agent
     age.secrets.wireguard-macmini.file    = ../modules/_agenix/wireguard-macmini.age;
     age.secrets.mercury-api.file          = ../modules/_agenix/mercury-api.age;
     age.secrets.mercury-api.owner         = "romes"; # read by the gen-invoice and mercury-fetch user agents

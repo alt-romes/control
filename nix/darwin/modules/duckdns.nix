@@ -44,21 +44,15 @@
 
     config = lib.mkIf config.services.duckdns.enable {
 
-      launchd.daemons.duckdns = let cfg = config.services.duckdns; in {
+      automations.duckdns = let cfg = config.services.duckdns; in {
+        every = cfg.interval;
+        runAtLoad = true;
+        topic = "duckdns";
         script = ''
-          # Read password file then invoke duckdns
+          # Read password file then invoke duckdns, which answers OK or KO
           TOKEN=$(head -n 1 ${cfg.passwordFile} | tr -d '\n')
-          echo url="https://www.duckdns.org/update?domains=${lib.concatStringsSep "," cfg.domains}&token=$TOKEN&ip=" | curl -k -o ~/duckdns/duck.log -K -
+          echo url="https://www.duckdns.org/update?domains=${lib.concatStringsSep "," cfg.domains}&token=$TOKEN&ip=" | curl -k -fsS -K - | grep -qx OK
         '';
-        serviceConfig = {
-          Label = "Dynamic DNS Client";
-
-          RunAtLoad = true;
-          StartInterval = cfg.interval;
-
-          StandardOutPath = "/tmp/nix.services.ddclient.out";
-          StandardErrorPath = "/tmp/nix.services.ddclient.err";
-        };
       };
 
     };

@@ -33,7 +33,7 @@
     {
       options.automations = mkOption {
         default = { };
-        type = types.attrsOf (types.submodule ({ name, ... }: {
+        type = types.attrsOf (types.submodule {
           options = {
             script = mkOption {
               type = types.lines;
@@ -65,6 +65,11 @@
               default = false;
               description = "Keep it running, starting it at load and again whenever it exits.";
             };
+            runAtLoad = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Also run when loaded, e.g. at login.";
+            };
             on = mkOption {
               type = types.nullOr types.str;
               default = null;
@@ -76,11 +81,11 @@
             };
             topic = mkOption {
               type = types.nullOr types.str;
-              default = name;
+              default = null;
               description = ''
                 Report runs as `script/<topic>` events (`healthcheck/<topic>` if
-                kept alive), a reaction's reacting to its cause. Null if the
-                script reports on its own.
+                kept alive), a reaction's reacting to its cause. Null for none,
+                e.g. if the script reports on its own.
               '';
             };
             expected = mkOption {
@@ -89,7 +94,7 @@
               description = "The next run is expected within this many seconds.";
             };
           };
-        }));
+        });
       };
 
       config.assertions = lib.mapAttrsToList (name: a: {
@@ -100,7 +105,7 @@
       config.launchd.user.agents = lib.mapAttrs (name: a: {
         serviceConfig = {
           ProgramArguments = reported name a;
-          RunAtLoad = a.keepAlive;
+          RunAtLoad = a.keepAlive || a.runAtLoad;
           KeepAlive = a.keepAlive;
           StandardOutPath = log name "out";
           StandardErrorPath = log name "err";
