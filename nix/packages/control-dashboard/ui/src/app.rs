@@ -21,6 +21,8 @@ pub struct Dashboard {
     run: Option<String>,
     error: Option<String>,
     tab: usize,
+    /// What was typed beside each trigger, sent as its content.
+    typed: HashMap<String, String>,
 }
 
 const RED: [f32; 4] = [0.75, 0.2, 0.2, 1.0];
@@ -31,7 +33,7 @@ const RED_TEXT: [f32; 4] = [1.0, 0.55, 0.55, 1.0];
 const AMBER_TEXT: [f32; 4] = [1.0, 0.75, 0.35, 1.0];
 const DIM: [f32; 4] = [0.55, 0.55, 0.6, 1.0];
 
-const TABS: [&str; 4] = ["Now", "Events", "Machines", "Healthchecks"];
+const TABS: [&str; 5] = ["Now", "Events", "Machines", "Healthchecks", "Triggers"];
 
 /// Colour only for what needs a look: healthy topics keep the default.
 fn color(h: Health) -> Option<[f32; 4]> {
@@ -398,6 +400,7 @@ impl Canvas {
 #[derive(Default)]
 struct Wants {
     send: Option<net::TriggerRef>,
+    fire: Option<(String, String)>,
     /// A topic to show, and which of its runs.
     show: Option<(String, String)>,
 }
@@ -527,6 +530,28 @@ fn list_page(ui: &Ui, items: &[Item], prefix: &str, selected: &mut Option<String
     }
 }
 
+/// Triggers to send at will, with what was typed beside them: each with when it was last sent.
+fn triggers_page(ui: &Ui, items: &[Item], typed: &mut HashMap<String, String>, selected: &mut Option<String>, w: &mut Wants) {
+    if items.is_empty() {
+        ui.text_disabled("Nothing reacts to a trigger/ topic.");
+    }
+    for i in items {
+        if ui.small_button(format!("Send##{}", i.topic)) {
+            w.fire = Some((i.topic.clone(), typed.get(&i.topic).cloned().unwrap_or_default()));
+        }
+        ui.same_line();
+        ui.set_next_item_width(160.0);
+        ui.input_text(format!("##typed{}", i.topic), typed.entry(i.topic.clone()).or_default()).hint("content").build();
+        ui.same_line();
+        row(ui, i.topic.strip_prefix("trigger/").unwrap_or(&i.topic), &i.topic, i.status, selected);
+        ui.same_line();
+        ui.text_disabled(ago(i.last));
+        for p in &i.problems {
+            red(ui, p);
+        }
+    }
+}
+
 /// Errors wrap: they're the part worth reading in full.
 fn red(ui: &Ui, s: &str) {
     let _c = ui.push_style_color(StyleColor::Text, RED_TEXT);
@@ -581,6 +606,7 @@ impl Dashboard {
                     1 => &view.nodes,
                     2 => &view.machines,
                     3 => &view.services,
+                    4 => &view.triggers,
                     _ => &[],
                 };
                 // A tab is red when anything on it is broken.
@@ -604,7 +630,8 @@ impl Dashboard {
                     0 => now_page(ui, &view.now, &mut self.selected, &mut w),
                     1 => w.send = self.canvas.draw(ui, nodes, net, &shown, &view.ghosts, &view.links, &view.places, &mut self.selected).or(w.send.take()),
                     2 => list_page(ui, items, "system/", &mut self.selected),
-                    _ => list_page(ui, items, "healthcheck/", &mut self.selected),
+                    3 => list_page(ui, items, "healthcheck/", &mut self.selected),
+                    _ => triggers_page(ui, items, &mut self.typed, &mut self.selected, &mut w),
                 });
                 if let Some(t) = &self.selected {
                     ui.same_line();
@@ -633,6 +660,9 @@ impl Dashboard {
         }
         if let Some(t) = w.send {
             net.send(&t);
+        }
+        if let Some((t, content)) = w.fire {
+            net.fire(&t, &content);
         }
     }
 }

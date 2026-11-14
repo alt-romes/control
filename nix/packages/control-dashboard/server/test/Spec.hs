@@ -29,7 +29,7 @@ main = do
       now = read "2026-11-01 10:05:00 UTC" :: UTCTime
       run = started (eid a "script/s") (object ["at" .= ("2026-11-01T10:00:00Z" :: String), "e" .= object
               ["rules" .= object ["timeout" .= (60 :: Int), "reactions" .= ["trigger/x" :: String]], "label" .= ("s" :: String)]])
-      st0 = State mempty mempty [] True (read "2026-11-01 00:00:00 UTC")
+      st0 = State mempty mempty [] [] True (read "2026-11-01 00:00:00 UTC")
   let st = foldl (flip apply) st0
         [ run
         , finished (toJSON a) (object ["at" .= ("2026-11-01T10:00:01Z" :: String), "e" .= object

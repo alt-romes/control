@@ -19,6 +19,7 @@ server sends the whole view. Clients send nothing on it.
   "now": [{"key": "system/m4", "status": "bad", "problems": ["Disk 98% full."], "triggers": [{"run": "uuid", "index": 0, "label": "retry"}]}],
   "machines": [Item],
   "services": [Item],
+  "triggers": [Item],
   "nodes": [Item],
   "ghosts": [{"key": "a/b|trigger/c", "title": "x/y", "announcer": "a/b"}],
   "links": [{"from": "a/b", "to": "x/y", "label": "print the label", "trigger": {"run": "uuid", "index": 0}}],
@@ -34,6 +35,8 @@ server sends the whole view. Clients send nothing on it.
   waiting for a trigger to be sent (`triggers`, see below).
 - `machines` are the `system/<machine>` topics, `services` the `healthcheck/…`
   topics, `nodes` everything else worth a node in the graph.
+- `triggers` are the `trigger/…` topics something reacts to (the server is
+  given them with `--trigger`), for the user to send at will; see below.
 - An `Item` is `{"topic", "status", "last", "stats", "problems", "group", "recent"}`:
   - `status` is `"bad"`, `"waiting"` (a trigger is the user's to send),
     `"running"`, `"fine"` or `"unseen"`. Only the first three deserve colour.
@@ -91,3 +94,7 @@ followed by its subtasks and reactions, `depth` deep; empty when it's alone.
 
 Body `{"run": "uuid", "index": 0}`. `200` once sent; otherwise a status with
 the reason as text.
+
+## `POST /api/trigger`: send one of `triggers`
+
+Body `{"topic": "trigger/…"}`. Answers as `/api/send` does.

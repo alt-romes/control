@@ -10,7 +10,7 @@ import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (IOException, SomeException, displayException, try)
-import Control.Monad (forever, unless, void, when)
+import Control.Monad (forever, mfilter, unless, void, when)
 import Data.Aeson (FromJSON, ToJSON (..), Value (..), decode, decodeStrict, encode, object, (.=))
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Char8 as B8
@@ -31,7 +31,7 @@ import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import Data.Tree (Tree (..))
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
-import Lucid (Html, body_, button_, charset_, class_, content_, div_, doctypehtml_, h2_, head_, httpEquiv_, li_, meta_, name_, onclick_, p_, renderBS, small_, span_, style_, title_, toHtml, ul_)
+import Lucid (Html, body_, button_, charset_, class_, content_, div_, doctypehtml_, h2_, head_, httpEquiv_, input_, li_, meta_, name_, onclick_, p_, placeholder_, renderBS, small_, span_, style_, title_, toHtml, ul_)
 import Model
 import Network.HTTP.Types (hContentType, status200, status400, status404, status500)
 import Network.MQTT.Topic (unTopic)
@@ -47,28 +47,30 @@ import System.IO
 
 usage :: String
 usage = unlines
-  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--logs PATTERN]"
+  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--trigger TOPIC]... [--logs PATTERN]"
   , "                                [--session ID | --clean] [--state DIR]"
   , ""
   , "  --host, --port    where to serve (default: 127.0.0.1:5001)"
   , "  --require TOPIC   a topic that must have runs, e.g. healthcheck/scrollsent"
+  , "  --trigger TOPIC   a trigger to offer for sending, e.g. trigger/backup"
   , "  --logs PATTERN    where a failed script's log is, %s for the last level of its topic"
   , "  --session ID      the broker session to resume (default: control-dashboard)"
   , "  --clean           no broker session: miss whatever happens while closed"
   , "  --state DIR       history (default: ~/.local/state/control-dashboard)" ]
 
-data Opts = Opts {host :: String, port :: Int, require :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath}
+data Opts = Opts {host :: String, port :: Int, require :: [Text], offered :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath}
 
 opts :: IO Opts
 opts = do
   home <- getHomeDirectory
-  getArgs >>= go (Opts "127.0.0.1" 5001 [] Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard"))
+  getArgs >>= go (Opts "127.0.0.1" 5001 [] [] Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard"))
   where
     go o = \case
       [] -> pure o
       "--host" : v : as -> go o {host = v} as
       "--port" : v : as -> go o {port = read v} as
       "--require" : v : as -> go o {require = o.require ++ [T.pack v]} as
+      "--trigger" : v : as -> go o {offered = o.offered ++ [T.pack v]} as
       "--logs" : v : as -> go o {logs = Just v} as
       "--session" : v : as -> go o {session = Just v} as
       "--clean" : as -> go o {session = Nothing} as
@@ -90,7 +92,7 @@ main = do
   createDirectoryIfMissing True o.state
   let historyFile = o.state </> "events.jsonl"
   now <- getCurrentTime
-  st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require False now) =<< loadHistory historyFile
+  st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require o.offered False now) =<< loadHistory historyFile
   history <- openFile historyFile AppendMode
   lock <- newMVar ()
   let record l = do
@@ -130,12 +132,15 @@ listen session st record = do
 
 -- | A trigger is an event of its own, reacting to the run that announced it.
 sendTrigger :: Run -> Trigger -> IO ()
-sendTrigger r t = case T.breakOnEnd "/" (unTopic t.triggerTopic) of
+sendTrigger r t = publish (unTopic t.triggerTopic) (simple t.triggerLabel & withMsg .~ t.triggerData & reacted ?~ r.eid)
+
+-- | Sends a trigger, expecting something to react to it.
+publish :: ToJSON m => Text -> EvtMsg m -> IO ()
+publish t msg = case T.breakOnEnd "/" t of
   (base, leaf) | T.length base > 1, not (T.null leaf) ->
-    withConn (topic (T.init base)) \c -> event c (topic leaf) msg \_ -> pure (done "Sent" ())
-  _ -> fail ("A trigger's topic needs two levels, unlike " <> show (unTopic t.triggerTopic))
+    withConn (topic (T.init base)) \c -> event c (topic leaf) (msg & evtReactions ?~ ["#"]) \_ -> pure (done "Sent" ())
+  _ -> fail ("A trigger's topic needs two levels, unlike " <> show t)
   where
-    msg = simple t.triggerLabel & withMsg .~ t.triggerData & reacted ?~ r.eid & evtReactions ?~ ["#"]
     topic = fromString . T.unpack
 
 -- * Judging
@@ -195,6 +200,7 @@ data View = View
   , now :: [Attention]
   , machines :: [Item]
   , services :: [Item]
+  , triggers :: [Item]
   , nodes :: [Item]
   , ghosts :: [Ghost]
   , links :: [Link]
@@ -204,10 +210,11 @@ data View = View
   deriving (Generic, ToJSON)
 
 view :: UTCTime -> State -> View
-view now st = View st.connected (foldr (min . (.status)) Fine attention) attention machines services nodes ghosts links said places'
+view now st = View st.connected (foldr (min . (.status)) Fine attention) attention machines services triggers nodes ghosts links said places'
   where
     machines = listed "system/"
     services = listed "healthcheck/"
+    triggers = map item st.triggerable
     nodes = [(item t) {group = groupOf t} | t <- topics]
     items = machines ++ services ++ nodes
     attention =
@@ -260,6 +267,9 @@ live env pending = do
 data Send = Send {run :: UUID, index :: Int}
   deriving (Generic, FromJSON)
 
+data Fire = Fire {topic :: Text, content :: Maybe Text}
+  deriving (Generic, FromJSON)
+
 http :: Opts -> Env -> Application
 http o env req respond = case (requestMethod req, pathInfo req) of
   ("GET", ["api", "topic"]) | Just t <- param "topic" -> do
@@ -273,6 +283,13 @@ http o env req respond = case (requestMethod req, pathInfo req) of
     case decode body of
       Just (Send i n) | Just r <- Map.lookup i s.runs, Just t <- lookup n (zip [0 ..] (foldMap (fromMaybe [] . (.e.triggers)) r.end)) ->
         try @SomeException (sendTrigger r t) >>= either (\e -> text status500 (T.pack (displayException e))) (const (text status200 "Sent"))
+      _ -> text status400 "No such trigger."
+  ("POST", ["api", "trigger"]) -> do
+    body <- lazyRequestBody req
+    s <- readTVarIO env.st
+    case decode body of
+      Just (Fire t c) | t `elem` s.triggerable ->
+        try @SomeException (publish t (simple "Sent from the dashboard" & withMsg .~ mfilter (not . T.null) c)) >>= either (\e -> text status500 (T.pack (displayException e))) (const (text status200 "Sent"))
       _ -> text status400 "No such trigger."
   ("GET", []) -> do
     (now, s) <- (,) <$> getCurrentTime <*> readTVarIO env.st
@@ -336,6 +353,12 @@ page now v = doctypehtml_ do
     ul_ (traverse_ (li_ . item) v.machines)
     h2_ "Healthchecks"
     ul_ (traverse_ (li_ . item) v.services)
+    unless (null v.triggers) do
+      h2_ "Triggers"
+      ul_ $ for_ v.triggers \i -> li_ do
+        item i
+        input_ [placeholder_ "content"]
+        button_ [onclick_ ("fetch('/api/trigger',{method:'POST',body:JSON.stringify({topic:" <> jsonText i.topic <> ",content:this.previousElementSibling.value})}).then(()=>location.reload())")] "Send"
   where
     css :: Text
     css = "body{font:15px/1.5 system-ui;max-width:50em;margin:auto;padding:1em;overflow-wrap:anywhere}:root{color-scheme:light dark}\
@@ -364,5 +387,7 @@ page now v = doctypehtml_ do
       unless (null kids) (ul_ (traverse_ tree kids))
 
 sendButton :: UUID -> Int -> Text -> Html ()
-sendButton r i label = button_ [onclick_ ("fetch('/api/send',{method:'POST',body:'" <> body <> "'}).then(()=>location.reload())")] (toHtml label)
-  where body = T.decodeUtf8 (BL8.toStrict (encode (object ["run" .= r, "index" .= i])))
+sendButton r i label = button_ [onclick_ ("fetch('/api/send',{method:'POST',body:'" <> jsonText (object ["run" .= r, "index" .= i]) <> "'}).then(()=>location.reload())")] (toHtml label)
+
+jsonText :: ToJSON a => a -> Text
+jsonText = T.decodeUtf8 . BL8.toStrict . encode

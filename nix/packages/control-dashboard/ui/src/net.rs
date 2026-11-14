@@ -15,6 +15,7 @@ pub struct View {
     pub now: Vec<Attention>,
     pub machines: Vec<Item>,
     pub services: Vec<Item>,
+    pub triggers: Vec<Item>,
     pub nodes: Vec<Item>,
     pub ghosts: Vec<Ghost>,
     pub links: Vec<Link>,
@@ -210,6 +211,11 @@ impl Net {
 
     pub fn send(&self, t: &TriggerRef) {
         let req = ehttp::Request::post(format!("{}/api/send", self.server), serde_json::to_vec(t).unwrap());
+        self.fetch(req, |r| Some(Msg::Sent(r.map(|_| ()))));
+    }
+
+    pub fn fire(&self, topic: &str, content: &str) {
+        let req = ehttp::Request::post(format!("{}/api/trigger", self.server), serde_json::to_vec(&serde_json::json!({"topic": topic, "content": content})).unwrap());
         self.fetch(req, |r| Some(Msg::Sent(r.map(|_| ()))));
     }
 

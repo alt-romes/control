@@ -5,6 +5,8 @@
       self-pkgs = self.packages.${pkgs.stdenv.hostPlatform.system};
       cfg = config.control-dashboard;
       flags = name: lib.concatMapStringsSep " " (v: "--${name} ${lib.escapeShellArg v}");
+      triggers = lib.unique (lib.filter (t: t != null && lib.hasPrefix "trigger/" t && !lib.hasInfix "+" t && !lib.hasInfix "#" t)
+        (lib.mapAttrsToList (_: a: a.on) config.automations));
     in
     {
       options.control-dashboard = {
@@ -35,6 +37,7 @@
               --port 5001 \
               --host 127.0.0.1 \
               ${flags "require" cfg.requiredHealthchecks} \
+              ${flags "trigger" triggers} \
               ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)}
           '';
         };
