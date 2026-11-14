@@ -1,17 +1,18 @@
 -- | What the runs seen on the broker say about the system.
 module Model
-  ( Run (..), Logged (..), State (..), Index (..), Link (..), Ghost (..)
-  , apply, setConnected, topicOf, index, latest, problems, pendingTriggers, awaitedReactions, graph, places, matches, duration, fmtDuration, firstLine
-  , Health (..), Tick (..), tick, recent, trace
+  ( Run (..), Logged (..), State (..), Index (..)
+  , apply, setConnected, topicOf, index, latest, problems, pendingTriggers, awaitedReactions, graph, matches, duration, fmtDuration, firstLine
+  , Health (..), Tick (..), tick, trace
   ) where
 
 import Control.Events (EventId (..), EvtDone (..), EvtMsg (..), Rules (..), Timed (..), Trigger (..))
-import Data.Aeson (FromJSON, ToJSON (..), Value (..), object, (.=))
+import Data.Aeson (FromJSON, ToJSON (..), Value (..))
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isNothing, listToMaybe, maybeToList)
+import Data.Maybe (fromMaybe, isNothing, listToMaybe, mapMaybe, maybeToList)
 import Data.Ord (Down (..))
+import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -26,8 +27,8 @@ data Run = Run
   , end :: Maybe (Timed EvtDone)
   }
 
--- | A line of the history file: what 'react' handed us.
-data Logged = Started EventId (Timed (EvtMsg Value)) | Finished UUID (Timed EvtDone)
+-- | A line of the history file: what 'react' handed us, and what the user dismissed.
+data Logged = Started EventId (Timed (EvtMsg Value)) | Finished UUID (Timed EvtDone) | Dismissed UUID
   deriving (Generic, ToJSON, FromJSON)
 
 data State = State
@@ -40,6 +41,8 @@ data State = State
   , connected :: Bool
   , awake :: UTCTime
     -- ^ Since when the server has been watching, without sleeping
+  , dismissed :: Set UUID
+    -- ^ Runs whose problems and triggers the user wants no more of
   }
 
 -- | How many runs of each topic to remember.
@@ -51,6 +54,7 @@ grace :: NominalDiffTime
 grace = 60
 
 apply :: Logged -> State -> State
+apply (Dismissed i) st = st {dismissed = Set.insert i st.dismissed}
 apply (Finished i d) st = st {runs = Map.adjust (\r -> r {end = Just d}) i st.runs}
 apply (Started e s) st
   | Map.member e.correlationId st.runs || "test/" `T.isPrefixOf` t = st
@@ -121,9 +125,6 @@ instance ToJSON Health where
 -- | A run at a glance: whether it went wrong by itself, and how long it took.
 data Tick = Tick Health NominalDiffTime
 
-instance ToJSON Tick where
-  toJSON (Tick s took) = object ["status" .= s, "took" .= took]
-
 tick :: UTCTime -> Run -> Tick
 tick now r = Tick status took
   where
@@ -132,10 +133,6 @@ tick now r = Tick status took
       | maybe False (not . (.e.success)) r.end || took > fromIntegral r.start.e.rules.timeout = Bad
       | isNothing r.end = Running
       | otherwise = Fine
-
--- | A topic's last runs, oldest first.
-recent :: UTCTime -> State -> Text -> [Tick]
-recent now st t = reverse [tick now r | i <- take 30 (Map.findWithDefault [] t st.byTopic), Just r <- [Map.lookup i st.runs]]
 
 problems :: UTCTime -> State -> Index -> Run -> [Text]
 problems now st ix r =
@@ -159,81 +156,20 @@ problems now st ix r =
     gap = diffUTCTime (fromMaybe now next) r.start.at
     leaf = last . T.splitOn "/"
 
-data Link = Link {from :: Text, to :: Text, label :: Maybe Text, send :: Maybe (UUID, Int)}
-
-instance ToJSON Link where
-  toJSON l = object ["from" .= l.from, "to" .= l.to, "label" .= l.label, "trigger" .= fmap (\(r, i) -> object ["run" .= r, "index" .= i]) l.send]
-
--- | An event that hasn't happened yet: the reaction to a pending trigger,
--- or one a run's rules expect.
-data Ghost = Ghost {key :: Text, title :: Text, announcer :: Text}
-  deriving (Generic, ToJSON)
-
--- | Topics worth a node and the links between them. Machines and services
--- are listed apart, subtasks live inside their parent's runs, and a trigger
--- is a labelled link from its announcer to whatever reacted.
-graph :: State -> Index -> ([Text], [Ghost], [Link])
-graph st ix = (nodes, ghosts ++ awaitedGhosts, plain ++ viaTriggers ++ pending ++ awaited)
+-- | Topics worth a line of their own, and which led to which: what each
+-- topic's latest run reacted to. Machines and services are listed apart,
+-- subtasks live inside their parent's runs, and a trigger links its announcer
+-- to whatever reacted, under its label.
+graph :: State -> ([Text], [(Text, Text, Maybe Text)])
+graph st = (nodes, plain ++ viaTriggers)
   where
-    edges kind = Set.toList (Set.fromList [(unTopic p.evtTopic, topicOf r) | r <- Map.elems st.runs, p <- kind r.start.e])
-    scoped = Set.fromList (map snd (edges (maybeToList . (.scope))))
-    reactions = edges (fromMaybe [] . (.reactTo))
+    edges rs kind = Set.toList (Set.fromList [(unTopic p.evtTopic, topicOf r) | r <- rs, p <- kind r.start.e])
+    scoped = Set.fromList (map snd (edges (Map.elems st.runs) (maybeToList . (.scope))))
+    reactions = edges (mapMaybe (latest st) (Map.keys st.byTopic)) (fromMaybe [] . (.reactTo))
     hidden t = any (`T.isPrefixOf` t) ["system/", "healthcheck/", "trigger/", "dashboard/"] || Set.member t scoped
     nodes = filter (not . hidden) (Set.toList (Set.fromList (Map.keys st.byTopic ++ st.required ++ concat [[a, b] | (a, b) <- reactions])))
-    plain = [Link a b Nothing Nothing | (a, b) <- reactions, a /= b, not (hidden a), not (hidden b)]
-    viaTriggers =
-      [ Link a b ((\r -> T.pack r.start.e.label) <$> latest st t) Nothing
-      | (t, b) <- reactions, "trigger/" `T.isPrefixOf` t, not (hidden b), (a, t') <- reactions, t' == t, not (hidden a) ]
-    announced = [(t, r, i, trig) | t <- nodes, Just r <- [latest st t], (i, trig) <- pendingTriggers ix r]
-    pending = [Link t (ghostKey t trig) (Just (T.pack trig.triggerLabel)) (Just (r.eid.correlationId, i)) | (t, r, i, trig) <- announced]
-    ghosts = [Ghost (ghostKey t trig) (relative t (expected trig)) t | (t, _, _, trig) <- announced]
-    ghostKey t trig = t <> "|" <> unTopic trig.triggerTopic
-    awaitedFrom = [(t, f) | t <- nodes, Just r <- [latest st t], f <- awaitedReactions ix r]
-    awaited = [Link t (t <> "|" <> f) Nothing Nothing | (t, f) <- awaitedFrom]
-    awaitedGhosts = [Ghost (t <> "|" <> f) (relative t f) t | (t, f) <- awaitedFrom]
-    -- Named from where its run is, as a sibling is: "checking", not "script/finances/revolut-import/checking".
-    relative t f = let (a, b) = (T.splitOn "/" t, T.splitOn "/" f) in T.intercalate "/" (drop (length (takeWhile id (zipWith (==) (init a) b))) b)
-    expected trig = let tt = unTopic trig.triggerTopic in maybe tt snd (listToMaybe [l | l <- reactions, fst l == tt, not (hidden (snd l))])
-
--- | Where each node goes, as a column and a row. Each block, a group, goes
--- beside the last. In a block, a node's column is twice its step down the
--- longest chain of links to it, and the next column is for the nodes that
--- hang beside it. A node's first link further right stays on its row, and
--- its other links and what else hangs beside it take new rows. Nodes nothing
--- links to come first, and a link back up a chain, or out of the block,
--- doesn't count.
-places :: [[Text]] -> [(Text, Text)] -> [(Text, Text)] -> Map Text (Int, Int)
-places blocks links under = fst (foldl block (Map.empty, 0) blocks)
-  where
-    block (m, off) keys = (Map.union m (Map.map (\(c, r) -> (c + off, r)) local), off + 1 + maximum (-1 : map fst (Map.elems local)))
-      where local = layout keys [(a, b) | (a, b) <- links, a `elem` keys, b `elem` keys]
-    layout keys ls = snd (foldl visit (0, Map.empty) order)
-      where
-        order = filter (`notElem` map snd ls) keys ++ keys
-        forward = snd (foldl (\acc k -> walk [] k acc) (Set.empty, []) order)
-        walk path k (seen, es)
-          | Set.member k seen = (seen, es)
-          | otherwise = foldl step (Set.insert k seen, es) [b | (a, b) <- ls, a == k]
-          where
-            step acc b
-              | b `elem` k : path = acc
-              | otherwise = (\(s, e) -> (s, (k, b) : e)) (walk (k : path) b acc)
-        col :: Text -> Int
-        col k = 2 * depth k
-        depth k = maximum (0 : [1 + depth a | (a, b) <- forward, b == k])
-        visit acc@(next, m) k
-          | Map.member k m = acc
-          | otherwise = place k next (next + 1, m)
-        place k row (next, m) = go True (foldl hang (next, Map.insert k (col k, row) m) (zip [0 :: Int ..] [c | (p, c) <- under, p == k])) [b | (a, b) <- ls, a == k]
-          where
-            hang (n, m') (i, c)
-              | i == 0 = (n, Map.insert c (col k + 1, row) m')
-              | otherwise = (n + 1, Map.insert c (col k + 1, n) m')
-            go _ acc [] = acc
-            go first acc@(n, m') (t : ts)
-              | Map.member t m' = go first acc ts
-              | first, col t > col k = go False (place t row acc) ts
-              | otherwise = go False (place t n (n + 1, m')) ts
+    plain = [(a, b, Nothing) | (a, b) <- reactions, a /= b, not (hidden a), not (hidden b)]
+    viaTriggers = [(a, b, (\r -> T.pack r.start.e.label) <$> latest st t) | (t, b) <- reactions, "trigger/" `T.isPrefixOf` t, not (hidden b), (a, t') <- reactions, t' == t, not (hidden a)]
 
 -- | MQTT topic filter matching, with @+@ and @#@.
 matches :: Text -> Text -> Bool

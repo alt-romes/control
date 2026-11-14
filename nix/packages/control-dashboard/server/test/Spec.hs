@@ -2,11 +2,13 @@ module Main (main) where
 
 import Control.Monad (unless)
 import Data.Aeson (Value, decode, encode, object, toJSON, (.=))
-import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
+import qualified Data.Text.Lazy as TL
 import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import Model
+import Lucid (renderText)
+import View
 import System.Exit (exitFailure)
 
 check :: (Eq a, Show a) => String -> a -> a -> IO ()
@@ -29,7 +31,7 @@ main = do
       now = read "2026-11-01 10:05:00 UTC" :: UTCTime
       run = started (eid a "script/s") (object ["at" .= ("2026-11-01T10:00:00Z" :: String), "e" .= object
               ["rules" .= object ["timeout" .= (60 :: Int), "reactions" .= ["trigger/x" :: String]], "label" .= ("s" :: String)]])
-      st0 = State mempty mempty [] [] True (read "2026-11-01 00:00:00 UTC")
+      st0 = State mempty mempty [] ["trigger/go"] True (read "2026-11-01 00:00:00 UTC") mempty
   let st = foldl (flip apply) st0
         [ run
         , finished (toJSON a) (object ["at" .= ("2026-11-01T10:00:01Z" :: String), "e" .= object
@@ -68,12 +70,11 @@ main = do
 
   -- A run's chain: the trigger it announced was sent, and reacted to it.
   check "trace" [(d, topicOf x) | (d, x) <- trace st' (index st') r'] [(0, "script/s"), (1, "trigger/x")]
-  check "strips" [[s | Tick s _ <- recent now x t] | (x, t) <- [(st', "script/s"), (waiting, "script/w")]] [[Bad], [Fine]]
 
-  -- Places: two columns per step down a chain, the second for what hangs
-  -- beside a node; a node's first link on its row, its others below; and
-  -- each block beside the last.
-  check "places" (Map.toList (places [["a", "b", "c", "d"], ["x"]] [("a", "b"), ("a", "c"), ("b", "d")] [("a", "a#content"), ("a", "a#result")]))
-    [("a", (0, 0)), ("a#content", (1, 0)), ("a#result", (1, 1)), ("b", (2, 0)), ("c", (2, 2)), ("d", (4, 0)), ("x", (5, 0))]
-  -- A cycle doesn't push anything right, and a link back takes a row of its own.
-  check "cycle" (Map.toList (places [["a", "b"]] [("a", "b"), ("b", "a")] [])) [("a", (0, 0)), ("b", (2, 0))]
+  -- The failed run and its unsent trigger need the user, until dismissed.
+  let needs x = [(i.topic, i.status, i.problems, length i.sends) | i <- judged now x]
+      has x = all (`TL.isInfixOf` renderText x)
+  check "judged" (needs st) [("script/s", Bad, ["Failed: boom"], 1)]
+  check "dismissed" (needs (apply (Dismissed (fromJust (UUID.fromText a))) st)) [("script/s", Fine, [], 0)]
+  check "overview" (has (overview now st (judged now st)) ["Failed: boom", "/api/send", "/api/dismiss", "trigger/go"]) True
+  check "topic" (has (topicView now st' Nothing "script/s") ["Failed: boom", "trigger/x"]) True

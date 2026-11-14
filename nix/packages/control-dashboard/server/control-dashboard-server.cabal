@@ -1,7 +1,7 @@
 cabal-version:      3.0
 name:               control-dashboard-server
 version:            0.3.0
-synopsis:           Judges what control-events say, for the dashboard's windows
+synopsis:           Judges what control-events say, and serves the dashboard
 build-type:         Simple
 
 common shared
@@ -18,10 +18,13 @@ common shared
     NamedFieldPuns
   build-depends:
       aeson
+    , aeson-pretty
     , base
     , bytestring
     , containers
     , control-events
+    , http-types
+    , lucid
     , directory
     , filepath
     , net-mqtt
@@ -32,13 +35,11 @@ common shared
 executable control-dashboard-server
   import:           shared
   main-is:          Main.hs
-  other-modules:    Model
+  other-modules:    Model View
   hs-source-dirs:   app
   ghc-options:      -threaded
   build-depends:
       async
-    , http-types
-    , lucid
     , stm
     , wai
     , wai-websockets
@@ -50,4 +51,4 @@ test-suite spec
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test app
-  other-modules:    Model
+  other-modules:    Model View

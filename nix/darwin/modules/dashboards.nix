@@ -43,7 +43,7 @@
           message = "automations.${name}: a dashboardTrigger needs on = \"trigger/...\", with no wildcards.";
         }) config.automations;
 
-        # The server judging every control-event, for the dashboard's windows
+        # The server judging every control-event
         automations.control-dashboard = {
           keepAlive = true;
           script = ''
@@ -56,13 +56,11 @@
           '';
         };
 
-        # Reachable locally and on the wireguard VPN, by windows and browsers.
+        # Reachable locally and on the wireguard VPN.
         services.caddy.virtualHosts = {
           "dash.localhost"     = "127.0.0.1:5001";
           "control.mogbit.com" = "127.0.0.1:5001";
         };
-
-        environment.systemPackages = [ self-pkgs.control-dashboard ];
       };
     };
 }

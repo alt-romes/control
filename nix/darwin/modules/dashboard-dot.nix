@@ -14,10 +14,9 @@
           default = "http://127.0.0.1:5001";
         };
         open = lib.mkOption {
-          description = "The command clicking the dot runs, e.g. `[ \"open\" \"http://dash.localhost\" ]`.";
+          description = "The command clicking the dot runs.";
           type = lib.types.listOf lib.types.str;
-          default = [ (lib.getExe self-pkgs.control-dashboard) "--server" cfg.server ];
-          defaultText = lib.literalExpression ''[ (lib.getExe control-dashboard) "--server" cfg.server ]'';
+          default = [ "open" "http://dash.localhost" ];
         };
       };
 
