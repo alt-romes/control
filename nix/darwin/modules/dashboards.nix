@@ -5,10 +5,19 @@
       self-pkgs = self.packages.${pkgs.stdenv.hostPlatform.system};
       cfg = config.control-dashboard;
       flags = name: lib.concatMapStringsSep " " (v: "--${name} ${lib.escapeShellArg v}");
-      triggers = lib.unique (lib.filter (t: t != null && lib.hasPrefix "trigger/" t && !lib.hasInfix "+" t && !lib.hasInfix "#" t)
-        (lib.mapAttrsToList (_: a: a.on) config.automations));
+      triggers = lib.unique (lib.mapAttrsToList (_: a: a.on) (lib.filterAttrs (_: a: a.dashboardTrigger) config.automations));
     in
     {
+      options.automations = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.submodule {
+          options.dashboardTrigger = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "Offer the trigger it reacts to, its `on`, for sending from the dashboard.";
+          };
+        });
+      };
+
       options.control-dashboard = {
         requiredHealthchecks = lib.mkOption {
           description = ''
@@ -29,6 +38,11 @@
       };
 
       config = {
+        assertions = lib.mapAttrsToList (name: a: {
+          assertion = !a.dashboardTrigger || (a.on != null && lib.hasPrefix "trigger/" a.on && !lib.hasInfix "+" a.on && !lib.hasInfix "#" a.on);
+          message = "automations.${name}: a dashboardTrigger needs on = \"trigger/...\", with no wildcards.";
+        }) config.automations;
+
         # The server judging every control-event, for the dashboard's windows
         automations.control-dashboard = {
           keepAlive = true;
