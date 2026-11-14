@@ -94,11 +94,11 @@
     "cob-hs": {
       "flake": false,
       "locked": {
-        "lastModified": 1791191704,
-        "narHash": "sha256-5DvMjVGe+zKr4gW+ZChWTmTxm9ofIeOEOnr/9eAPK1Q=",
+        "lastModified": 1793818320,
+        "narHash": "sha256-CiXdcTQizwgXlsL/dsAZHTIPvYqPQNAd9Gl3K0uWupQ=",
         "owner": "alt-romes",
         "repo": "cob-hs",
-        "rev": "ebc556fbd7f2829f2830a4e88ac83fe3c60a4a2d",
+        "rev": "15683706593751fd8255d8b250f4a4a9306699e6",
         "type": "github"
       },
       "original": {
@@ -143,11 +143,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793573689,
-        "narHash": "sha256-POMHkwoESXK8C+wtdATKQK/QkbaYTnU0TolEAteMKnk=",
+        "lastModified": 1794178579,
+        "narHash": "sha256-v+Tv+PeuymZ2fWhpixQ3LGIilmHxik8d//ADS3DCB3I=",
         "owner": "alt-romes",
         "repo": "control-events",
-        "rev": "33e7af0698f7f04e653f89ec036506c4a4f1d3b4",
+        "rev": "bcaf637081e60676c80cb7b43b1689f26f370ab2",
         "type": "github"
       },
       "original": {
