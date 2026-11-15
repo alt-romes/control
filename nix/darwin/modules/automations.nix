@@ -89,12 +89,14 @@ let
 
       # Use getExe of writeShellScriptBin to make the binary itself not have a
       # hash in its name, so it doesn't show up in Login Items every time we rebuild.
-      program = name: a: lib.getExe (pkgs.writeShellScriptBin name ''
+      launcher = name: args: [ (lib.getExe (pkgs.writeShellScriptBin name "exec ${lib.escapeShellArgs args}")) ];
+
+      program = name: a: pkgs.writeShellScript name ''
         ${lib.optionalString (a.on != null) "exec >>${log name "out"} 2>>${log name "err"}"}
         ${lib.optionalString (a.path != [ ]) "export PATH=${lib.makeBinPath a.path}:$PATH"}
         ${lib.concatStrings (lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg v}\n") a.environment)}
         ${a.script}
-      '');
+      '';
 
       reported = name: a:
         if a.topic == null then [ "${program name a}" ]
@@ -109,7 +111,7 @@ let
       }) reacting));
     in
     lib.mapAttrs (name: a: {
-      ProgramArguments = reported name a;
+      ProgramArguments = launcher name (reported name a);
       RunAtLoad = a.keepAlive || a.runAtLoad;
       KeepAlive = a.keepAlive;
       StandardOutPath = log name "out";
@@ -118,8 +120,8 @@ let
       // lib.optionalAttrs (a.at != null) { StartCalendarInterval = a.at; }
     ) scheduled // lib.optionalAttrs (reacting != { }) {
       ${reactions} = {
-        ProgramArguments = [ control-events "healthcheck" reactions "--"
-                             (lib.getExe self.packages.${system}.reactions) "${reactionsConfig}" ];
+        ProgramArguments = launcher reactions [ control-events "healthcheck" reactions "--"
+                                                (lib.getExe self.packages.${system}.reactions) "${reactionsConfig}" ];
         RunAtLoad = true;
         KeepAlive = true;
         StandardOutPath = log reactions "out";
