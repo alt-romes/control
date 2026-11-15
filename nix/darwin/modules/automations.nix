@@ -1,6 +1,5 @@
 { self, inputs, ... }:
 let
-  # The automations option, for both nix-darwin and home-manager
   common = { config, lib, ... }:
     let inherit (lib) mkOption types; in
     {
@@ -76,8 +75,6 @@ let
       }) config.automations;
     };
 
-  # The launchd agents' plists by name, with the automations reacting to
-  # events all run by the one named `reactions`.
   agents = { lib, pkgs, automations, reactions }:
     let
       system = pkgs.stdenv.hostPlatform.system;
