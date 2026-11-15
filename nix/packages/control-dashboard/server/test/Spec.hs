@@ -31,7 +31,7 @@ main = do
       now = read "2026-11-01 10:05:00 UTC" :: UTCTime
       run = started (eid a "script/s") (object ["at" .= ("2026-11-01T10:00:00Z" :: String), "e" .= object
               ["rules" .= object ["timeout" .= (60 :: Int), "reactions" .= ["trigger/x" :: String]], "label" .= ("s" :: String)]])
-      st0 = State mempty mempty [] ["trigger/go"] True (read "2026-11-01 00:00:00 UTC") mempty
+      st0 = State mempty mempty [] ["trigger/go"] True (read "2026-11-01 00:00:00 UTC") [] mempty
   let st = foldl (flip apply) st0
         [ run
         , finished (toJSON a) (object ["at" .= ("2026-11-01T10:00:01Z" :: String), "e" .= object
@@ -67,6 +67,14 @@ main = do
         ["rules" .= object ["timeout" .= (600 :: Int), "expected" .= (120 :: Int)], "label" .= ("h" :: String)]])) st0
       missed x = length (problems now x (index x) (fromJust (latest x "healthcheck/h")))
   check "missed" (missed due, missed due {awake = read "2026-11-01 10:04:00 UTC"}) (1, 0)
+
+  -- Time the computer slept doesn't count against a run's limit.
+  let f = UUID.toText (UUID.fromWords 6 6 6 6)
+      stuck = apply (started (eid f "healthcheck/s") (object ["at" .= ("2026-11-01T09:55:00Z" :: String), "e" .= object
+        ["rules" .= object ["timeout" .= (60 :: Int)], "label" .= ("s" :: String)]])) st0
+      unfinished x = problems now x (index x) (fromJust (latest x "healthcheck/s"))
+  check "awake" (unfinished stuck) ["No finish after 10m; the limit is 1m."]
+  check "slept" (unfinished stuck {slept = [(read "2026-11-01 09:55:30 UTC", read "2026-11-01 10:04:50 UTC")]}) []
 
   -- A run's chain: the trigger it announced was sent, and reacted to it.
   check "trace" [(d, topicOf x) | (d, x) <- trace st' (index st') r'] [(0, "script/s"), (1, "trigger/x")]

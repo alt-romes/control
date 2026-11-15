@@ -91,7 +91,7 @@ main = do
   createDirectoryIfMissing True o.state
   let historyFile = o.state </> "events.jsonl"
   now <- getCurrentTime
-  st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require o.offered False now mempty) =<< loadHistory historyFile
+  st <- newTVarIO . foldl (flip apply) (State mempty mempty o.require o.offered False now [] mempty) =<< loadHistory historyFile
   history <- openFile historyFile AppendMode
   lock <- newMVar ()
   let record l = do
@@ -153,7 +153,7 @@ judge env = getCurrentTime >>= go Nothing
     go before seen = do
       now <- getCurrentTime
       -- A second that took this long was the computer sleeping.
-      when (diffUTCTime now seen > 30) $ atomically (modifyTVar' env.st \s -> s {awake = now})
+      when (diffUTCTime now seen > 30) $ atomically (modifyTVar' env.st \s -> s {awake = now, slept = take 100 ((seen, now) : s.slept)})
       s <- readTVarIO env.st
       let is = judged now s
       atomically (writeTVar env.view (encode (summarise s is)))

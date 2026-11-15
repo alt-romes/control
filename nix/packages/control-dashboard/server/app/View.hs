@@ -123,7 +123,7 @@ overview now st is = do
       td_ [class_ "dim"] (toHtml (maybe "never seen" (ago now) i.run))
       extra
     mark, gauges :: Run -> Html ()
-    mark r = let Tick h _ = tick now r in a_ [class_ (cls h), href_ (runHref r), title_ (T.pack r.start.e.label <> ", " <> ago now r <> took now r)] ""
+    mark r = let Tick h _ = tick now st r in a_ [class_ (cls h), href_ (runHref r), title_ (T.pack r.start.e.label <> ", " <> ago now r <> took now r)] ""
     gauges r = for_ [("load", percent r "loadPct"), ("memory", (100 -) <$> percent r "memAvailPct"), ("disk", percent r "diskUsed")] \(name, v) ->
       for_ v \n -> td_ [class_ "dim"] do
         toHtml (name :: Text)
@@ -175,7 +175,7 @@ topicView now st logTail t = do
   where
     ix = index st
     runs = take 20 (runsOf st t)
-    health r = let Tick h _ = tick now r in h
+    health r = let Tick h _ = tick now st r in h
     -- Text as it reads, anything else as JSON, laid out.
     said :: Text -> Value -> Html ()
     said k v = p_ [class_ "dim"] (toHtml k) >> pre_ (toHtml (case v of String s -> s; _ -> T.decodeUtf8 (BL.toStrict (encodePretty v))))

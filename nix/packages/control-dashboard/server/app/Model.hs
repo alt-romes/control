@@ -41,6 +41,8 @@ data State = State
   , connected :: Bool
   , awake :: UTCTime
     -- ^ Since when the server has been watching, without sleeping
+  , slept :: [(UTCTime, UTCTime)]
+    -- ^ When the computer slept, newest first
   , dismissed :: Set UUID
     -- ^ Runs whose problems and triggers the user wants no more of
   }
@@ -125,14 +127,21 @@ instance ToJSON Health where
 -- | A run at a glance: whether it went wrong by itself, and how long it took.
 data Tick = Tick Health NominalDiffTime
 
-tick :: UTCTime -> Run -> Tick
-tick now r = Tick status took
+tick :: UTCTime -> State -> Run -> Tick
+tick now st r = Tick status took
   where
-    took = duration now r
+    took = awakeFor now st r
     status
       | maybe False (not . (.e.success)) r.end || took > fromIntegral r.start.e.rules.timeout = Bad
       | isNothing r.end = Running
       | otherwise = Fine
+
+-- | How long a run has been going, or went, leaving out when the computer
+-- slept: it can't be blamed for that.
+awakeFor :: UTCTime -> State -> Run -> NominalDiffTime
+awakeFor now st r = duration now r - sum [max 0 (diffUTCTime (min b end) (max a r.start.at)) | (a, b) <- st.slept]
+  where
+    end = maybe now (.at) r.end
 
 problems :: UTCTime -> State -> Index -> Run -> [Text]
 problems now st ix r =
@@ -148,7 +157,7 @@ problems now st ix r =
      | Just d <- [r.end], diffUTCTime now d.at > grace, f <- awaitedReactions ix r ]
   where
     rules = r.start.e.rules
-    took = duration now r
+    took = awakeFor now st r
     limit = fromIntegral rules.timeout
     verb = maybe "No finish after" (const "Took") r.end
     children = related (.children) ix r
