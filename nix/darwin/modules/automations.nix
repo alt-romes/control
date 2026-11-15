@@ -11,12 +11,14 @@
       reactions = lib.filterAttrs (_: a: a.on != null) config.automations;
       agents    = lib.filterAttrs (_: a: a.on == null) config.automations;
 
-      program = name: a: pkgs.writeShellScript name ''
+      # Use getExe of writeShellScriptBin to make the binary itself not have a
+      # hash in its name, so it doesn't show up in Login Items every time we rebuild.
+      program = name: a: lib.getExe (pkgs.writeShellScriptBin name ''
         ${lib.optionalString (a.on != null) "exec >>${log name "out"} 2>>${log name "err"}"}
         ${lib.optionalString (a.path != [ ]) "export PATH=${lib.makeBinPath a.path}:$PATH"}
         ${lib.concatStrings (lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg v}\n") a.environment)}
         ${a.script}
-      '';
+      '');
 
       reported = name: a:
         if a.topic == null then [ "${program name a}" ]
