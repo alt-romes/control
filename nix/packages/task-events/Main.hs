@@ -36,7 +36,7 @@ main = do
 handle :: Conn s -> EventId -> Timed (EvtMsg Value) -> Timed EvtDone -> IO ()
 handle c e s d = unless ("test/" `T.isPrefixOf` topic) do
   when (topic == "script/mail/received") $
-    for_ (s.e.content >>= parseMaybe todo) (add . words)
+    for_ (s.e.content >>= parseMaybe todo) (add . ("+in" :) . words)
   for_ (T.stripPrefix "dashboard/problem/" topic) \about ->
     addOnce (T.isPrefixOf (about <> ": ")) "+problem" (T.unpack about <> ": " <> s.e.label)
   for_ (fromMaybe [] d.e.triggers) \t ->
