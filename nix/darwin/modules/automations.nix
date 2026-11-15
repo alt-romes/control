@@ -132,6 +132,18 @@ in
   # as launchd user agents logging to /tmp/org.romes.<name>.{out,err}.log.
   flake.darwinModules.automations = { config, lib, pkgs, ... }: {
     imports = [ common ];
+
+    # Also checks the automations of home-manager users, which can't see the system
+    config.assertions =
+      let
+        all = lib.foldl' (a: u: a // (u.automations or { })) config.automations
+                (lib.attrValues (config.home-manager.users or { }));
+        evented = lib.attrNames (lib.filterAttrs (_: a: a.topic != null || a.on != null) all);
+      in [{
+        assertion = evented == [ ] || config.services.control-events-node.enable;
+        message = "automations ${toString evented} use control-events, but services.control-events-node isn't enabled.";
+      }];
+
     config.launchd.user.agents = lib.mapAttrs (_: plist: { serviceConfig = plist; })
       (agents { inherit lib pkgs; inherit (config) automations; reactions = "reactions"; });
   };
