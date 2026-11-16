@@ -90,6 +90,7 @@
     home-manager.users.romes.programs.custom.doom-emacs = true;
     home-manager.users.romes.programs.custom.mail-events = true;
     home-manager.users.romes.programs.satisago.backup = "git@github.com:alt-romes/satisago-tasks-export.git";
+    home-manager.users.romes.programs.satisago.backupSshKey = config.age.secrets.satisago-backup-key.path;
 
     # --- Users ------------------------------------------------------------------
 
@@ -170,6 +171,8 @@
     age.secrets.cob-kanjideck-token.owner = "romes";
     age.secrets.ctt-login.file            = ../modules/_agenix/ctt-login.age;
     age.secrets.ctt-login.owner           = "romes";
+    age.secrets.satisago-backup-key.file  = ../modules/_agenix/satisago-backup-key.age;
+    age.secrets.satisago-backup-key.owner = "romes"; # read by the satisago-backup user agent
 
     # --- Network ----------------------------------------------------------------
   

@@ -38,4 +38,5 @@ in
   "github-octo.age".publicKeys = romes-machines;
   "taskwarrior-sync.age".publicKeys = romes-machines; # included by taskrc (satisago)
   "ctt-login.age".publicKeys = romes-machines; # login to CTT portal
+  "satisago-backup-key.age".publicKeys = romes-machines; # deploy key for satisago-tasks-export
 }
