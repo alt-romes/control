@@ -44,8 +44,8 @@ handle c e s d = unless ("test/" `T.isPrefixOf` topic) do
      in addOnce (== T.pack task) "+trigger" task
   where
     topic = unTopic e.evtTopic
-    add args = event_ c "add" (simple ("task add " <> unwords args) & reacted ?~ e) \_ ->
-      runProcess_ (proc "task" ("add" : args))
+    add args = event_ c "add" (simple ("task add +in " <> unwords args) & reacted ?~ e) \_ ->
+      runProcess_ (proc "task" ("add" : "+in" : args))
     -- Not while a pending task already says the same.
     addOnce same tag task = do
       pending :: [Task] <- either fail pure . eitherDecode =<< readProcessStdout_ (proc "task" ["status:pending", "export"])
