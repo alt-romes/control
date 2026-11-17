@@ -42,10 +42,10 @@ final class Dot: NSObject {
   }
 
   func show(_ status: String?) {
-    item.isVisible = status != "fine"
     switch status {
     case "bad": item.button?.image = dot(NSColor(red: 0.75, green: 0.2, blue: 0.2, alpha: 1))
     case "waiting": item.button?.image = dot(NSColor(red: 0.75, green: 0.55, blue: 0.1, alpha: 1))
+    case "fine": item.button?.image = dot(NSColor(red: 0.3, green: 0.6, blue: 0.3, alpha: 1))
     default: item.button?.image = dot(nil)
     }
   }

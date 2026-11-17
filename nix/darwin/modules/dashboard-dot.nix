@@ -7,7 +7,7 @@
     in
     {
       options.control-dashboard.dot = {
-        enable = lib.mkEnableOption "a menu bar dot, red while something is bad and amber while waiting";
+        enable = lib.mkEnableOption "a menu bar dot, red while something is bad, amber while waiting and green otherwise";
         server = lib.mkOption {
           description = "The control-dashboard server the dot watches.";
           type = lib.types.str;
