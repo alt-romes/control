@@ -18,6 +18,7 @@
       enable = true;
       viAlias = true;
       vimAlias = true;
+      luaLoader.enable = true;
 
       # Color management done via the colors module in romes.nix
 
