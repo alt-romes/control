@@ -33,8 +33,13 @@
         hooks = {
           preNew = lib.optionalString watched "${lib.getExe osConfig.services.control-events-node.package} script mail/sync -- "
                  + "${lib.getExe config.programs.mbsync.package} --all";
-          postNew = lib.mkIf watched
-            (lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.mail-events);
+          # Only mail from these, checked with DMARC, becomes an event.
+          postNew = lib.mkIf watched (lib.escapeShellArgs [
+            (lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.mail-events)
+            "rodrigo.m.mesquita@gmail.com"
+            "rodrigo@well-typed.com"
+            "rodrigo@mogbit.com"
+          ]);
         };
       };
 

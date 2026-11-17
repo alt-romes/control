@@ -11,8 +11,10 @@ executable mail-received
   default-language: GHC2021
   build-depends:
       aeson
+    , attoparsec
     , base
     , bytestring
     , control-events
+    , purebred-email
     , time
     , typed-process
