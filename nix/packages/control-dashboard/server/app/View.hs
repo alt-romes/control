@@ -46,7 +46,7 @@ judged now st = map item (Set.toList (Set.fromList (filter listed (Map.keys st.b
         | otherwise -> Item t Nothing Unseen [] []
       Just r ->
         let quiet = Set.member r.eid.correlationId st.dismissed
-            ps = if quiet then [] else problems now st ix r ++ ["Disk " <> tshow d <> "% full." | Just d <- [percent r "diskUsed"], d >= 90]
+            ps = if quiet then [] else problems now st ix r ++ ["Disk " <> tshow d <> "% full." | Just d <- [percent r "diskUsed"], d >= 95]
             sends = if quiet then [] else pendingTriggers ix r
             s | not (null ps) = Bad
               | not (null sends) = Waiting
