@@ -38,7 +38,6 @@
             (lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.mail-events)
             "rodrigo.m.mesquita@gmail.com"
             "rodrigo@well-typed.com"
-            "rodrigo@mogbit.com"
           ]);
         };
       };
