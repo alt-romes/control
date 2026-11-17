@@ -420,15 +420,18 @@
 
         require('difftastic-nvim').setup({ vcs = 'git' })
 
-        require('notmuch').setup({
-          maildir_sync_cmd = "true", -- `notmuch new` already runs mbsync in its preNew hook
-          render_html_body = true,
-          queries = {
-            { name = "Inbox (unread)", query = "tag:inbox and tag:unread" },
-            { name = "Flagged", query = "tag:flagged" },
-            { name = "Sent", query = "from:rodrigo@mogbit.com or from:rodrigo@kanjideck.com" },
-          },
-        })
+        -- Its setup blocks on `notmuch config get`, so it runs after startup.
+        vim.schedule(function()
+          require('notmuch').setup({
+            maildir_sync_cmd = "true", -- `notmuch new` already runs mbsync in its preNew hook
+            render_html_body = true,
+            queries = {
+              { name = "Inbox (unread)", query = "tag:inbox and tag:unread" },
+              { name = "Flagged", query = "tag:flagged" },
+              { name = "Sent", query = "from:rodrigo@mogbit.com or from:rodrigo@kanjideck.com" },
+            },
+          })
+        end)
 
         vim.g.llama_config = {
           enable_at_startup = false,
