@@ -194,6 +194,11 @@
     # @sudo wg-quick down wg0@ to bring it down before applying the nix config.
     #
     # If nothing works, comment out @wg0@, rebuild, uncomment, rebuild.
+    #
+    # nix-darwin restarts @wg-quick up@ only when it succeeds: that re-runs it
+    # on a tunnel that's up, and never retries one that failed, e.g. at boot
+    # before agenix has written the key. Retry failures only.
+    launchd.daemons.wg-quick-wg0.serviceConfig.KeepAlive = lib.mkForce { SuccessfulExit = false; };
     networking.wg-quick.interfaces = {
       wg0 = {
         autostart = true;
