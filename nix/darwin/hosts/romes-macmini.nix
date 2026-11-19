@@ -122,7 +122,10 @@
     # Ships the paid Kanjideck orders we post with CTT: the dashboard sends the
     # ship trigger to prepare a batch, whose run announces the trigger to
     # expedite it, whose run announces the one to mark it Sent.
-    automations.kanjideck-ship = kanjideckShip "ship" "/var/tmp/kanjideck-ship/$(date +%Y-%m-%d-%H%M%S)" // { dashboardTrigger = true; };
+    automations.kanjideck-ship = kanjideckShip "ship" "/var/tmp/kanjideck-ship/$(date +%Y-%m-%d-%H%M%S)" // {
+      dashboardTrigger = true;
+      dashboardTriggerContent = ''A list of kanjideck-ship arguments; empty ships every Paid order. E.g. ["--dry-run"] or ["--query", "<CoB query>"]'';
+    };
     automations.kanjideck-expedite = kanjideckShip "expedite" "";
     automations.kanjideck-sent = kanjideckShip "sent" "";
 

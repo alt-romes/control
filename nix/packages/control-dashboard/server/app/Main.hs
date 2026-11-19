@@ -1,6 +1,6 @@
 {-# LANGUAGE NoFieldSelectors #-}
 -- | Listens to everything on the broker through control-events, judges it,
--- announces what goes wrong, and serves the result as a page. See
+-- announces what goes wrong, and serves the result as JSON for the game. See
 -- ../protocol.md.
 module Main (main) where
 
@@ -11,7 +11,7 @@ import Control.Concurrent.STM
 import Control.Events (Conn, EventId (..), EvtDone (..), EvtMsg (..), Timed (..), Trigger (..), done, event, evtReactions, newPersistentSession, react, reacted, simple, waitConnDisconnect, withConn, withMsg, withPersistentConn, (&), (.~), (?~))
 import Control.Exception (IOException, SomeException, displayException, try)
 import Control.Monad (forever, mfilter, unless, void, when)
-import Data.Aeson (FromJSON, ToJSON, decode, decodeStrict, encode, object, (.=))
+import Data.Aeson (FromJSON, ToJSON, Value, decode, decodeStrict, eitherDecodeStrict, encode, object, (.=))
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy.Char8 as BL8
 import Data.Foldable (for_)
@@ -27,7 +27,6 @@ import qualified Data.Text.IO as T
 import Data.Time (diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
-import Lucid (renderBS)
 import Model
 import Network.HTTP.Types (hContentType, status200, status400, status404, status500)
 import Network.MQTT.Topic (unTopic)
@@ -44,18 +43,19 @@ import View
 
 usage :: String
 usage = unlines
-  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--trigger TOPIC]... [--logs PATTERN]"
+  [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--trigger TOPIC]... [--trigger-content TOPIC TEXT]... [--logs PATTERN]"
   , "                                [--session ID | --clean] [--state DIR]"
   , ""
   , "  --host, --port    where to serve (default: 127.0.0.1:5001)"
   , "  --require TOPIC   a topic that must have runs, e.g. healthcheck/scrollsent"
   , "  --trigger TOPIC   a trigger to offer for sending, e.g. trigger/backup"
+  , "  --trigger-content TOPIC TEXT\n                    one that is sent with JSON content, TEXT saying what JSON"
   , "  --logs PATTERN    where a failed script's log is, %s for the last level of its topic"
   , "  --session ID      the broker session to resume (default: control-dashboard)"
   , "  --clean           no broker session: miss whatever happens while closed"
   , "  --state DIR       history (default: ~/.local/state/control-dashboard)" ]
 
-data Opts = Opts {host :: String, port :: Int, require :: [Text], offered :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath}
+data Opts = Opts {host :: String, port :: Int, require :: [Text], offered :: [(Text, Maybe Text)], logs :: Maybe String, session :: Maybe String, state :: FilePath}
 
 opts :: IO Opts
 opts = do
@@ -67,7 +67,8 @@ opts = do
       "--host" : v : as -> go o {host = v} as
       "--port" : v : as -> go o {port = read v} as
       "--require" : v : as -> go o {require = o.require ++ [T.pack v]} as
-      "--trigger" : v : as -> go o {offered = o.offered ++ [T.pack v]} as
+      "--trigger" : v : as -> go o {offered = o.offered ++ [(T.pack v, Nothing)]} as
+      "--trigger-content" : v : d : as -> go o {offered = o.offered ++ [(T.pack v, Just (T.pack d))]} as
       "--logs" : v : as -> go o {logs = Just v} as
       "--session" : v : as -> go o {session = Just v} as
       "--clean" : as -> go o {session = Nothing} as
@@ -204,8 +205,14 @@ newtype Dismiss = Dismiss {run :: UUID}
 
 http :: Opts -> Env -> Application
 http o env req respond = case (requestMethod req, pathInfo req) of
-  ("GET", []) -> respond . responseLBS status200 [(hContentType, "text/html; charset=utf-8")] . renderBS =<< shown
-  ("GET", ["api", "status"]) -> respond . responseLBS status200 [(hContentType, "application/json")] =<< readTVarIO env.view
+  ("GET", ["api", "status"]) -> json =<< readTVarIO env.view
+  ("GET", ["api", "system"]) -> do
+    (now, s) <- (,) <$> getCurrentTime <*> readTVarIO env.st
+    json (encode (system now s (judged now s)))
+  ("GET", ["api", "topic"]) | Just t <- param "topic" -> do
+    l <- logOf t
+    (now, s) <- (,) <$> getCurrentTime <*> readTVarIO env.st
+    json (encode (topicView now s l t))
   ("POST", ["api", "send"]) -> do
     body <- lazyRequestBody req
     s <- readTVarIO env.st
@@ -217,7 +224,9 @@ http o env req respond = case (requestMethod req, pathInfo req) of
     body <- lazyRequestBody req
     s <- readTVarIO env.st
     case decode body of
-      Just (Fire t c) | t `elem` s.triggerable -> sent (publish t (simple "Sent from the dashboard" & withMsg .~ mfilter (not . T.null) c))
+      Just (Fire t c) | t `elem` map fst s.triggerable -> case traverse (eitherDecodeStrict @Value . T.encodeUtf8) (mfilter (not . T.null . T.strip) c) of
+        Left e -> text status400 ("The content must be JSON: " <> T.pack e)
+        Right v -> sent (publish t (simple "Sent from the dashboard" & withMsg .~ v))
       _ -> text status400 "No such trigger."
   ("POST", ["api", "dismiss"]) -> do
     body <- lazyRequestBody req
@@ -229,14 +238,8 @@ http o env req respond = case (requestMethod req, pathInfo req) of
   where
     param k = T.decodeUtf8 <$> (lookup k (queryString req) >>= id)
     text s = respond . responseLBS s [(hContentType, "text/plain; charset=utf-8")] . BL8.fromStrict . T.encodeUtf8
+    json = respond . responseLBS status200 [(hContentType, "application/json")]
     sent act = try @SomeException act >>= either (text status500 . T.pack . displayException) (const (text status200 "Sent"))
-    -- The overview, or the topic asked for.
-    shown = do
-      (now, s) <- (,) <$> getCurrentTime <*> readTVarIO env.st
-      let is = judged now s
-      page (summarise s is) (param "topic") <$> case param "topic" of
-        Nothing -> pure (overview now s is)
-        Just t -> (\l -> topicView now s l t) <$> logOf t
     -- Only a log that's there: a missing one says nothing about the run.
     logOf t = case o.logs of
       Just p -> either (const Nothing) (Just . T.unlines . lastN 30 . filter (not . T.null . T.strip) . T.lines)

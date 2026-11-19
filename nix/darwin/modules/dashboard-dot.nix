@@ -16,7 +16,7 @@
         open = lib.mkOption {
           description = "The command clicking the dot runs.";
           type = lib.types.listOf lib.types.str;
-          default = [ "open" "http://dash.localhost" ];
+          default = [ (lib.getExe self-pkgs.control-mindustry) cfg.server ];
         };
       };
 

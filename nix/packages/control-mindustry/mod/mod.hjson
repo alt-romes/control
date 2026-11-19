@@ -1,0 +1,8 @@
+name: control
+displayName: Control
+author: romes
+description: The control-dashboard server's topics as a factory floor.
+main: control.Control
+version: 1
+minGameVersion: 160
+hidden: true

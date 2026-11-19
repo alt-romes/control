@@ -5,7 +5,10 @@
       self-pkgs = self.packages.${pkgs.stdenv.hostPlatform.system};
       cfg = config.control-dashboard;
       flags = name: lib.concatMapStringsSep " " (v: "--${name} ${lib.escapeShellArg v}");
-      triggers = lib.unique (lib.mapAttrsToList (_: a: a.on) (lib.filterAttrs (_: a: a.dashboardTrigger) config.automations));
+      triggerFlags = lib.concatStringsSep " " (lib.unique (lib.mapAttrsToList (_: a:
+        if a.dashboardTriggerContent == null then "--trigger ${lib.escapeShellArg a.on}"
+        else "--trigger-content ${lib.escapeShellArg a.on} ${lib.escapeShellArg a.dashboardTriggerContent}")
+        (lib.filterAttrs (_: a: a.dashboardTrigger) config.automations)));
     in
     {
       options.automations = lib.mkOption {
@@ -14,6 +17,12 @@
             type = lib.types.bool;
             default = false;
             description = "Offer the trigger it reacts to, its `on`, for sending from the dashboard.";
+          };
+          options.dashboardTriggerContent = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "What JSON content the dashboard trigger takes, shown when sending it; null if none.";
+            example = "Extra arguments, e.g. [\"--dry-run\"]";
           };
         });
       };
@@ -51,7 +60,7 @@
               --port 5001 \
               --host 127.0.0.1 \
               ${flags "require" cfg.requiredHealthchecks} \
-              ${flags "trigger" triggers} \
+              ${triggerFlags} \
               ${flags "logs" (lib.optional (cfg.logPattern != null) cfg.logPattern)}
           '';
         };

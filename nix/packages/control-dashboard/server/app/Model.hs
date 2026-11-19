@@ -36,8 +36,9 @@ data State = State
   , byTopic :: Map Text [UUID]
     -- ^ Newest first
   , required :: [Text]
-  , triggerable :: [Text]
-    -- ^ Trigger topics something reacts to, for the user to send at will
+  , triggerable :: [(Text, Maybe Text)]
+    -- ^ Trigger topics something reacts to, for the user to send at will,
+    -- each with what JSON content it takes, if any
   , connected :: Bool
   , awake :: UTCTime
     -- ^ Since when the server has been watching, without sleeping

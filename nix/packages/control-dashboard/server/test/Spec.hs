@@ -3,11 +3,11 @@ module Main (main) where
 import Control.Monad (unless)
 import Data.Aeson (Value, decode, encode, object, toJSON, (.=))
 import Data.Maybe (fromJust)
-import qualified Data.Text.Lazy as TL
+import qualified Data.ByteString.Char8 as B8
+import Data.ByteString (toStrict)
 import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import Model
-import Lucid (renderText)
 import View
 import System.Exit (exitFailure)
 
@@ -31,7 +31,7 @@ main = do
       now = read "2026-11-01 10:05:00 UTC" :: UTCTime
       run = started (eid a "script/s") (object ["at" .= ("2026-11-01T10:00:00Z" :: String), "e" .= object
               ["rules" .= object ["timeout" .= (60 :: Int), "reactions" .= ["trigger/x" :: String]], "label" .= ("s" :: String)]])
-      st0 = State mempty mempty [] ["trigger/go"] True (read "2026-11-01 00:00:00 UTC") [] mempty
+      st0 = State mempty mempty [] [("trigger/go", Just "[\"--dry-run\"]")] True (read "2026-11-01 00:00:00 UTC") [] mempty
   let st = foldl (flip apply) st0
         [ run
         , finished (toJSON a) (object ["at" .= ("2026-11-01T10:00:01Z" :: String), "e" .= object
@@ -81,8 +81,8 @@ main = do
 
   -- The failed run and its unsent trigger need the user, until dismissed.
   let needs x = [(i.topic, i.status, i.problems, length i.sends) | i <- judged now x]
-      has x = all (`TL.isInfixOf` renderText x)
+      has x = all ((`B8.isInfixOf` toStrict (encode x)) . B8.pack)
   check "judged" (needs st) [("script/s", Bad, ["Failed: boom"], 1)]
   check "dismissed" (needs (apply (Dismissed (fromJust (UUID.fromText a))) st)) [("script/s", Fine, [], 0)]
-  check "overview" (has (overview now st (judged now st)) ["Failed: boom", "/api/send", "/api/dismiss", "trigger/go"]) True
-  check "topic" (has (topicView now st' Nothing "script/s") ["Failed: boom", "trigger/x"]) True
+  check "system" (has (system now st (judged now st)) ["Failed: boom", "\"to\":\"trigger/x\"", "\"dismiss\":\"00000001-","trigger/go", "\"content\":\"[\\\"--dry-run\\\"]\""]) True
+  check "topic" (has (topicView now st' Nothing "script/s") ["Failed: boom", "\"topic\":\"trigger/x\""]) True

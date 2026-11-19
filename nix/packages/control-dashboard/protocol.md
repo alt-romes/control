@@ -1,16 +1,28 @@
 # control-dashboard protocol
 
 `server/` (Haskell) listens to every control-event, decides what is wrong, and
-serves the dashboard as a page.
+serves the dashboard as JSON. `../control-mindustry/` draws it as a Mindustry
+world, polling every 2 seconds; its buttons POST to the endpoints below.
 
-## `GET /`: the overview; `GET /?topic=T`: a topic's last 20 runs
+## `GET /api/system`: everything
 
-What needs the user, the triggers to send, and every machine, service and
-event with its last 30 runs. The page fetches itself again every 5 seconds
-and whenever the WebSocket below says things changed; its buttons POST to the
-endpoints below.
+`{"summary", "triggers", "items"}`: the summary as in `/api/status`, the
+triggers offered for sending (`{"topic", "content", "last"}`, `content`
+saying what JSON the trigger takes, or null), and every machine, service
+and event: its `topic`, `kind` (`"machine"`, `"service"` or `"event"`),
+`status`, `problems`, `when` it last ran, its last 30 `runs`' statuses oldest
+first, a machine's `gauges` (percentages), the `sends` waiting (`{"run",
+"index", "label", "to"}`, as `/api/send` takes them), the reactions `awaited`,
+the run to `dismiss` if there's something to dismiss, and for events the
+`depth`, `parent` and `via` (a trigger's label) of the tree they're listed in.
 
-## `GET /api/status`, and `GET /` as a WebSocket
+## `GET /api/topic?topic=T`: a topic's last 20 runs
+
+`{"topic", "log", "runs"}`, newest first, each with its `label`, `status`,
+`when`, `took`, `problems`, `sends`, `summary`, `content`, `result` and the
+`chain` of runs it is part of. `log` is the end of the script's log, if any.
+
+## `GET /api/status`, and `/` as a WebSocket
 
 `{"connected": true, "status": "bad", "bad": 2, "waiting": 1}`: whether the
 server reaches the broker, the worst there is (`"bad"`, `"waiting"` or
@@ -25,7 +37,9 @@ the reason as text, as for the other two.
 
 ## `POST /api/trigger`: send a trigger offered with `--trigger`
 
-Body `{"topic": "trigger/…", "content": "…"}`, the content optional.
+Body `{"topic": "trigger/…", "content": "[\"--dry-run\"]"}`: `content` is text
+holding JSON, sent as the trigger's content. Empty or missing sends none; text
+that isn't JSON is refused with `400`.
 
 ## `POST /api/dismiss`: want no more of a run
 

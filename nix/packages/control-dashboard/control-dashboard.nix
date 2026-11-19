@@ -1,8 +1,8 @@
 { inputs, ... }:
 {
   perSystem = { pkgs, ... }: {
-    # Listens to control-events, judges them, and serves the dashboard as
-    # lines of text to browsers and the nvim plugin. See protocol.md.
+    # Listens to control-events, judges them, and serves the dashboard as JSON
+    # to control-mindustry. See protocol.md.
     packages.control-dashboard-server =
       let
         hpkgs = pkgs.haskellPackages;
