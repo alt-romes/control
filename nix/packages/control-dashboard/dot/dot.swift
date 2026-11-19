@@ -62,6 +62,7 @@ final class Dot: NSObject {
         guard case .success(let message) = result else {
           task.cancel()
           self.show(nil)
+          self.item.button?.toolTip = "Can't reach the control-dashboard server."
           DispatchQueue.main.asyncAfter(deadline: .now() + 3) { self.connect() }
           return
         }
@@ -72,7 +73,9 @@ final class Dot: NSObject {
         @unknown default: data = nil
         }
         let view = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
-        self.show(view?["status"] as? String)
+        let connected = view?["connected"] as? Bool ?? false
+        self.show(connected ? view?["status"] as? String : nil)
+        self.item.button?.toolTip = connected ? nil : "The server can't reach the broker."
         self.receive(task)
       }
     }
