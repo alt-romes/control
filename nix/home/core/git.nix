@@ -83,6 +83,7 @@
         } // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           backends.ssh.program = config.programs.git.settings."gpg \"ssh\"".program;
         };
+        snapshot.auto-track = "none()";
       };
     };
 
