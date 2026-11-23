@@ -31,7 +31,7 @@ data Occurred = Occurred
 main :: IO ()
 main = do
   o :: Occurred <- either fail pure . eitherDecode =<< LBS.getContents
-  withConn (script <> "tasks") \c -> handle c o.event o.start o.finished
+  withConn (script <> "satisago/tasks") \c -> handle c o.event o.start o.finished
 
 handle :: Conn s -> EventId -> Timed (EvtMsg Value) -> Timed EvtDone -> IO ()
 handle c e s d = unless ("test/" `T.isPrefixOf` topic) do
