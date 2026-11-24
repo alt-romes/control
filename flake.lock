@@ -94,11 +94,11 @@
     "cob-hs": {
       "flake": false,
       "locked": {
-        "lastModified": 1794707465,
-        "narHash": "sha256-gVg0yKhQqPAHH36T1DiR8sYu2VmqcQRSplyer5cbYLQ=",
+        "lastModified": 1795035118,
+        "narHash": "sha256-C0dmvVkh7WjPGapce2n66Zy7X8ZDNmIvA8t/kCpUEhw=",
         "owner": "alt-romes",
         "repo": "cob-hs",
-        "rev": "c6dce01f655200912e3421f3ea83d7e1f7667313",
+        "rev": "678be69495d6363bad1a992fc4a115fb42c740e7",
         "type": "github"
       },
       "original": {
@@ -143,11 +143,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794178579,
-        "narHash": "sha256-v+Tv+PeuymZ2fWhpixQ3LGIilmHxik8d//ADS3DCB3I=",
+        "lastModified": 1795124640,
+        "narHash": "sha256-D9ff5WqoSydz/t1mIu0Bd7PMLSNaxsc8BHp59ElxDGY=",
         "owner": "alt-romes",
         "repo": "control-events",
-        "rev": "bcaf637081e60676c80cb7b43b1689f26f370ab2",
+        "rev": "2ec3213cf9c668b2be299cb19b0569857532a0a3",
         "type": "github"
       },
       "original": {
@@ -377,11 +377,11 @@
     "kanjideck-fulfillment": {
       "flake": false,
       "locked": {
-        "lastModified": 1794701212,
-        "narHash": "sha256-ppnlKuWcX4oRF7U7z3EM1eLcA7x0atJEocTUFJpWqLY=",
+        "lastModified": 1795128868,
+        "narHash": "sha256-SnA7SJyxxkeazDpyZO4LzgtG/SKP6N0eBUTUqOTEQz4=",
         "ref": "refs/heads/master",
-        "rev": "ebe24eeed4429ee43d86539589c9cc09796fe820",
-        "revCount": 154,
+        "rev": "8f1f55edfde87d0f655b529b92769a75e571b539",
+        "revCount": 155,
         "type": "git",
         "url": "ssh://git@github.com/alt-romes/kanjideck-fulfillment"
       },
