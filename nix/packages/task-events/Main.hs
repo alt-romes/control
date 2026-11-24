@@ -36,20 +36,22 @@ main = do
 handle :: Conn s -> EventId -> Timed (EvtMsg Value) -> Timed EvtDone -> IO ()
 handle c e s d = unless ("test/" `T.isPrefixOf` topic) do
   when (topic == "script/mail/received") $
-    for_ (s.e.content >>= parseMaybe todo) (add . ("+in" :) . words)
+    for_ (s.e.content >>= parseMaybe todo) \subject -> add ("+in" : words subject) []
   for_ (T.stripPrefix "dashboard/problem/" topic) \about ->
     addOnce (T.isPrefixOf (about <> ": ")) "+problem" (T.unpack about <> ": " <> s.e.label)
+      (fromMaybe [] (s.e.content >>= parseMaybe problems))
   for_ (fromMaybe [] d.e.triggers) \t ->
     let task = "Send \"" <> t.triggerLabel <> "\" from " <> T.unpack topic
-     in addOnce (== T.pack task) "+trigger" task
+     in addOnce (== T.pack task) "+trigger" task []
   where
     topic = unTopic e.evtTopic
-    add args = event_ c "add" (simple ("task add +in " <> unwords args) & reacted ?~ e) \_ ->
+    add args notes = event_ c "add" (simple ("task add +in " <> unwords args) & reacted ?~ e) \_ -> do
       runProcess_ (proc "task" ("add" : "+in" : args))
+      for_ notes \n -> runProcess_ (proc "task" ["+LATEST", "annotate", "--", n])
     -- Not while a pending task already says the same.
-    addOnce same tag task = do
+    addOnce same tag task notes = do
       pending :: [Task] <- either fail pure . eitherDecode =<< readProcessStdout_ (proc "task" ["status:pending", "export"])
-      unless (any (same . (.description)) pending) (add ["project:control-system", tag, "--", task])
+      unless (any (same . (.description)) pending) (add ["project:control-system", tag, "--", task] notes)
 
 -- | The subject of a mail to todo@mogbit.com.
 todo :: Value -> Parser String
@@ -57,6 +59,10 @@ todo = withObject "mail" \o -> do
   recipients <- o .: "to"
   guard ("todo@mogbit.com" `isInfixOf` recipients)
   o .: "subject"
+
+-- | Everything wrong, as the dashboard announces a problem.
+problems :: Value -> Parser [String]
+problems = withObject "problem" (.: "problems")
 
 data Task = Task {description :: Text}
   deriving (Generic, FromJSON)
