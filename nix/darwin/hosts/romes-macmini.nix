@@ -121,10 +121,13 @@
 
     # Ships the paid Kanjideck orders we post with CTT: the dashboard sends the
     # ship trigger to prepare a batch, whose run announces the trigger to
-    # expedite it, whose run announces the one to mark it Sent.
+    # expedite it, whose run announces the one to mark it Sent. A batch is also
+    # prepared every Monday night.
     automations.kanjideck-ship = kanjideckShip "ship" "/var/tmp/kanjideck-ship/$(date +%Y-%m-%d-%H%M%S)" // { dashboardTrigger = true; };
     automations.kanjideck-expedite = kanjideckShip "expedite" "";
     automations.kanjideck-sent = kanjideckShip "sent" "";
+    automations.kanjideck-ship-weekly = kanjideckShip "ship" "/var/tmp/kanjideck-ship/$(date +%Y-%m-%d-%H%M%S)"
+      // { on = null; at = { Weekday = 1; Hour = 23; Minute = 0; }; }; # Monday night
 
   
     # --- Packages ---------------------------------------------------------------
