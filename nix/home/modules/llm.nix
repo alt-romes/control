@@ -25,9 +25,37 @@
             being `sed`ed in without consideration for the context in which the
             edit is being done relative to the rest of the module contents.
         '';
+
+      taTaskrc = pkgs.writeText "ta-taskrc" ''
+        hooks=off
+        confirmation=off
+        verbose=new-uuid,affected,label
+        uda.origin.type=string
+        uda.origin.label=Origin
+        uda.owner.type=string
+        uda.owner.label=Owner
+        report.board.description=Pending agent tasks
+        report.board.columns=uuid.short,start.active,owner,project,depends,tags,description.count
+        report.board.labels=UUID,A,Owner,Project,Deps,Tags,Description
+        report.board.filter=status:pending
+        report.board.sort=project+,entry+
+      '';
+
+      ta = pkgs.writeShellApplication {
+        name = "ta";
+        runtimeInputs = [ pkgs.flock ];
+        text = ''
+          export TASKDATA="''${TA_DATA:-$HOME/.local/share/agent-tasks}" TASKRC=${taTaskrc}
+          mkdir -p "$TASKDATA"
+          # Ensure no races on `task start` to claim (this command
+          # specifically would allow racing agents to start the same task)
+          exec flock "$TASKDATA/lock" task "$@"
+        '';
+      };
     in
     {
-    
+      home.packages = [ ta ];
+
       programs.claude-code = {
         enable = true;
         package = inputs.claude-code-nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
@@ -125,6 +153,68 @@
              commands embed double but no single quotes).
 
           5. Report a table: window, `.run` dir, command, failure reason.
+        '';
+
+        skills.agent-tasks = ''
+          ---
+          name: agent-tasks
+          description: Plan and track non-trivial, multi-step work as tasks with dependencies in `ta`, the taskwarrior database shared by all agents, potentially linked to the user's satisago task it serves.
+          ---
+
+          # Agent tasks with `ta`
+
+          `ta` is `task` (taskwarrior) on a database shared by all agents,
+          separate from the user's own. Write agent tasks only with `ta`; use
+          `task` only to read and annotate the user's tasks.
+
+          Refer to tasks by uuid
+
+          ## Fields
+
+          - `project:` always. Use the origin task's project (see `task <origin> information`)
+            with a subproject for this piece of work, e.g. `haskell-debugger.global-breaks`.
+            Without an origin, name it after the repository or thing worked on.
+            Reuse names from `ta projects`.
+          - `origin:<user-uuid>`: the full uuid of the satisago task the work
+            serves. When started from satisago these are the uuids under `Tasks:`
+            in the prompt; with several, each `ta` task takes the one it serves.
+            Omit when there is none.
+          - `depends:<uuid>,<uuid>`: the steps that must be done first.
+          - `owner:` who is working on it, set when claiming.
+          - `+followup`: work noticed that is out of scope, not to be done now.
+          - `+question`: a decision only the user can make.
+          - `+blocked`: waiting on something external.
+          - Annotations: findings, decisions, paths, commands, results; whatever the next
+            agent picking this up would need.
+
+          ## Workflow
+
+          1. Look for existing work first: `ta origin:<uuid> all`, `ta project:<p> board`.
+             Continue it rather than planning again.
+          2. Plan one task per meaningful step, not per command. `ta add` prints
+             `Created task <uuid>.`, to use in later `depends:`.
+             ```
+             ta add project:p.x origin:<uuid> -- Reproduce the crash
+             ta add project:p.x origin:<uuid> depends:<uuid> -- Fix the off-by-one in ...
+             ```
+          3. Loop: `ta project:p.x +READY board`, claim with
+             `ta <uuid> start owner:$CLAUDE_CODE_SESSION_ID`, do the work,
+             `ta <uuid> annotate -- <finding>`, `ta <uuid> done`. If the start fails the task
+             is already started by another agent; take another. To give a task back:
+             `ta <uuid> stop owner:`. Revise the plan as you learn: add steps, change
+             `depends:`, `ta <uuid> delete` what is no longer needed.
+          4. Finish with every task done, deleted, or tagged `+followup`, `+question` or
+             `+blocked` with an annotation explaining it. Then annotate the origin:
+             `task <origin> annotate -- <summary>; agent tasks: ta origin:<origin> all`.
+
+          ## Collaborating
+
+          Other agents and subagents share the database. Hand them the project and the uuids
+          to take and tell them to use this skill. Subagents may share your session id, so tell
+          each to claim under its own name: `ta <uuid> start owner:<name>`.
+
+          `ta board` lists pending tasks with owner and dependencies; `ta <uuid> information`
+          shows one; `ta export` gives JSON.
         '';
       };
     
