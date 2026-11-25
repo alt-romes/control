@@ -10,7 +10,7 @@
       description = "Fetch mail on push and publish a control-events event per new mail.";
     };
 
-    config = {
+    config = lib.mkIf (osConfig ? age && osConfig.age.secrets ? mogbit-mail) {
       services.imapnotify.enable = watched;
       services.imapnotify.package = pkgs.goimapnotify.overrideAttrs (old: {
         # Events with no command (e.g. flag changes) were taking the 1s
