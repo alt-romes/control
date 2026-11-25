@@ -3,11 +3,11 @@ module Main (main) where
 import Control.Monad (unless)
 import Data.Aeson (Value, decode, encode, object, toJSON, (.=))
 import Data.Maybe (fromJust)
-import qualified Data.Text.Lazy as TL
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Lazy as BL
 import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import Model
-import Lucid (renderText)
 import View
 import System.Exit (exitFailure)
 
@@ -81,8 +81,20 @@ main = do
 
   -- The failed run and its unsent trigger need the user, until dismissed.
   let needs x = [(i.topic, i.status, i.problems, length i.sends) | i <- judged now x]
-      has x = all (`TL.isInfixOf` renderText x)
+      has x = all ((`B8.isInfixOf` BL.toStrict (encode x)) . B8.pack)
   check "judged" (needs st) [("script/s", Bad, ["Failed: boom"], 1)]
   check "dismissed" (needs (apply (Dismissed (fromJust (UUID.fromText a))) st)) [("script/s", Fine, [], 0)]
-  check "overview" (has (overview now st (judged now st)) ["Failed: boom", "/api/send", "/api/dismiss", "trigger/go"]) True
-  check "topic" (has (topicView now st' Nothing "script/s") ["Failed: boom", "trigger/x"]) True
+  check "system" (has (system now st (judged now st)) ["Failed: boom", "\"pending\":true", "\"?trigger/x\"", "\"@you\"", "trigger/go"]) True
+  check "reacted" (has (system now st' (judged now st')) ["\"source\":\"script/s\"", "\"target\":\"?trigger/x\""]) True
+  check "topic" (has (topic now st' Nothing "script/s") ["Failed: boom", "trigger/x"]) True
+
+  -- A newer run of the topic doesn't hide what an older one asked for.
+  let g = UUID.toText (UUID.fromWords 4 4 4 4)
+      again = foldl (flip apply) st
+        [ started (eid g "script/s") (object ["at" .= ("2026-11-01T10:02:00Z" :: String), "e" .= object
+            ["rules" .= object ["timeout" .= (60 :: Int)], "label" .= ("s" :: String)]])
+        , finished (toJSON g) (object ["at" .= ("2026-11-01T10:02:01Z" :: String), "e" .= object ["summary" .= ("" :: String), "success" .= True]])
+        ]
+  check "still asked" (needs again) [("script/s", Waiting, [], 1)]
+  check "requests" (has (system now again (judged now again)) ["\"requests\":[{", "\"label\":\"retry\"", "\"sent\":null", "\"actions\":[{\"last\":null,\"topic\":\"trigger/go\"}]"]) True
+  check "answered" (has (system now st' (judged now st')) ["\"sent\":{\"at\":\"2026-11-01T10:06:00Z\""]) True

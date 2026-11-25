@@ -1,6 +1,6 @@
 {-# LANGUAGE NoFieldSelectors #-}
 -- | Listens to everything on the broker through control-events, judges it,
--- announces what goes wrong, and serves the result as a page. See
+-- announces what goes wrong, and serves it to the page in web/. See
 -- ../protocol.md.
 module Main (main) where
 
@@ -24,12 +24,11 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
-import Data.Time (diffUTCTime, getCurrentTime)
+import Data.Time (addUTCTime, diffUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
-import Lucid (renderBS)
 import Model
-import Network.HTTP.Types (hContentType, status200, status400, status404, status500)
+import Network.HTTP.Types (hCacheControl, hContentType, status200, status400, status404, status500)
 import Network.MQTT.Topic (unTopic)
 import Network.Wai (Application, lazyRequestBody, pathInfo, queryString, requestMethod, responseLBS)
 import Network.Wai.Handler.Warp (defaultSettings, runSettings, setHost, setPort)
@@ -38,14 +37,15 @@ import qualified Network.WebSockets as WS
 import System.Directory (createDirectoryIfMissing, doesFileExist, getHomeDirectory)
 import System.Environment (getArgs)
 import System.Exit (ExitCode (..), exitWith)
-import System.FilePath ((</>))
+import System.FilePath (takeExtension, (</>))
 import System.IO
+import Text.Read (readMaybe)
 import View
 
 usage :: String
 usage = unlines
   [ "usage: control-dashboard-server [--host HOST] [--port PORT] [--require TOPIC]... [--trigger TOPIC]... [--logs PATTERN]"
-  , "                                [--session ID | --clean] [--state DIR]"
+  , "                                [--session ID | --clean] [--state DIR] [--web DIR]"
   , ""
   , "  --host, --port    where to serve (default: 127.0.0.1:5001)"
   , "  --require TOPIC   a topic that must have runs, e.g. healthcheck/scrollsent"
@@ -53,14 +53,15 @@ usage = unlines
   , "  --logs PATTERN    where a failed script's log is, %s for the last level of its topic"
   , "  --session ID      the broker session to resume (default: control-dashboard)"
   , "  --clean           no broker session: miss whatever happens while closed"
-  , "  --state DIR       history (default: ~/.local/state/control-dashboard)" ]
+  , "  --state DIR       history (default: ~/.local/state/control-dashboard)"
+  , "  --web DIR         the page to serve" ]
 
-data Opts = Opts {host :: String, port :: Int, require :: [Text], offered :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath}
+data Opts = Opts {host :: String, port :: Int, require :: [Text], offered :: [Text], logs :: Maybe String, session :: Maybe String, state :: FilePath, web :: Maybe FilePath}
 
 opts :: IO Opts
 opts = do
   home <- getHomeDirectory
-  getArgs >>= go (Opts "127.0.0.1" 5001 [] [] Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard"))
+  getArgs >>= go (Opts "127.0.0.1" 5001 [] [] Nothing (Just "control-dashboard") (home </> ".local/state/control-dashboard") Nothing)
   where
     go o = \case
       [] -> pure o
@@ -72,6 +73,7 @@ opts = do
       "--session" : v : as -> go o {session = Just v} as
       "--clean" : as -> go o {session = Nothing} as
       "--state" : v : as -> go o {state = v} as
+      "--web" : v : as -> go o {web = Just v} as
       ["-h"] -> hPutStr stderr usage >> exitWith ExitSuccess
       a : _ -> hPutStr stderr ("unknown argument " <> a <> "\n" <> usage) >> exitWith (ExitFailure 2)
 
@@ -204,15 +206,22 @@ newtype Dismiss = Dismiss {run :: UUID}
 
 http :: Opts -> Env -> Application
 http o env req respond = case (requestMethod req, pathInfo req) of
-  ("GET", []) -> respond . responseLBS status200 [(hContentType, "text/html; charset=utf-8")] . renderBS =<< shown
-  ("GET", ["api", "status"]) -> respond . responseLBS status200 [(hContentType, "application/json")] =<< readTVarIO env.view
+  ("GET", ["api", "status"]) -> json =<< readTVarIO env.view
+  ("GET", ["api", "system"]) -> json . encode . (\(now, s) -> system now s (judged now s)) =<< snapshot
+  ("GET", ["api", "runs"]) -> do
+    (now, s) <- snapshot
+    let hours = fromMaybe 6 (readMaybe . T.unpack =<< param "hours") :: Integer
+    json (encode (runsSince now s (addUTCTime (fromIntegral (-3600 * hours)) now)))
+  ("GET", ["api", "topic"]) | Just t <- param "topic" -> do
+    (now, s) <- snapshot
+    json . encode . (\l -> topic now s l t) =<< logOf t
   ("POST", ["api", "send"]) -> do
     body <- lazyRequestBody req
     s <- readTVarIO env.st
     case decode body of
-      Just (Send i n) | Just r <- Map.lookup i s.runs, Just t <- lookup n (zip [0 ..] (foldMap (fromMaybe [] . (.e.triggers)) r.end)) ->
+      Just (Send i n) | Just r <- Map.lookup i s.runs, not (Set.member i s.dismissed), Just t <- lookup n (pendingTriggers (index s) r) ->
         sent (sendTrigger r t)
-      _ -> text status400 "No such trigger."
+      _ -> text status400 "This trigger doesn't wait to be sent: it was sent or dismissed already."
   ("POST", ["api", "trigger"]) -> do
     body <- lazyRequestBody req
     s <- readTVarIO env.st
@@ -225,18 +234,21 @@ http o env req respond = case (requestMethod req, pathInfo req) of
     case decode body of
       Just (Dismiss i) | Map.member i s.runs -> env.record (Dismissed i) >> text status200 "Dismissed"
       _ -> text status400 "No such run."
+  ("GET", p) | Just dir <- o.web, not (any ("." `T.isPrefixOf`) p) -> do
+    let f = foldl (</>) dir (map T.unpack (if null p then ["index.html"] else p))
+    try @IOException (B8.readFile f) >>= either (const (text status404 "Not found.")) (respond . responseLBS status200 [(hContentType, mime f), (hCacheControl, "no-cache")] . BL8.fromStrict)
   _ -> text status404 "Not found."
   where
     param k = T.decodeUtf8 <$> (lookup k (queryString req) >>= id)
     text s = respond . responseLBS s [(hContentType, "text/plain; charset=utf-8")] . BL8.fromStrict . T.encodeUtf8
+    json = respond . responseLBS status200 [(hContentType, "application/json")]
+    snapshot = (,) <$> getCurrentTime <*> readTVarIO env.st
     sent act = try @SomeException act >>= either (text status500 . T.pack . displayException) (const (text status200 "Sent"))
-    -- The overview, or the topic asked for.
-    shown = do
-      (now, s) <- (,) <$> getCurrentTime <*> readTVarIO env.st
-      let is = judged now s
-      page (summarise s is) (param "topic") <$> case param "topic" of
-        Nothing -> pure (overview now s is)
-        Just t -> (\l -> topicView now s l t) <$> logOf t
+    mime f = case takeExtension f of
+      ".html" -> "text/html; charset=utf-8"
+      ".js" -> "text/javascript; charset=utf-8"
+      ".css" -> "text/css; charset=utf-8"
+      _ -> "application/octet-stream"
     -- Only a log that's there: a missing one says nothing about the run.
     logOf t = case o.logs of
       Just p -> either (const Nothing) (Just . T.unlines . lastN 30 . filter (not . T.null . T.strip) . T.lines)

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="kingdom.css">
+<script src="vendor/d3.min.js"></script>
+<script src="vendor/simplex-noise.js"></script>
+<script src="vendor/elk.bundled.js"></script>
+<script src="vendor/echarts.min.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="vendor/SkeletonUtils.js"></script>
+</head>
+<body>
+<header>
+  <a href="#" data-select="">Control</a>
+  <span id="state"></span>
+  <button id="music" title="Music">♪ Music</button>
+</header>
+<main>
+  <section id="map"><canvas id="world"></canvas><div id="labels"></div><section id="board"></section><p id="toast" hidden></p></section>
+  <aside id="inspector"></aside>
+</main>
+<div id="tip" hidden></div>
+<script src="kingdom.js"></script>
+<script src="kingdom-land.js"></script>
+<script src="kingdom-life.js"></script>
+<script src="kingdom-world.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

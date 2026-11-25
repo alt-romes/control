@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               control-dashboard-server
-version:            0.3.0
+version:            0.4.0
 synopsis:           Judges what control-events say, and serves the dashboard
 build-type:         Simple
 
@@ -24,7 +24,6 @@ common shared
     , containers
     , control-events
     , http-types
-    , lucid
     , directory
     , filepath
     , net-mqtt

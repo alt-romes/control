@@ -1,7 +1,7 @@
 -- | What the runs seen on the broker say about the system.
 module Model
   ( Run (..), Logged (..), State (..), Index (..)
-  , apply, setConnected, topicOf, index, latest, problems, pendingTriggers, awaitedReactions, graph, matches, duration, fmtDuration, firstLine
+  , apply, setConnected, topicOf, index, related, latest, problems, pendingTriggers, awaitedReactions, own, runsOf, matches, duration, fmtDuration, firstLine
   , Health (..), Tick (..), tick, trace
   ) where
 
@@ -10,7 +10,7 @@ import Data.Aeson (FromJSON, ToJSON (..), Value (..))
 import Data.List (sortOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isNothing, listToMaybe, mapMaybe, maybeToList)
+import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, mapMaybe, maybeToList)
 import Data.Ord (Down (..))
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -165,20 +165,14 @@ problems now st ix r =
     gap = diffUTCTime (fromMaybe now next) r.start.at
     leaf = last . T.splitOn "/"
 
--- | Topics worth a line of their own, and which led to which: what each
--- topic's latest run reacted to. Machines and services are listed apart,
--- subtasks live inside their parent's runs, and a trigger links its announcer
--- to whatever reacted, under its label.
-graph :: State -> ([Text], [(Text, Text, Maybe Text)])
-graph st = (nodes, plain ++ viaTriggers)
-  where
-    edges rs kind = Set.toList (Set.fromList [(unTopic p.evtTopic, topicOf r) | r <- rs, p <- kind r.start.e])
-    scoped = Set.fromList (map snd (edges (Map.elems st.runs) (maybeToList . (.scope))))
-    reactions = edges (mapMaybe (latest st) (Map.keys st.byTopic)) (fromMaybe [] . (.reactTo))
-    hidden t = any (`T.isPrefixOf` t) ["system/", "healthcheck/", "trigger/", "dashboard/"] || Set.member t scoped
-    nodes = filter (not . hidden) (Set.toList (Set.fromList (Map.keys st.byTopic ++ st.required ++ concat [[a, b] | (a, b) <- reactions])))
-    plain = [(a, b, Nothing) | (a, b) <- reactions, a /= b, not (hidden a), not (hidden b)]
-    viaTriggers = [(a, b, (\r -> T.pack r.start.e.label) <$> latest st t) | (t, b) <- reactions, "trigger/" `T.isPrefixOf` t, not (hidden b), (a, t') <- reactions, t' == t, not (hidden a)]
+-- | Whether a topic is judged on its own: triggers and the dashboard's own
+-- announcements aren't, and subtasks are judged within their parent's runs.
+own :: State -> Text -> Bool
+own st t = not (any (`T.isPrefixOf` t) ["trigger/", "dashboard/"] || any (isJust . (.start.e.scope)) (runsOf st t))
+
+-- | Newest first.
+runsOf :: State -> Text -> [Run]
+runsOf st t = mapMaybe (`Map.lookup` st.runs) (Map.findWithDefault [] t st.byTopic)
 
 -- | MQTT topic filter matching, with @+@ and @#@.
 matches :: Text -> Text -> Bool
