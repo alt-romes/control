@@ -206,6 +206,8 @@
           4. Finish with every task done, deleted, or tagged `+followup`, `+question` or
              `+blocked` with an annotation explaining it. Then annotate the origin:
              `task <origin> annotate -- <summary>; agent tasks: ta origin:<origin> all`.
+             Never, ever close the origin task (`done`, `delete`, or otherwise), even when
+             the work seems finished: only the user closes it.
 
           ## Collaborating
 
