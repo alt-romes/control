@@ -27,6 +27,7 @@
         '';
 
       taTaskrc = pkgs.writeText "ta-taskrc" ''
+        include light-256.theme
         hooks=off
         confirmation=off
         verbose=new-uuid,affected,label
