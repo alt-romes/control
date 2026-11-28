@@ -586,7 +586,8 @@
         "nixpkgs": "nixpkgs",
         "nixvim": "nixvim",
         "supvan-cups": "supvan-cups",
-        "systems": "systems"
+        "systems": "systems",
+        "vlens-nvim": "vlens-nvim"
       }
     },
     "spectrum": {
@@ -634,6 +635,26 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
+      }
+    },
+    "vlens-nvim": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795866744,
+        "narHash": "sha256-JbLELeFidzgwl/Z9VCNKdADNscYPiKEsEYUQYEjAaug=",
+        "ref": "refs/heads/master",
+        "rev": "859c612cafdda380af7f4121b4c7068260dd5c24",
+        "revCount": 1,
+        "type": "git",
+        "url": "ssh://git@github.com/alt-romes/vlens.nvim"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/alt-romes/vlens.nvim"
       }
     }
   },

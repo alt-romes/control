@@ -39,6 +39,7 @@
     janestreet-agent-skills.flake = false;
     fetch-gitlab.url    = "github:AndreasPK/fetch-gitlab";
     fetch-gitlab.flake  = false;
+    vlens-nvim.url      = "git+ssh://git@github.com/alt-romes/vlens.nvim";
 
     # Follow nixpkgs
     nix-darwin.inputs.nixpkgs.follows      = "nixpkgs";
@@ -54,6 +55,7 @@
     nix-doom-emacs-unstraightened.inputs.nixpkgs.follows = "nixpkgs";
     cob-cli.inputs.nixpkgs.follows         = "nixpkgs";
     control-events.inputs.nixpkgs.follows  = "nixpkgs";
+    vlens-nvim.inputs.nixpkgs.follows      = "nixpkgs";
 
     # Follow flake-utils (we don't use it, flake-parts is much better, but many deps do)
     flake-utils.url = "github:numtide/flake-utils";
